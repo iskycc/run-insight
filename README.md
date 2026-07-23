@@ -146,11 +146,51 @@ npm test
 npx jest --coverage
 ```
 
-## 部署
+## Docker 部署
 
-```bash
-npm run build
-npm run start
+项目提供 `docker-compose.yaml`，用于拉取已发布的 Docker Hub 镜像并启动 MariaDB。
+
+默认应用镜像：
+
+```text
+iskycc/run-insight:latest
 ```
 
-需确保环境变量 `DATABASE_URL` 和 `JWT_SECRET` 已配置，数据库迁移已执行。
+启动：
+
+```bash
+docker compose up -d
+```
+
+首次启动流程：
+
+1. `db` 启动 MariaDB，并暴露到宿主机 `3307`。
+2. `migrate` 使用同一个应用镜像执行 `prisma migrate deploy` 自动建表。
+3. `app` 在迁移成功后启动，访问地址为 http://localhost:3000 。
+
+查看状态和日志：
+
+```bash
+docker compose ps
+docker compose logs -f app
+```
+
+停止：
+
+```bash
+docker compose down
+```
+
+清空数据库数据：
+
+```bash
+docker compose down -v
+```
+
+生产部署时请设置强随机 `JWT_SECRET`：
+
+```bash
+JWT_SECRET=replace-with-a-long-random-secret docker compose up -d
+```
+
+如果需要使用外部数据库，可以只启动应用并覆盖 `DATABASE_URL`，或调整 `docker-compose.yaml` 中的数据库连接串。

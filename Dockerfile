@@ -9,6 +9,10 @@ COPY package.json package-lock.json ./
 RUN npm config set registry https://registry.npmjs.org/ \
   && npm ci
 
+FROM base AS prisma-deps
+RUN npm config set registry https://registry.npmjs.org/ \
+  && npm install --omit=dev --no-save prisma@7.9.0 dotenv@17.4.2
+
 FROM base AS builder
 ENV NODE_ENV=production
 
@@ -34,7 +38,11 @@ RUN addgroup --system --gid 1001 nodejs \
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=prisma-deps --chown=nextjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nextjs:nodejs /app/src/generated ./src/generated
+COPY --from=builder --chown=nextjs:nodejs /app/prisma.config.ts ./prisma.config.ts
+COPY --from=builder --chown=nextjs:nodejs /app/prisma/schema.prisma ./prisma/schema.prisma
+COPY --from=builder --chown=nextjs:nodejs /app/prisma/migrations ./prisma/migrations
 
 USER nextjs
 

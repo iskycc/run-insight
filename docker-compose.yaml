@@ -1,0 +1,53 @@
+name: run-insight
+
+services:
+  db:
+    image: mariadb:11.4
+    container_name: run-insight-db
+    environment:
+      MARIADB_DATABASE: run_insight
+      MARIADB_USER: run_insight
+      MARIADB_PASSWORD: run_insight_password
+      MARIADB_ROOT_PASSWORD: root_password
+    ports:
+      - "3307:3306"
+    volumes:
+      - run-insight-db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mariadb-admin ping -h 127.0.0.1 -u root -p$$MARIADB_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+    restart: unless-stopped
+
+  migrate:
+    image: iskycc/run-insight:latest
+    container_name: run-insight-migrate
+    environment:
+      DATABASE_URL: mysql://run_insight:run_insight_password@db:3306/run_insight
+      JWT_SECRET: ${JWT_SECRET:-run-insight-local-dev-secret}
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["node", "node_modules/prisma/build/index.js", "migrate", "deploy"]
+    restart: "no"
+
+  app:
+    image: iskycc/run-insight:latest
+    container_name: run-insight-app
+    environment:
+      DATABASE_URL: mysql://run_insight:run_insight_password@db:3306/run_insight
+      JWT_SECRET: ${JWT_SECRET:-run-insight-local-dev-secret}
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+    ports:
+      - "3000:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  run-insight-db-data:
