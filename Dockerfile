@@ -6,7 +6,8 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 FROM base AS deps
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm config set registry https://registry.npmjs.org/ \
+  && npm ci
 
 FROM base AS builder
 ENV NODE_ENV=production
