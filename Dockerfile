@@ -14,6 +14,7 @@ ENV NODE_ENV=production
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+RUN mkdir -p public
 RUN DATABASE_URL=mysql://root:password@127.0.0.1:3306/run_insight npx prisma generate
 RUN DATABASE_URL=mysql://root:password@127.0.0.1:3306/run_insight \
   JWT_SECRET=build-time-placeholder \
