@@ -1,26 +1,167 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Colors */
+  --color-bg: var(--color-bg-val);
+  --color-surface: var(--color-surface-val);
+  --color-surface-solid: var(--color-surface-solid-val);
+  --color-border: var(--color-border-val);
+  --color-text-primary: var(--color-text-primary-val);
+  --color-text-secondary: var(--color-text-secondary-val);
+  --color-accent: var(--color-accent-val);
+  --color-accent-hover: var(--color-accent-hover-val);
+  --color-success: var(--color-success-val);
+  --color-warning: var(--color-warning-val);
+  --color-danger: var(--color-danger-val);
+  --color-info: var(--color-info-val);
+
+  /* Progress category colors */
+  --color-progress-pending: var(--color-progress-pending);
+  --color-progress-analyzing: var(--color-progress-analyzing);
+  --color-progress-located: var(--color-progress-located);
+  --color-progress-fixed: var(--color-progress-fixed);
+  --color-progress-not-issue: var(--color-progress-not-issue);
+  --color-progress-blocked: var(--color-progress-blocked);
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.08);
+
+  /* Spacing */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --spacing-2xl: 48px;
+
+  /* Fonts */
+  --font-sans: var(--font-sans-val);
+  --font-mono: var(--font-mono-val);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+:root {
+  /* Colors */
+  --color-bg-val: #f5f5f7;
+  --color-surface-val: rgba(255, 255, 255, 0.72);
+  --color-surface-solid-val: #ffffff;
+  --color-border-val: rgba(0, 0, 0, 0.06);
+  --color-text-primary-val: #1d1d1f;
+  --color-text-secondary-val: #86868b;
+  --color-accent-val: #0071e3;
+  --color-accent-hover-val: #0077ed;
+  --color-success-val: #34c759;
+  --color-warning-val: #ff9f0a;
+  --color-danger-val: #ff3b30;
+  --color-info-val: #5ac8fa;
+
+  /* Progress category colors */
+  --color-progress-pending: #8e8e93;
+  --color-progress-analyzing: #ff9f0a;
+  --color-progress-located: #ff3b30;
+  --color-progress-fixed: #34c759;
+  --color-progress-not-issue: #5ac8fa;
+  --color-progress-blocked: #af52de;
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.08);
+
+  /* Spacing */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+
+  /* Fonts */
+  --font-sans-val: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+  --font-mono-val: 'SF Mono', SFMono-Regular, Menlo, monospace;
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    font-family: var(--font-sans-val);
+    background-color: var(--color-bg-val);
+    color: var(--color-text-primary-val);
+    line-height: 1.5;
+  }
+
+  a {
+    color: var(--color-accent-val);
+    text-decoration: none;
+  }
+
+  a:hover {
+    color: var(--color-accent-hover-val);
+    text-decoration: underline;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.25);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer components {
+  /* Card — frosted glass */
+  .card {
+    background: var(--color-surface-val);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--color-border-val);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+  }
+
+  /* Card — solid */
+  .card-solid {
+    background: var(--color-surface-solid-val);
+    border: 1px solid var(--color-border-val);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+  }
 }

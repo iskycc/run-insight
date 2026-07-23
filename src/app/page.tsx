@@ -1,65 +1,81 @@
-import Image from "next/image";
+'use client';
 
-export default function Home() {
+import { useEffect, useState } from 'react';
+import StatCard from '@/components/dashboard/StatCard';
+import ProgressDistribution from '@/components/dashboard/ProgressDistribution';
+import TrendChart from '@/components/dashboard/TrendChart';
+import { useAuth } from '@/components/shared/AuthProvider';
+import type { DashboardStatsResponse, TrendResponse } from '@/types';
+
+export default function DashboardPage() {
+  const { user, isLoading: authLoading } = useAuth();
+  const [stats, setStats] = useState<DashboardStatsResponse | null>(null);
+  const [trend, setTrend] = useState<TrendResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const [statsRes, trendRes] = await Promise.all([
+          fetch('/api/stats/dashboard'),
+          fetch('/api/stats/trend?limit=10'),
+        ]);
+
+        if (statsRes.ok) {
+          const data: DashboardStatsResponse = await statsRes.json();
+          setStats(data);
+        }
+
+        if (trendRes.ok) {
+          const data: TrendResponse = await trendRes.json();
+          setTrend(data);
+        }
+
+        if (!statsRes.ok && !trendRes.ok) {
+          setError('加载数据失败');
+        }
+      } catch {
+        setError('网络错误');
+      }
+    }
+    fetchData();
+  }, []);
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center p-xl">
+        <p className="text-sm text-[var(--color-danger)]">{error}</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <div className="space-y-6 p-xl">
+      {/* Stat cards */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
+        <StatCard title="项目数" value={stats?.projectCount ?? 0} />
+        <StatCard title="测试阶段数" value={stats?.testStageCount ?? 0} />
+        <StatCard title="批跑数" value={stats?.batchScopeCount ?? 0} />
+        <StatCard title="用例总数" value={stats?.totalCaseCount ?? 0} />
+        <StatCard title="失败数" value={stats?.failedCaseCount ?? 0} />
+        <StatCard title="已分析数" value={stats?.analyzedCaseCount ?? 0} />
+        <StatCard title="资产数" value={stats?.assetCount ?? 0} />
+      </div>
+
+      {/* Charts */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <ProgressDistribution data={stats?.progressDistribution ?? []} />
+        <TrendChart data={trend?.trends ?? []} />
+      </div>
+
+      {/* Login prompt */}
+      {!authLoading && !user && (
+        <div className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface-solid)] p-6 text-center shadow-[var(--shadow-sm)]">
+          <p className="text-sm text-[var(--color-text-secondary)]">
+            登录后可查看详细数据、分析用例和保存资产
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+      )}
     </div>
   );
 }

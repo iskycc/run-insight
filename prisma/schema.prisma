@@ -1,0 +1,81 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  password  String
+  createdAt DateTime @default(now())
+}
+
+model Project {
+  id        String       @id @default(cuid())
+  name      String       @unique
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  stages    TestStage[]
+  cases     CaseResult[]
+  batches   BatchScope[]
+}
+
+model TestStage {
+  id        String       @id @default(cuid())
+  projectId String
+  name      String
+  project   Project      @relation(fields: [projectId], references: [id])
+  batches   BatchScope[]
+  cases     CaseResult[]
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@unique([projectId, name])
+}
+
+model BatchScope {
+  id          String       @id @default(cuid())
+  projectId   String
+  testStageId String
+  name        String
+  project     Project      @relation(fields: [projectId], references: [id])
+  stage       TestStage    @relation(fields: [testStageId], references: [id])
+  cases       CaseResult[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([projectId, testStageId, name])
+}
+
+model CaseResult {
+  id               String     @id @default(cuid())
+  caseNo           String
+  name             String
+  resultSummary    String
+  logUrl           String?
+  projectId        String
+  testStageId      String
+  batchScopeId     String
+  assignee         String?
+  progressCategory String?
+  rootCause        String?
+  mrOrTicket       String?
+  assetSaved       Boolean    @default(false)
+  project          Project    @relation(fields: [projectId], references: [id])
+  stage            TestStage  @relation(fields: [testStageId], references: [id])
+  batchScope       BatchScope @relation(fields: [batchScopeId], references: [id])
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  @@unique([projectId, testStageId, batchScopeId, caseNo])
+  @@index([projectId, resultSummary])
+  @@index([testStageId, resultSummary])
+  @@index([batchScopeId, resultSummary])
+  @@index([batchScopeId, progressCategory])
+  @@index([projectId, progressCategory])
+  @@index([assetSaved])
+}
