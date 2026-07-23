@@ -5,8 +5,17 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
+function getDatabaseUrl() {
+  const rawUrl = process.env.DATABASE_URL;
+  if (!rawUrl) {
+    throw new Error("DATABASE_URL environment variable is required");
+  }
+
+  return rawUrl.trim().replace(/^(['"])(.*)\1$/, "$2");
+}
+
 function createPrismaClient() {
-  const url = new URL(process.env.DATABASE_URL!);
+  const url = new URL(getDatabaseUrl());
   const adapter = new PrismaMariaDb({
     host: url.hostname || "127.0.0.1",
     port: Number(url.port) || 3306,
