@@ -141,7 +141,7 @@ export async function POST(request: NextRequest) {
         totalRows: rows.length,
         importedCount: result.count,
         errorCount: errors.length,
-        errors: errors.length > 0 ? errors : undefined,
+        errors: errors.length > 0 ? (errors as any) : undefined,
         userId: isApiKey ? "api-key" : authResult.userId,
       },
     });

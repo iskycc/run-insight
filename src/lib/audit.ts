@@ -8,7 +8,7 @@ export async function writeAuditLog(params: {
   changes?: unknown;
 }) {
   try {
-    await prisma.auditLog.create({ data: params });
+    await prisma.auditLog.create({ data: params } as any);
   } catch {
     // Log write failure should not affect main operation
   }

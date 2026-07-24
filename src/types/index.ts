@@ -162,6 +162,7 @@ export interface UpdateCaseRequest {
   progressCategory?: ProgressCategory;
   rootCause?: string;
   mrOrTicket?: string;
+  notes?: string;
   assetSaved?: boolean;
 }
 
