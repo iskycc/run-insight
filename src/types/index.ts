@@ -366,3 +366,19 @@ export interface UpdateUserRequest {
 export interface UsersResponse {
   users: UserWithRole[];
 }
+
+// ============ API Key ============
+
+export interface ApiKeyResponse {
+  id: string;
+  description: string;
+  createdAt: string;
+}
+
+export interface ApiKeyCreateResponse extends ApiKeyResponse {
+  key: string;
+}
+
+export interface ApiKeysListResponse {
+  keys: ApiKeyResponse[];
+}
