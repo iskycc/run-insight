@@ -295,3 +295,28 @@ export interface MatrixResponse {
 // ============ 导出 ============
 
 export type ExportFormat = "csv" | "json";
+
+// ============ 导入历史 ============
+
+export interface ImportRecordDTO {
+  id: string;
+  projectId: string;
+  importType: string;
+  fileName: string;
+  totalRows: number;
+  importedCount: number;
+  errorCount: number;
+  userId: string;
+  createdAt: string;
+}
+
+export interface ImportRecordDetail extends ImportRecordDTO {
+  errors: ValidationError[] | null;
+}
+
+export interface ImportHistoryResponse {
+  records: ImportRecordDTO[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
