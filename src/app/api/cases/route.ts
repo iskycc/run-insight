@@ -21,6 +21,7 @@ export async function GET(request: NextRequest) {
     const batchScopeId = searchParams.get("batchScopeId") || undefined;
     const progressCategory = searchParams.get("progressCategory") || undefined;
     const assetSavedStr = searchParams.get("assetSaved") || undefined;
+    const search = searchParams.get("search") || undefined;
     const page = Math.max(1, Number(searchParams.get("page")) || 1);
     const pageSize = Math.min(100, Math.max(1, Number(searchParams.get("pageSize")) || 20));
 
@@ -30,6 +31,12 @@ export async function GET(request: NextRequest) {
     if (batchScopeId) where.batchScopeId = batchScopeId;
     if (progressCategory) where.progressCategory = progressCategory;
     if (assetSavedStr !== undefined) where.assetSaved = assetSavedStr === "true";
+    if (search) {
+      where.OR = [
+        { caseNo: { contains: search } },
+        { name: { contains: search } },
+      ];
+    }
 
     const [cases, total] = await Promise.all([
       prisma.caseResult.findMany({
