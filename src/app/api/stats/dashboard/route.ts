@@ -5,6 +5,11 @@ import type { DashboardStatsResponse } from "@/types";
 import { PROGRESS_LABELS } from "@/types";
 import type { ProgressCategory } from "@/types";
 
+function percentage(part: number, total: number) {
+  if (total === 0) return 0;
+  return Number(((part / total) * 100).toFixed(1));
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -39,13 +44,19 @@ export async function GET(request: NextRequest) {
 
     const [
       totalCaseCount,
+      passedCaseCount,
       failedCaseCount,
+      blockedCaseCount,
+      skippedCaseCount,
       analyzedCaseCount,
       assetCount,
       progressGrouped,
     ] = await Promise.all([
       prisma.caseResult.count({ where }),
+      prisma.caseResult.count({ where: { ...where, resultSummary: "PASS" } }),
       prisma.caseResult.count({ where: { ...where, resultSummary: "FAIL" } }),
+      prisma.caseResult.count({ where: { ...where, resultSummary: "BLOCK" } }),
+      prisma.caseResult.count({ where: { ...where, resultSummary: "SKIP" } }),
       prisma.caseResult.count({
         where: {
           ...where,
@@ -68,12 +79,20 @@ export async function GET(request: NextRequest) {
       }))
       .filter((d) => d.count > 0);
 
+    const passRate = percentage(passedCaseCount, totalCaseCount);
+    const failRate = percentage(failedCaseCount, totalCaseCount);
+
     return NextResponse.json<DashboardStatsResponse>({
       projectCount,
       testStageCount,
       batchScopeCount,
       totalCaseCount,
+      passedCaseCount,
       failedCaseCount,
+      blockedCaseCount,
+      skippedCaseCount,
+      passRate,
+      failRate,
       analyzedCaseCount,
       assetCount,
       progressDistribution,

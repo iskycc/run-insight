@@ -8,6 +8,10 @@ import { PageContainer } from '@/components/layout/PageContainer';
 import { useAuth } from '@/components/shared/AuthProvider';
 import type { DashboardStatsResponse, TrendResponse } from '@/types';
 
+function formatRate(value?: number) {
+  return `${(value ?? 0).toFixed(1)}%`;
+}
+
 export default function DashboardPage() {
   const { user, isLoading: authLoading } = useAuth();
   const [stats, setStats] = useState<DashboardStatsResponse | null>(null);
@@ -55,29 +59,31 @@ export default function DashboardPage() {
   return (
     <PageContainer title="质量大盘" subtitle="跨项目追踪批跑结果、分析进度与资产沉淀">
       <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
-        <StatCard title="项目数" value={stats?.projectCount ?? 0} />
-        <StatCard title="测试阶段数" value={stats?.testStageCount ?? 0} />
-        <StatCard title="批跑数" value={stats?.batchScopeCount ?? 0} />
-        <StatCard title="用例总数" value={stats?.totalCaseCount ?? 0} />
-        <StatCard title="失败数" value={stats?.failedCaseCount ?? 0} />
-        <StatCard title="已分析数" value={stats?.analyzedCaseCount ?? 0} />
-        <StatCard title="资产数" value={stats?.assetCount ?? 0} />
-      </div>
-
-      {/* Charts */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <ProgressDistribution data={stats?.progressDistribution ?? []} />
-        <TrendChart data={trend?.trends ?? []} />
-      </div>
-
-      {!authLoading && !user && (
-        <div className="panel flex items-center justify-center p-5 text-center">
-          <p className="text-sm text-text-secondary">
-            登录后可查看详细数据、分析用例和保存资产
-          </p>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+          <StatCard title="通过率" value={formatRate(stats?.passRate)} />
+          <StatCard title="失败率" value={formatRate(stats?.failRate)} />
+          <StatCard title="通过用例" value={stats?.passedCaseCount ?? 0} />
+          <StatCard title="失败用例" value={stats?.failedCaseCount ?? 0} />
+          <StatCard title="用例总数" value={stats?.totalCaseCount ?? 0} />
+          <StatCard title="阻塞用例" value={stats?.blockedCaseCount ?? 0} />
+          <StatCard title="跳过用例" value={stats?.skippedCaseCount ?? 0} />
+          <StatCard title="已分析数" value={stats?.analyzedCaseCount ?? 0} />
+          <StatCard title="资产数" value={stats?.assetCount ?? 0} />
+          <StatCard title="批跑数" value={stats?.batchScopeCount ?? 0} />
         </div>
-      )}
+
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.35fr)]">
+          <ProgressDistribution data={stats?.progressDistribution ?? []} />
+          <TrendChart data={trend?.trends ?? []} />
+        </div>
+
+        {!authLoading && !user && (
+          <div className="panel flex items-center justify-center p-5 text-center">
+            <p className="text-sm text-text-secondary">
+              登录后可查看详细数据、分析用例和保存资产
+            </p>
+          </div>
+        )}
       </div>
     </PageContainer>
   );

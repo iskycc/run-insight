@@ -21,6 +21,33 @@ function createRequest(url: string, options?: Record<string, unknown>): NextRequ
   return new NextRequest(new URL(url, "http://localhost:3000"), options as RequestInit);
 }
 
+function mockDashboardCaseCounts({
+  total,
+  passed = 0,
+  failed = 0,
+  blocked = 0,
+  skipped = 0,
+  analyzed = 0,
+  assets = 0,
+}: {
+  total: number;
+  passed?: number;
+  failed?: number;
+  blocked?: number;
+  skipped?: number;
+  analyzed?: number;
+  assets?: number;
+}) {
+  (mockPrisma.caseResult.count as jest.Mock)
+    .mockResolvedValueOnce(total)
+    .mockResolvedValueOnce(passed)
+    .mockResolvedValueOnce(failed)
+    .mockResolvedValueOnce(blocked)
+    .mockResolvedValueOnce(skipped)
+    .mockResolvedValueOnce(analyzed)
+    .mockResolvedValueOnce(assets);
+}
+
 describe("GET /api/stats/dashboard", () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -30,11 +57,15 @@ describe("GET /api/stats/dashboard", () => {
     (mockPrisma.project.count as jest.Mock).mockResolvedValue(2);
     (mockPrisma.testStage.count as jest.Mock).mockResolvedValue(3);
     (mockPrisma.batchScope.count as jest.Mock).mockResolvedValue(5);
-    (mockPrisma.caseResult.count as jest.Mock)
-      .mockResolvedValueOnce(100)   // totalCaseCount
-      .mockResolvedValueOnce(30)    // failedCaseCount
-      .mockResolvedValueOnce(20)    // analyzedCaseCount
-      .mockResolvedValueOnce(10);   // assetCount
+    mockDashboardCaseCounts({
+      total: 100,
+      passed: 55,
+      failed: 30,
+      blocked: 5,
+      skipped: 10,
+      analyzed: 20,
+      assets: 10,
+    });
     (mockPrisma.caseResult.groupBy as jest.Mock).mockResolvedValue([
       { progressCategory: "LOCATED", _count: { _all: 10 } },
       { progressCategory: "FIXED", _count: { _all: 8 } },
@@ -49,7 +80,12 @@ describe("GET /api/stats/dashboard", () => {
     expect(body.testStageCount).toBe(3);
     expect(body.batchScopeCount).toBe(5);
     expect(body.totalCaseCount).toBe(100);
+    expect(body.passedCaseCount).toBe(55);
     expect(body.failedCaseCount).toBe(30);
+    expect(body.blockedCaseCount).toBe(5);
+    expect(body.skippedCaseCount).toBe(10);
+    expect(body.passRate).toBe(55);
+    expect(body.failRate).toBe(30);
     expect(body.analyzedCaseCount).toBe(20);
     expect(body.assetCount).toBe(10);
     expect(body.progressDistribution).toHaveLength(2);
@@ -67,11 +103,7 @@ describe("GET /api/stats/dashboard", () => {
     (mockPrisma.project.count as jest.Mock).mockResolvedValue(1);
     (mockPrisma.testStage.count as jest.Mock).mockResolvedValue(2);
     (mockPrisma.batchScope.count as jest.Mock).mockResolvedValue(3);
-    (mockPrisma.caseResult.count as jest.Mock)
-      .mockResolvedValueOnce(50)
-      .mockResolvedValueOnce(10)
-      .mockResolvedValueOnce(5)
-      .mockResolvedValueOnce(2);
+    mockDashboardCaseCounts({ total: 50, passed: 35, failed: 10, analyzed: 5, assets: 2 });
     (mockPrisma.caseResult.groupBy as jest.Mock).mockResolvedValue([]);
 
     const req = createRequest("/api/stats/dashboard?projectId=p1");
@@ -94,11 +126,7 @@ describe("GET /api/stats/dashboard", () => {
     (mockPrisma.project.count as jest.Mock).mockResolvedValue(2);
     (mockPrisma.testStage.count as jest.Mock).mockResolvedValue(1);
     (mockPrisma.batchScope.count as jest.Mock).mockResolvedValue(3);
-    (mockPrisma.caseResult.count as jest.Mock)
-      .mockResolvedValueOnce(40)
-      .mockResolvedValueOnce(8)
-      .mockResolvedValueOnce(4)
-      .mockResolvedValueOnce(1);
+    mockDashboardCaseCounts({ total: 40, passed: 24, failed: 8, analyzed: 4, assets: 1 });
     (mockPrisma.caseResult.groupBy as jest.Mock).mockResolvedValue([]);
 
     const req = createRequest("/api/stats/dashboard?testStageId=s1");
@@ -122,11 +150,7 @@ describe("GET /api/stats/dashboard", () => {
     (mockPrisma.project.count as jest.Mock).mockResolvedValue(2);
     (mockPrisma.testStage.count as jest.Mock).mockResolvedValue(3);
     (mockPrisma.batchScope.count as jest.Mock).mockResolvedValue(1);
-    (mockPrisma.caseResult.count as jest.Mock)
-      .mockResolvedValueOnce(30)
-      .mockResolvedValueOnce(5)
-      .mockResolvedValueOnce(2)
-      .mockResolvedValueOnce(0);
+    mockDashboardCaseCounts({ total: 30, passed: 20, failed: 5, analyzed: 2 });
     (mockPrisma.caseResult.groupBy as jest.Mock).mockResolvedValue([]);
 
     const req = createRequest("/api/stats/dashboard?batchScopeId=b1");
@@ -146,11 +170,7 @@ describe("GET /api/stats/dashboard", () => {
     (mockPrisma.project.count as jest.Mock).mockResolvedValue(1);
     (mockPrisma.testStage.count as jest.Mock).mockResolvedValue(1);
     (mockPrisma.batchScope.count as jest.Mock).mockResolvedValue(1);
-    (mockPrisma.caseResult.count as jest.Mock)
-      .mockResolvedValueOnce(20)
-      .mockResolvedValueOnce(3)
-      .mockResolvedValueOnce(1)
-      .mockResolvedValueOnce(0);
+    mockDashboardCaseCounts({ total: 20, passed: 15, failed: 3, analyzed: 1 });
     (mockPrisma.caseResult.groupBy as jest.Mock).mockResolvedValue([]);
 
     const req = createRequest("/api/stats/dashboard?projectId=p1&testStageId=s1&batchScopeId=b1");
@@ -183,8 +203,20 @@ describe("GET /api/stats/trend", () => {
         { batchScopeId: "b1", _count: { _all: 50 } },
       ])
       .mockResolvedValueOnce([
+        { batchScopeId: "b2", _count: { _all: 42 } },
+        { batchScopeId: "b1", _count: { _all: 35 } },
+      ])
+      .mockResolvedValueOnce([
         { batchScopeId: "b2", _count: { _all: 12 } },
         { batchScopeId: "b1", _count: { _all: 10 } },
+      ])
+      .mockResolvedValueOnce([
+        { batchScopeId: "b2", _count: { _all: 4 } },
+        { batchScopeId: "b1", _count: { _all: 3 } },
+      ])
+      .mockResolvedValueOnce([
+        { batchScopeId: "b2", _count: { _all: 2 } },
+        { batchScopeId: "b1", _count: { _all: 2 } },
       ])
       .mockResolvedValueOnce([
         { batchScopeId: "b2", _count: { _all: 8 } },
@@ -200,6 +232,10 @@ describe("GET /api/stats/trend", () => {
     // After reverse(), trends are in chronological order (oldest first)
     expect(body.trends[0].batch).toBe("Batch1");
     expect(body.trends[1].batch).toBe("Batch2");
+    expect(body.trends[0].passed).toBe(35);
+    expect(body.trends[0].failed).toBe(10);
+    expect(body.trends[0].passRate).toBe(70);
+    expect(body.trends[0].failRate).toBe(20);
   });
 
   it("should return empty trends when no batches exist", async () => {
@@ -218,10 +254,13 @@ describe("GET /api/stats/trend", () => {
       { id: "b3", name: "EmptyBatch", createdAt: new Date("2026-01-03") },
     ];
     (mockPrisma.batchScope.findMany as jest.Mock).mockResolvedValue(batches);
-    // Return empty groupBy results → triggers Map.get() ?? 0 fallback for total, failed, analyzed
+    // Return empty groupBy results → triggers Map.get() ?? 0 fallback for all trend fields
     (mockPrisma.caseResult.groupBy as jest.Mock)
       .mockResolvedValueOnce([]) // totalCounts
+      .mockResolvedValueOnce([]) // passedCounts
       .mockResolvedValueOnce([]) // failedCounts
+      .mockResolvedValueOnce([]) // blockedCounts
+      .mockResolvedValueOnce([]) // skippedCounts
       .mockResolvedValueOnce([]); // analyzedCounts
 
     const req = createRequest("/api/stats/trend?limit=10");
@@ -231,7 +270,10 @@ describe("GET /api/stats/trend", () => {
     const body = await res.json();
     expect(body.trends).toHaveLength(1);
     expect(body.trends[0].total).toBe(0);
+    expect(body.trends[0].passed).toBe(0);
     expect(body.trends[0].failed).toBe(0);
+    expect(body.trends[0].passRate).toBe(0);
+    expect(body.trends[0].failRate).toBe(0);
     expect(body.trends[0].analyzed).toBe(0);
   });
 

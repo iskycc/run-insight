@@ -2,7 +2,7 @@
 
 interface StatCardProps {
   title: string;
-  value: number;
+  value: number | string;
   trend?: { value: number; label: string };
 }
 
@@ -12,7 +12,7 @@ export default function StatCard({ title, value, trend }: StatCardProps) {
       <div className="absolute inset-x-0 top-0 h-0.5 bg-accent/80" />
       <span className="text-sm font-medium text-text-secondary">{title}</span>
       <span className="mt-3 text-3xl font-semibold tracking-tight text-text-primary">
-        {value.toLocaleString()}
+        {typeof value === 'number' ? value.toLocaleString() : value}
       </span>
       {trend && (
         <div

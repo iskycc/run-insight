@@ -211,7 +211,12 @@ export interface DashboardStatsResponse {
   testStageCount: number;
   batchScopeCount: number;
   totalCaseCount: number;
+  passedCaseCount: number;
   failedCaseCount: number;
+  blockedCaseCount: number;
+  skippedCaseCount: number;
+  passRate: number;
+  failRate: number;
   analyzedCaseCount: number;
   assetCount: number;
   progressDistribution: { category: string; count: number }[];
@@ -220,7 +225,12 @@ export interface DashboardStatsResponse {
 export interface TrendDataPoint {
   batch: string;
   total: number;
+  passed: number;
   failed: number;
+  blocked: number;
+  skipped: number;
+  passRate: number;
+  failRate: number;
   analyzed: number;
 }
 
