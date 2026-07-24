@@ -1,7 +1,9 @@
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import { NextRequest, NextResponse } from "next/server";
 import type { ApiError } from "@/types";
+import type { Role } from "@/generated/prisma/enums";
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -80,4 +82,31 @@ export function createTokenCookie(token: string): string {
 export function createLogoutCookie(): string {
   const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
   return `${COOKIE_NAME}=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0${secure}`;
+}
+
+export async function requireRole(
+  userId: string,
+  requiredRoles: Role[],
+  prismaClient: { user: { findUnique: (args: { where: { id: string } }) => Promise<{ role: string } | null> } }
+): Promise<NextResponse<ApiError> | null> {
+  const user = await prismaClient.user.findUnique({ where: { id: userId } });
+  if (!user || !requiredRoles.includes(user.role as Role)) {
+    return NextResponse.json<ApiError>(
+      { error: "FORBIDDEN", message: "权限不足" },
+      { status: 403 }
+    );
+  }
+  return null;
+}
+
+export async function authenticateApiKey(
+  request: NextRequest,
+  prismaClient: { apiKey: { findFirst: (args: { where: { keyHash: string } }) => Promise<{ projectId: string } | null> } }
+): Promise<{ projectId: string } | null> {
+  const apiKey = request.headers.get("x-api-key");
+  if (!apiKey) return null;
+
+  const keyHash = crypto.createHash("sha256").update(apiKey).digest("hex");
+  const record = await prismaClient.apiKey.findFirst({ where: { keyHash } });
+  return record ? { projectId: record.projectId } : null;
 }
