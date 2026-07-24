@@ -27,8 +27,8 @@ export default function FilterBar({
     : [];
 
   return (
-    <div className="flex flex-wrap items-center gap-3">
-      <div className="flex flex-col gap-1">
+    <div className="panel grid gap-4 p-4 sm:grid-cols-3">
+      <div className="flex min-w-0 flex-col gap-1.5">
         <label htmlFor="filter-project" className="text-xs font-medium text-[var(--color-text-secondary)]">
           项目
         </label>
@@ -39,7 +39,7 @@ export default function FilterBar({
           onChange={(e) =>
             onFilterChange({ projectId: e.target.value, stageId: '', batchScopeId: '' })
           }
-          className="h-9 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-solid)] px-3 text-sm text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+          className="field-control h-10 w-full px-3 text-sm"
         >
           <option value="">全部项目</option>
           {projects.map((p) => (
@@ -50,7 +50,7 @@ export default function FilterBar({
         </select>
       </div>
 
-      <div className="flex flex-col gap-1">
+      <div className="flex min-w-0 flex-col gap-1.5">
         <label htmlFor="filter-stage" className="text-xs font-medium text-[var(--color-text-secondary)]">
           测试阶段
         </label>
@@ -62,7 +62,7 @@ export default function FilterBar({
           onChange={(e) =>
             onFilterChange({ projectId: selectedProjectId, stageId: e.target.value, batchScopeId: '' })
           }
-          className="h-9 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-solid)] px-3 text-sm text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--color-accent)] disabled:opacity-40"
+          className="field-control h-10 w-full px-3 text-sm"
         >
           <option value="">全部阶段</option>
           {filteredStages.map((s) => (
@@ -73,7 +73,7 @@ export default function FilterBar({
         </select>
       </div>
 
-      <div className="flex flex-col gap-1">
+      <div className="flex min-w-0 flex-col gap-1.5">
         <label htmlFor="filter-batch" className="text-xs font-medium text-[var(--color-text-secondary)]">
           批跑范围
         </label>
@@ -85,7 +85,7 @@ export default function FilterBar({
           onChange={(e) =>
             onFilterChange({ projectId: selectedProjectId, stageId: selectedStageId, batchScopeId: e.target.value })
           }
-          className="h-9 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-solid)] px-3 text-sm text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--color-accent)] disabled:opacity-40"
+          className="field-control h-10 w-full px-3 text-sm"
         >
           <option value="">全部范围</option>
           {filteredBatches.map((b) => (

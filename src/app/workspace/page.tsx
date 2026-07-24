@@ -6,6 +6,7 @@ import FilterBar from '@/components/workspace/FilterBar';
 import MetricCards from '@/components/workspace/MetricCards';
 import ProgressDistribution from '@/components/dashboard/ProgressDistribution';
 import CaseTable from '@/components/workspace/CaseTable';
+import { PageContainer } from '@/components/layout/PageContainer';
 import { SaveAssetModal } from '@/components/shared/SaveAssetModal';
 import { useAuth } from '@/components/shared/AuthProvider';
 import { fetchJson } from '@/lib/fetch';
@@ -200,9 +201,11 @@ export default function WorkspacePage() {
 
   if (!user) {
     return (
-      <div className="flex items-center justify-center p-xl">
-        <p className="text-sm text-[var(--color-text-secondary)]">请先登录以访问工作台</p>
-      </div>
+      <PageContainer title="工作台" subtitle="按项目、阶段和批跑筛选用例，推进分析闭环">
+        <div className="panel flex items-center justify-center p-10">
+          <p className="text-sm text-text-secondary">请先登录以访问工作台</p>
+        </div>
+      </PageContainer>
     );
   }
 
@@ -226,8 +229,8 @@ export default function WorkspacePage() {
   }));
 
   return (
-    <div className="space-y-6 p-xl">
-      {/* Filter bar */}
+    <PageContainer title="工作台" subtitle="按项目、阶段和批跑筛选用例，推进分析闭环">
+      <div className="space-y-6">
       <FilterBar
         projects={projects}
         stages={stages}
@@ -275,9 +278,10 @@ export default function WorkspacePage() {
             setSelectedCase(null);
           }}
           onConfirm={handleSaveAssetConfirm}
-          caseData={selectedCase}
-        />
+        caseData={selectedCase}
+      />
       )}
-    </div>
+      </div>
+    </PageContainer>
   );
 }

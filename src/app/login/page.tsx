@@ -39,17 +39,16 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-bg px-md">
+    <div className="flex min-h-[calc(100vh-104px)] items-center justify-center px-md py-2xl">
       <div className="w-full max-w-sm">
-        {/* Logo */}
-        <div className="text-center mb-2xl">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-xl bg-accent/10 mb-md">
+        <div className="mb-2xl text-center">
+          <div className="mb-md inline-flex h-16 w-16 items-center justify-center rounded-md bg-accent text-white shadow-[0_18px_38px_rgba(37,99,235,0.24)]">
             <svg
               width="32"
               height="32"
               viewBox="0 0 24 24"
               fill="none"
-              stroke="var(--color-accent)"
+              stroke="currentColor"
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -58,7 +57,7 @@ export default function LoginPage() {
               <path d="M7 16l4-8 4 4 4-6" />
             </svg>
           </div>
-          <h1 className="text-2xl font-semibold text-text-primary tracking-tight">
+          <h1 className="text-2xl font-semibold tracking-tight text-text-primary">
             Run Insight
           </h1>
           <p className="text-sm text-text-secondary mt-xs">
@@ -66,11 +65,10 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* 登录卡片 */}
-        <div className="card-solid p-lg">
+        <div className="panel p-lg">
           <form onSubmit={handleSubmit} className="space-y-md">
             {error && (
-              <div className="px-sm py-sm bg-danger/10 text-danger text-sm rounded-md">
+              <div className="rounded-md bg-danger/10 px-sm py-sm text-sm text-danger">
                 {error}
               </div>
             )}

@@ -25,7 +25,7 @@ interface ProgressDistributionProps {
 export default function ProgressDistribution({ data }: ProgressDistributionProps) {
   if (!data || data.length === 0) {
     return (
-      <div className="flex items-center justify-center rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface-solid)] p-8 shadow-[var(--shadow-sm)] text-[var(--color-text-secondary)]">
+      <div className="panel flex min-h-72 items-center justify-center p-8 text-text-secondary">
         暂无数据
       </div>
     );
@@ -40,8 +40,11 @@ export default function ProgressDistribution({ data }: ProgressDistributionProps
     .filter((d) => d.count > 0);
 
   return (
-    <div className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface-solid)] p-5 shadow-[var(--shadow-sm)]">
-      <h3 className="mb-4 text-sm font-medium text-[var(--color-text-primary)]">进展分类分布</h3>
+    <div className="panel p-5">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold text-text-primary">进展分类分布</h3>
+        <span className="text-xs font-medium text-text-secondary">共 {total} 条</span>
+      </div>
       <div className="h-56">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={sortedData} layout="vertical" margin={{ left: 60, right: 20, top: 5, bottom: 5 }}>
@@ -53,7 +56,12 @@ export default function ProgressDistribution({ data }: ProgressDistributionProps
                 const pct = total > 0 ? ((num / total) * 100).toFixed(1) : '0';
                 return `${num} (${pct}%)`;
               }}
-              contentStyle={{ borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', fontSize: 12 }}
+              contentStyle={{
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--color-border)',
+                boxShadow: 'var(--shadow-md)',
+                fontSize: 12,
+              }}
             />
             <Bar dataKey="count" radius={[0, 6, 6, 0]} barSize={20}>
               {sortedData.map((entry, index) => (

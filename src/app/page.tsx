@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import StatCard from '@/components/dashboard/StatCard';
 import ProgressDistribution from '@/components/dashboard/ProgressDistribution';
 import TrendChart from '@/components/dashboard/TrendChart';
+import { PageContainer } from '@/components/layout/PageContainer';
 import { useAuth } from '@/components/shared/AuthProvider';
 import type { DashboardStatsResponse, TrendResponse } from '@/types';
 
@@ -43,15 +44,17 @@ export default function DashboardPage() {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center p-xl">
-        <p className="text-sm text-[var(--color-danger)]">{error}</p>
-      </div>
+      <PageContainer title="质量大盘" subtitle="跨项目追踪批跑结果、分析进度与资产沉淀">
+        <div className="panel flex items-center justify-center p-10">
+          <p className="text-sm text-danger">{error}</p>
+        </div>
+      </PageContainer>
     );
   }
 
   return (
-    <div className="space-y-6 p-xl">
-      {/* Stat cards */}
+    <PageContainer title="质量大盘" subtitle="跨项目追踪批跑结果、分析进度与资产沉淀">
+      <div className="space-y-6">
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
         <StatCard title="项目数" value={stats?.projectCount ?? 0} />
         <StatCard title="测试阶段数" value={stats?.testStageCount ?? 0} />
@@ -68,14 +71,14 @@ export default function DashboardPage() {
         <TrendChart data={trend?.trends ?? []} />
       </div>
 
-      {/* Login prompt */}
       {!authLoading && !user && (
-        <div className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface-solid)] p-6 text-center shadow-[var(--shadow-sm)]">
-          <p className="text-sm text-[var(--color-text-secondary)]">
+        <div className="panel flex items-center justify-center p-5 text-center">
+          <p className="text-sm text-text-secondary">
             登录后可查看详细数据、分析用例和保存资产
           </p>
         </div>
       )}
-    </div>
+      </div>
+    </PageContainer>
   );
 }

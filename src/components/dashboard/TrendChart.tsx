@@ -18,15 +18,15 @@ interface TrendChartProps {
 export default function TrendChart({ data }: TrendChartProps) {
   if (!data || data.length === 0) {
     return (
-      <div className="flex items-center justify-center rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface-solid)] p-8 shadow-[var(--shadow-sm)] text-[var(--color-text-secondary)]">
+      <div className="panel flex min-h-72 items-center justify-center p-8 text-text-secondary">
         暂无数据
       </div>
     );
   }
 
   return (
-    <div className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface-solid)] p-5 shadow-[var(--shadow-sm)]">
-      <h3 className="mb-4 text-sm font-medium text-[var(--color-text-primary)]">最近批跑趋势</h3>
+    <div className="panel p-5">
+      <h3 className="mb-4 text-sm font-semibold text-text-primary">最近批跑趋势</h3>
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
@@ -45,6 +45,7 @@ export default function TrendChart({ data }: TrendChartProps) {
               contentStyle={{
                 borderRadius: 'var(--radius-md)',
                 border: '1px solid var(--color-border)',
+                boxShadow: 'var(--shadow-md)',
                 fontSize: 12,
               }}
             />

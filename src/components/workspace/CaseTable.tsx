@@ -55,20 +55,23 @@ export default function CaseTable({
 
   if (cases.length === 0) {
     return (
-      <div className="flex items-center justify-center rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface-solid)] p-12 shadow-[var(--shadow-sm)] text-sm text-[var(--color-text-secondary)]">
+      <div className="panel flex items-center justify-center p-12 text-sm text-text-secondary">
         暂无用例数据
       </div>
     );
   }
 
   return (
-    <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface-solid)] shadow-[var(--shadow-sm)]">
+    <div className="panel overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-[var(--color-border)] text-left text-xs text-[var(--color-text-secondary)]">
+            <tr className="border-b border-border bg-bg/70 text-left text-xs text-text-secondary">
               <th className="px-4 py-3 font-medium">
-                <button onClick={() => onSortChange({ field: 'caseNo', order: 'asc' })}>
+                <button
+                  onClick={() => onSortChange({ field: 'caseNo', order: 'asc' })}
+                  className="font-medium hover:text-text-primary"
+                >
                   编号
                 </button>
               </th>
@@ -84,30 +87,30 @@ export default function CaseTable({
             {cases.map((c) => (
               <tr
                 key={c.id}
-                className="border-b border-[var(--color-border)] last:border-b-0 hover:bg-[var(--color-bg)] transition-colors"
+                className="border-b border-border transition-colors last:border-b-0 hover:bg-bg/70"
               >
-                <td className="px-4 py-3 font-mono text-xs text-[var(--color-accent)]">
+                <td className="px-4 py-3 font-mono text-xs font-medium text-accent">
                   {c.caseNo}
                 </td>
-                <td className="px-4 py-3 text-[var(--color-text-primary)]">{c.name}</td>
-                <td className="max-w-[200px] truncate px-4 py-3 text-[var(--color-text-secondary)]">
+                <td className="px-4 py-3 font-medium text-text-primary">{c.name}</td>
+                <td className="max-w-[240px] truncate px-4 py-3 text-text-secondary">
                   {c.resultSummary}
                 </td>
-                <td className="px-4 py-3 text-[var(--color-text-secondary)]">{c.assignee || '—'}</td>
+                <td className="px-4 py-3 text-text-secondary">{c.assignee || '—'}</td>
                 <td className="px-4 py-3">
                   {c.progressCategory ? (
                     <Badge progress={PROGRESS_MAP[c.progressCategory]}>
                       {PROGRESS_LABELS[c.progressCategory as keyof typeof PROGRESS_LABELS] ?? c.progressCategory}
                     </Badge>
                   ) : (
-                    <span className="text-[var(--color-text-secondary)]">—</span>
+                    <span className="text-text-secondary">—</span>
                   )}
                 </td>
                 <td className="px-4 py-3">
                   {c.assetSaved ? (
-                    <span className="text-xs text-[var(--color-success)]">✓ 已保存</span>
+                    <span className="text-xs font-medium text-success">已保存</span>
                   ) : (
-                    <span className="text-xs text-[var(--color-text-secondary)]">—</span>
+                    <span className="text-xs text-text-secondary">—</span>
                   )}
                 </td>
                 <td className="px-4 py-3">
@@ -115,7 +118,7 @@ export default function CaseTable({
                     <button
                       aria-label="查看详情"
                       onClick={() => onViewDetail(c.id)}
-                      className="text-xs text-[var(--color-accent)] hover:text-[var(--color-accent-hover)]"
+                      className="rounded-sm px-2 py-1 text-xs font-medium text-accent hover:bg-accent/10 hover:text-accent-hover"
                     >
                       详情
                     </button>
@@ -123,7 +126,7 @@ export default function CaseTable({
                       <button
                         aria-label="保存资产"
                         onClick={() => onSaveAsset(c.id)}
-                        className="text-xs text-[var(--color-success)] hover:opacity-80"
+                        className="rounded-sm px-2 py-1 text-xs font-medium text-success hover:bg-success/10"
                       >
                         保存资产
                       </button>
@@ -136,22 +139,22 @@ export default function CaseTable({
         </table>
       </div>
       {totalPages > 1 && (
-        <div className="flex items-center justify-between border-t border-[var(--color-border)] px-4 py-3">
-          <span className="text-xs text-[var(--color-text-secondary)]">
+        <div className="flex items-center justify-between border-t border-border bg-bg/40 px-4 py-3">
+          <span className="text-xs text-text-secondary">
             共 {totalCount} 条，第 {page}/{totalPages} 页
           </span>
           <div className="flex gap-2">
             <button
               disabled={page <= 1}
               onClick={() => onPageChange(page - 1)}
-              className="rounded-[var(--radius-sm)] border border-[var(--color-border)] px-3 py-1 text-xs disabled:opacity-40"
+              className="rounded-md border border-border bg-surface-solid px-3 py-1 text-xs text-text-secondary transition hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
             >
               上一页
             </button>
             <button
               disabled={page >= totalPages}
               onClick={() => onPageChange(page + 1)}
-              className="rounded-[var(--radius-sm)] border border-[var(--color-border)] px-3 py-1 text-xs disabled:opacity-40"
+              className="rounded-md border border-border bg-surface-solid px-3 py-1 text-xs text-text-secondary transition hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
             >
               下一页
             </button>

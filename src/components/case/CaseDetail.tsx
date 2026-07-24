@@ -43,7 +43,7 @@ const PROGRESS_BADGE_MAP: Record<string, 'pending' | 'analyzing' | 'located' | '
 function InfoRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-xs">
-      <span className="text-xs text-text-secondary font-medium uppercase tracking-wide">{label}</span>
+      <span className="text-xs font-semibold text-text-secondary">{label}</span>
       <div className="text-sm text-text-primary">{children}</div>
     </div>
   );
@@ -60,10 +60,10 @@ export function CaseDetail({ caseData, onEdit, onSaveAsset }: CaseDetailProps) {
   return (
     <div className="space-y-lg">
       {/* 顶部操作栏 */}
-      <div className="flex items-center justify-between flex-wrap gap-sm">
-        <div className="flex items-center gap-sm">
+      <div className="panel flex flex-wrap items-center justify-between gap-sm p-4">
+        <div className="flex min-w-0 items-center gap-sm">
           <span className="font-mono text-sm text-text-secondary">{caseData.caseNo}</span>
-          <h1 className="text-xl font-semibold text-text-primary">{caseData.name}</h1>
+          <h1 className="truncate text-xl font-semibold text-text-primary">{caseData.name}</h1>
         </div>
         <div className="flex items-center gap-sm">
           <Button variant="secondary" size="sm" onClick={onEdit}>
@@ -82,7 +82,7 @@ export function CaseDetail({ caseData, onEdit, onSaveAsset }: CaseDetailProps) {
       </div>
 
       {/* 基本信息 */}
-      <div className="card-solid p-lg">
+      <div className="panel p-lg">
         <h2 className="text-sm font-semibold text-text-primary mb-md">基本信息</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-md">
           <InfoRow label="编号">{caseData.caseNo}</InfoRow>
@@ -118,7 +118,7 @@ export function CaseDetail({ caseData, onEdit, onSaveAsset }: CaseDetailProps) {
       </div>
 
       {/* 分析信息 */}
-      <div className="card-solid p-lg">
+      <div className="panel p-lg">
         <h2 className="text-sm font-semibold text-text-primary mb-md">分析信息</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-md">
           <InfoRow label="分析责任人">
@@ -141,7 +141,7 @@ export function CaseDetail({ caseData, onEdit, onSaveAsset }: CaseDetailProps) {
                   href={caseData.mrOrTicket}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-accent hover:text-accent-hover underline"
+                  className="break-all text-accent underline hover:text-accent-hover"
                 >
                   {caseData.mrOrTicket}
                 </a>
@@ -156,7 +156,7 @@ export function CaseDetail({ caseData, onEdit, onSaveAsset }: CaseDetailProps) {
       </div>
 
       {/* 所属维度 */}
-      <div className="card-solid p-lg">
+      <div className="panel p-lg">
         <h2 className="text-sm font-semibold text-text-primary mb-md">所属维度</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-md">
           <InfoRow label="项目">{caseData.project.name}</InfoRow>
@@ -166,7 +166,7 @@ export function CaseDetail({ caseData, onEdit, onSaveAsset }: CaseDetailProps) {
       </div>
 
       {/* 时间戳 */}
-      <div className="text-xs text-text-secondary flex gap-md">
+      <div className="flex flex-wrap gap-md text-xs text-text-secondary">
         <span>创建于 {new Date(caseData.createdAt).toLocaleString('zh-CN')}</span>
         <span>更新于 {new Date(caseData.updatedAt).toLocaleString('zh-CN')}</span>
       </div>

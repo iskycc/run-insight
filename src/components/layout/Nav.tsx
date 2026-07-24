@@ -18,8 +18,8 @@ export function Nav() {
   const visibleItems = NAV_ITEMS.filter((item) => item.public || !!user);
 
   return (
-    <nav className="border-b border-border bg-surface-solid/60 backdrop-blur-md">
-      <div className="mx-auto flex h-11 max-w-7xl items-center gap-sm px-md">
+    <nav className="border-b border-border bg-surface/70 backdrop-blur-xl">
+      <div className="mx-auto flex h-11 max-w-7xl items-center gap-1 overflow-x-auto px-4 sm:px-5">
         {visibleItems.map((item) => {
           const isActive =
             item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
@@ -27,11 +27,12 @@ export function Nav() {
             <Link
               key={item.href}
               href={item.href}
-              className={`px-sm py-xs text-sm rounded-md transition-colors no-underline
+              aria-current={isActive ? 'page' : undefined}
+              className={`whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors no-underline hover:no-underline
                 ${
                   isActive
-                    ? 'text-accent font-medium bg-accent/5'
-                    : 'text-text-secondary hover:text-text-primary hover:bg-bg'
+                    ? 'bg-accent text-white shadow-sm'
+                    : 'text-text-secondary hover:bg-surface-solid hover:text-text-primary'
                 }`}
             >
               {item.label}

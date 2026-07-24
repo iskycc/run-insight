@@ -40,19 +40,16 @@ export function Modal({ open, onClose, title, children, footer }: ModalProps) {
       {/* Overlay */}
       <div
         data-testid="modal-overlay"
-        className="absolute inset-0 bg-black/30 backdrop-blur-sm"
+        className="absolute inset-0 bg-slate-950/35 backdrop-blur-sm"
         onClick={onClose}
       />
 
-      {/* Modal body */}
-      <div className="relative z-10 w-full max-w-lg mx-md bg-surface-solid rounded-xl shadow-lg">
-        {/* Header */}
-        <div className="flex items-center justify-between px-lg pt-lg pb-sm">
+      <div className="panel relative z-10 mx-md w-full max-w-lg overflow-hidden shadow-lg">
+        <div className="flex items-center justify-between border-b border-border px-lg py-md">
           <h2 className="text-lg font-semibold text-text-primary">{title}</h2>
           <button
             onClick={onClose}
-            className="p-xs rounded-full text-text-secondary hover:text-text-primary
-                       hover:bg-bg transition-colors"
+            className="rounded-md p-xs text-text-secondary transition-colors hover:bg-bg hover:text-text-primary"
             aria-label="关闭"
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
@@ -61,12 +58,10 @@ export function Modal({ open, onClose, title, children, footer }: ModalProps) {
           </button>
         </div>
 
-        {/* Content */}
         <div className="px-lg py-md">{children}</div>
 
-        {/* Footer */}
         {footer && (
-          <div className="flex items-center justify-end gap-sm px-lg pb-lg">
+          <div className="flex items-center justify-end gap-sm border-t border-border bg-bg/40 px-lg py-md">
             {footer}
           </div>
         )}

@@ -143,8 +143,8 @@ export default function AssetsPage() {
   return (
     <PageContainer title="资产库" subtitle="已保存的分析资产">
       {/* 筛选栏 */}
-      <div className="card-solid p-md mb-lg">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-md">
+      <div className="panel mb-6 p-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Select
             label="项目"
             options={projects.map((p) => ({ value: p.id, label: p.name }))}

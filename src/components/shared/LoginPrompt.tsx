@@ -30,12 +30,12 @@ export function LoginPrompt({ open, onClose, onLogin, loginError }: LoginPromptP
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop overlay */}
       <div
-        className="absolute inset-0 bg-black/30 backdrop-blur-sm"
+        className="absolute inset-0 bg-slate-950/35 backdrop-blur-sm"
         onClick={onClose}
       />
 
       {/* Modal body */}
-      <div className="relative z-10 w-full max-w-sm mx-4 bg-surface-solid rounded-xl shadow-lg p-lg">
+      <div className="panel relative z-10 mx-4 w-full max-w-sm p-lg shadow-lg">
         <h2 className="text-lg font-semibold text-text-primary mb-md">
           请先登录
         </h2>
@@ -60,9 +60,7 @@ export function LoginPrompt({ open, onClose, onLogin, loginError }: LoginPromptP
               aria-label="用户名"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-sm py-sm border border-border rounded-md text-text-primary
-                         bg-surface-solid focus:outline-none focus:ring-2 focus:ring-accent/30
-                         focus:border-accent"
+              className="field-control h-10 w-full px-sm text-text-primary"
               autoComplete="username"
               required
             />
@@ -81,9 +79,7 @@ export function LoginPrompt({ open, onClose, onLogin, loginError }: LoginPromptP
               aria-label="密码"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-sm py-sm border border-border rounded-md text-text-primary
-                         bg-surface-solid focus:outline-none focus:ring-2 focus:ring-accent/30
-                         focus:border-accent"
+              className="field-control h-10 w-full px-sm text-text-primary"
               autoComplete="current-password"
               required
             />
@@ -93,16 +89,14 @@ export function LoginPrompt({ open, onClose, onLogin, loginError }: LoginPromptP
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-md py-sm rounded-md border border-border text-text-secondary
-                         hover:bg-bg transition-colors"
+              className="flex-1 rounded-md border border-border bg-bg px-md py-sm text-text-secondary transition-colors hover:text-text-primary"
             >
               取消
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex-1 px-md py-sm rounded-md bg-accent text-white font-medium
-                         hover:bg-accent-hover transition-colors disabled:opacity-50"
+              className="flex-1 rounded-md bg-accent px-md py-sm font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
             >
               {isSubmitting ? '登录中…' : '登录'}
             </button>

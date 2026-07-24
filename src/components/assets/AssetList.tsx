@@ -58,17 +58,17 @@ export function AssetList({ assets, total, page, pageSize, onPageChange, onSelec
   return (
     <div>
       {/* 桌面端表格 */}
-      <div className="card-solid overflow-hidden hidden md:block">
+      <div className="panel hidden overflow-hidden md:block">
         <table className="w-full">
           <thead>
-            <tr className="border-b border-border text-left">
-              <th className="px-md py-sm text-xs font-medium text-text-secondary uppercase tracking-wide">编号</th>
-              <th className="px-md py-sm text-xs font-medium text-text-secondary uppercase tracking-wide">名称</th>
-              <th className="px-md py-sm text-xs font-medium text-text-secondary uppercase tracking-wide">项目</th>
-              <th className="px-md py-sm text-xs font-medium text-text-secondary uppercase tracking-wide">阶段</th>
-              <th className="px-md py-sm text-xs font-medium text-text-secondary uppercase tracking-wide">进展</th>
-              <th className="px-md py-sm text-xs font-medium text-text-secondary uppercase tracking-wide">根因</th>
-              <th className="px-md py-sm text-xs font-medium text-text-secondary uppercase tracking-wide">责任人</th>
+            <tr className="border-b border-border bg-bg/70 text-left">
+              <th className="px-md py-sm text-xs font-medium text-text-secondary">编号</th>
+              <th className="px-md py-sm text-xs font-medium text-text-secondary">名称</th>
+              <th className="px-md py-sm text-xs font-medium text-text-secondary">项目</th>
+              <th className="px-md py-sm text-xs font-medium text-text-secondary">阶段</th>
+              <th className="px-md py-sm text-xs font-medium text-text-secondary">进展</th>
+              <th className="px-md py-sm text-xs font-medium text-text-secondary">根因</th>
+              <th className="px-md py-sm text-xs font-medium text-text-secondary">责任人</th>
             </tr>
           </thead>
           <tbody>
@@ -83,10 +83,10 @@ export function AssetList({ assets, total, page, pageSize, onPageChange, onSelec
                 <tr
                   key={asset.id}
                   onClick={() => onSelect(asset.id)}
-                  className="border-b border-border last:border-0 hover:bg-bg/50 cursor-pointer transition-colors"
+                  className="cursor-pointer border-b border-border transition-colors last:border-0 hover:bg-bg/70"
                 >
-                  <td className="px-md py-sm text-sm font-mono text-text-secondary">{asset.caseNo}</td>
-                  <td className="px-md py-sm text-sm text-text-primary">{asset.name}</td>
+                  <td className="px-md py-sm font-mono text-xs font-medium text-accent">{asset.caseNo}</td>
+                  <td className="px-md py-sm text-sm font-medium text-text-primary">{asset.name}</td>
                   <td className="px-md py-sm text-sm text-text-secondary">{asset.project.name}</td>
                   <td className="px-md py-sm text-sm text-text-secondary">{asset.stage.name}</td>
                   <td className="px-md py-sm">
@@ -120,7 +120,7 @@ export function AssetList({ assets, total, page, pageSize, onPageChange, onSelec
             <div
               key={asset.id}
               onClick={() => onSelect(asset.id)}
-              className="card-solid p-md cursor-pointer hover:shadow-md transition-shadow"
+              className="panel cursor-pointer p-md transition hover:shadow-md"
             >
               <div className="flex items-center justify-between mb-xs">
                 <span className="font-mono text-xs text-text-secondary">{asset.caseNo}</span>
@@ -146,8 +146,7 @@ export function AssetList({ assets, total, page, pageSize, onPageChange, onSelec
           <button
             onClick={() => onPageChange(page - 1)}
             disabled={page <= 1}
-            className="px-sm py-xs text-sm rounded-md border border-border text-text-secondary
-                       hover:bg-bg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="rounded-md border border-border bg-surface-solid px-3 py-1.5 text-sm text-text-secondary transition-colors hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
           >
             上一页
           </button>
@@ -157,8 +156,7 @@ export function AssetList({ assets, total, page, pageSize, onPageChange, onSelec
           <button
             onClick={() => onPageChange(page + 1)}
             disabled={page >= totalPages}
-            className="px-sm py-xs text-sm rounded-md border border-border text-text-secondary
-                       hover:bg-bg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="rounded-md border border-border bg-surface-solid px-3 py-1.5 text-sm text-text-secondary transition-colors hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
           >
             下一页
           </button>

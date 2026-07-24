@@ -14,19 +14,16 @@ type SelectProps = SelectHTMLAttributes<HTMLSelectElement> & {
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(
   ({ options, label, placeholder, className = '', ...props }, ref) => {
     return (
-      <div className="flex flex-col gap-xs">
+      <div className="flex flex-col gap-1.5">
         {label && (
-          <label className="text-sm text-text-secondary font-medium">
+          <label className="text-xs font-semibold text-text-secondary">
             {label}
           </label>
         )}
         <div className="relative">
           <select
             ref={ref}
-            className={`w-full appearance-none px-sm py-sm pr-lg border border-border rounded-md
-              bg-surface-solid text-text-primary text-sm
-              focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent
-              disabled:opacity-50 disabled:cursor-not-allowed
+            className={`field-control h-10 w-full appearance-none px-sm pr-lg text-sm
               ${className}`}
             {...props}
           >

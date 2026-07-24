@@ -22,7 +22,7 @@ const PROGRESS_BADGE_MAP: Record<string, 'pending' | 'analyzing' | 'located' | '
 function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-xs">
-      <span className="text-xs text-text-secondary font-medium uppercase tracking-wide">{label}</span>
+      <span className="text-xs font-semibold text-text-secondary">{label}</span>
       <div className="text-sm text-text-primary">{children}</div>
     </div>
   );
@@ -37,7 +37,7 @@ export function AssetDetail({ asset, onClose }: AssetDetailProps) {
     : null;
 
   return (
-    <div className="card-solid p-lg space-y-lg">
+    <div className="panel space-y-lg p-lg">
       {/* 顶部关闭 */}
       <div className="flex items-center justify-between flex-wrap gap-sm">
         <div className="flex items-center gap-sm">
@@ -50,8 +50,8 @@ export function AssetDetail({ asset, onClose }: AssetDetailProps) {
       </div>
 
       {/* 完整分析链路 */}
-      <div className="card-solid p-md bg-bg/50">
-        <h3 className="text-xs font-semibold text-text-secondary mb-md uppercase tracking-wide">
+      <div className="panel-muted p-md">
+        <h3 className="mb-md text-xs font-semibold text-text-secondary">
           分析链路
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-md">
@@ -84,11 +84,11 @@ export function AssetDetail({ asset, onClose }: AssetDetailProps) {
           <DetailRow label="MR 链接 / 单号">
             {asset.mrOrTicket ? (
               asset.mrOrTicket.startsWith('http') ? (
-                <a
-                  href={asset.mrOrTicket}
+              <a
+                href={asset.mrOrTicket}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-accent hover:text-accent-hover underline"
+                  className="break-all text-accent underline hover:text-accent-hover"
                 >
                   {asset.mrOrTicket}
                 </a>
@@ -106,7 +106,7 @@ export function AssetDetail({ asset, onClose }: AssetDetailProps) {
                 href={asset.logUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-accent hover:text-accent-hover underline"
+                className="text-accent underline hover:text-accent-hover"
               >
                 查看执行日志
               </a>
@@ -125,7 +125,7 @@ export function AssetDetail({ asset, onClose }: AssetDetailProps) {
       </div>
 
       {/* 时间 */}
-      <div className="text-xs text-text-secondary flex gap-md">
+      <div className="flex flex-wrap gap-md text-xs text-text-secondary">
         <span>创建于 {new Date(asset.createdAt).toLocaleString('zh-CN')}</span>
         <span>更新于 {new Date(asset.updatedAt).toLocaleString('zh-CN')}</span>
       </div>

@@ -10,17 +10,17 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 
 const variantClasses: Record<ButtonVariant, string> = {
   primary:
-    'bg-accent text-white hover:bg-accent-hover focus:ring-accent/30',
+    'bg-accent text-white shadow-sm hover:bg-accent-hover focus:ring-accent/30',
   secondary:
-    'bg-bg text-text-primary border border-border hover:bg-surface-solid focus:ring-accent/30',
+    'bg-bg text-text-primary border border-border hover:bg-surface-solid hover:border-accent/30 focus:ring-accent/30',
   danger:
-    'bg-danger text-white hover:bg-danger/90 focus:ring-danger/30',
+    'bg-danger text-white shadow-sm hover:bg-danger/90 focus:ring-danger/30',
 };
 
 const sizeClasses: Record<ButtonSize, string> = {
-  sm: 'px-sm py-xs text-xs',
-  md: 'px-md py-sm text-sm',
-  lg: 'px-lg py-sm text-base',
+  sm: 'h-8 px-3 text-xs',
+  md: 'h-10 px-4 text-sm',
+  lg: 'h-11 px-5 text-base',
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
@@ -29,8 +29,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       <button
         ref={ref}
         disabled={disabled}
-        className={`inline-flex items-center justify-center font-medium rounded-md
-          transition-colors focus:outline-none focus:ring-2
+        className={`inline-flex items-center justify-center rounded-md font-medium
+          transition focus:outline-none focus:ring-2
           disabled:opacity-50 disabled:cursor-not-allowed
           ${variantClasses[variant]} ${sizeClasses[size]} ${className}`}
         {...props}

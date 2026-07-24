@@ -25,11 +25,11 @@ const progressStyles: Record<ProgressCategory, string> = {
 export function Badge({ children, progress }: BadgeProps) {
   const colorClass = progress
     ? progressStyles[progress]
-    : 'bg-bg text-text-secondary';
+    : 'bg-bg text-text-secondary ring-1 ring-border';
 
   return (
     <span
-      className={`inline-flex items-center px-sm py-xs text-xs font-medium rounded-md ${colorClass}`}
+      className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-semibold ${colorClass}`}
     >
       {children}
     </span>

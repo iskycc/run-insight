@@ -29,27 +29,30 @@ export default function FieldMapping({ headers, mapping, onMappingChange, sample
   };
 
   return (
-    <div className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface-solid)] p-5 shadow-[var(--shadow-sm)]">
-      <h3 className="mb-4 text-sm font-medium text-[var(--color-text-primary)]">字段映射</h3>
-      <p className="mb-4 text-xs text-[var(--color-text-secondary)]">
-        将文件中的列映射到系统字段。必填字段标有 * 号。
-      </p>
-      <div className="space-y-3">
+    <div className="space-y-3">
+      <div className="grid grid-cols-[132px_minmax(0,1fr)_minmax(120px,180px)] gap-3 px-1 text-xs font-medium text-[var(--color-text-secondary)] max-md:hidden">
+        <span>系统字段</span>
+        <span>文件列</span>
+        <span>样例</span>
+      </div>
+      <div className="overflow-hidden rounded-md border border-border bg-bg/50">
         {ALL_FIELDS.map((field) => (
-          <div key={field.key} className="flex items-center gap-4">
-            <div className="w-32 shrink-0 text-sm">
-              <span className="text-[var(--color-text-primary)]">
+          <div
+            key={field.key}
+            className="grid gap-3 border-b border-border px-4 py-3 last:border-b-0 md:grid-cols-[132px_minmax(0,1fr)_minmax(120px,180px)] md:items-center"
+          >
+            <div className="min-w-0 text-sm">
+              <span className="font-medium text-[var(--color-text-primary)]">
                 {field.label}
                 {REQUIRED_FIELDS.some((f) => f.key === field.key) && (
                   <span className="ml-0.5 text-[var(--color-danger)]">*</span>
                 )}
               </span>
             </div>
-            <span className="text-[var(--color-text-secondary)]">←</span>
             <select
               value={mapping[field.key] || ''}
               onChange={(e) => handleFieldChange(field.key, e.target.value)}
-              className="h-8 flex-1 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-solid)] px-2 text-sm text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+              className="field-control h-9 min-w-0 px-3 text-sm"
             >
               <option value="">（不映射）</option>
               {headers.map((h) => (
@@ -58,11 +61,11 @@ export default function FieldMapping({ headers, mapping, onMappingChange, sample
                 </option>
               ))}
             </select>
-            {mapping[field.key] && sampleRow[mapping[field.key]] !== undefined && (
-              <span className="max-w-[200px] truncate text-xs text-[var(--color-text-secondary)]">
-                示例：{String(sampleRow[mapping[field.key]])}
-              </span>
-            )}
+            <span className="min-w-0 truncate text-xs text-[var(--color-text-secondary)]">
+              {mapping[field.key] && sampleRow[mapping[field.key]] !== undefined
+                ? String(sampleRow[mapping[field.key]])
+                : '—'}
+            </span>
           </div>
         ))}
       </div>

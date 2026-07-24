@@ -10,9 +10,9 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     const isSearch = type === 'search';
 
     return (
-      <div className="flex flex-col gap-xs">
+      <div className="flex flex-col gap-1.5">
         {label && (
-          <label className="text-sm text-text-secondary font-medium">
+          <label className="text-xs font-semibold text-text-secondary">
             {label}
           </label>
         )}
@@ -34,17 +34,14 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           <input
             ref={ref}
             type={type}
-            className={`w-full border border-border rounded-md bg-surface-solid text-text-primary
-              text-sm placeholder:text-text-secondary/50
-              focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent
-              disabled:opacity-50 disabled:cursor-not-allowed
+            className={`field-control h-10 w-full text-sm placeholder:text-text-secondary/50
               ${
                 error
                   ? 'border-danger focus:ring-danger/30 focus:border-danger'
                   : ''
               }
               ${isSearch ? 'pl-lg pr-sm' : 'px-sm'}
-              py-sm ${className}`}
+              ${className}`}
             {...props}
           />
         </div>

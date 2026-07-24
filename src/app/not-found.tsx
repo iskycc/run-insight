@@ -2,9 +2,9 @@ import Link from 'next/link';
 
 export default function NotFound() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-bg">
-      <div className="text-center px-md">
-        <div className="inline-flex items-center justify-center w-20 h-20 rounded-xl bg-accent/10 mb-lg">
+    <div className="flex min-h-[calc(100vh-104px)] items-center justify-center px-md">
+      <div className="panel px-10 py-12 text-center">
+        <div className="mb-lg inline-flex h-20 w-20 items-center justify-center rounded-md bg-accent/10">
           <svg
             width="40"
             height="40"
@@ -21,14 +21,14 @@ export default function NotFound() {
             <line x1="15" y1="9" x2="15.01" y2="9" />
           </svg>
         </div>
-        <h1 className="text-6xl font-bold text-text-primary mb-sm">404</h1>
-        <p className="text-lg text-text-secondary mb-lg">
+        <h1 className="mb-sm text-6xl font-bold text-text-primary">404</h1>
+        <p className="mb-lg text-lg text-text-secondary">
           页面不存在
         </p>
         <Link
           href="/"
-          className="inline-flex items-center px-md py-sm text-sm font-medium text-white
-                     bg-accent rounded-md hover:bg-accent-hover transition-colors no-underline"
+          className="inline-flex h-10 items-center rounded-md bg-accent px-md text-sm font-medium text-white
+                     no-underline transition-colors hover:bg-accent-hover hover:no-underline"
         >
           返回首页
         </Link>
