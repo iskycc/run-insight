@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { authenticateRequest, requireRole } from "@/lib/auth";
 import { internalError, jsonError } from "@/lib/api-helpers";
+import { writeAuditLog } from "@/lib/audit";
 
 export async function DELETE(
   request: NextRequest,
@@ -19,6 +20,13 @@ export async function DELETE(
     if (!existing) return jsonError("NOT_FOUND", "项目不存在", 404);
 
     await prisma.project.delete({ where: { id } });
+
+    await writeAuditLog({
+      userId: authResult.userId,
+      action: "DELETE",
+      entityType: "project",
+      entityId: id,
+    });
 
     return NextResponse.json({ deleted: true });
   } catch {

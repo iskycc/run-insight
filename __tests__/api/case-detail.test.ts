@@ -10,6 +10,7 @@ jest.mock("@/lib/prisma", () => ({
       findUnique: jest.fn(),
       update: jest.fn(),
     },
+    auditLog: { create: jest.fn() },
   },
 }));
 

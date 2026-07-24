@@ -10,6 +10,7 @@ jest.mock("@/lib/prisma", () => ({
     project: { delete: jest.fn(), findUnique: jest.fn() },
     testStage: { delete: jest.fn(), findUnique: jest.fn() },
     batchScope: { delete: jest.fn(), findUnique: jest.fn() },
+    auditLog: { create: jest.fn() },
   },
 }));
 jest.mock("@/lib/auth", () => ({

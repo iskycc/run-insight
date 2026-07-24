@@ -4,6 +4,7 @@ import { authenticateRequest, requireRole } from "@/lib/auth";
 import { isValidCuid, validateProgressCategory, validateStringMaxLength } from "@/lib/validations";
 import { internalError, jsonError } from "@/lib/api-helpers";
 import { toCaseDTO } from "@/lib/serializers";
+import { writeAuditLog } from "@/lib/audit";
 import type {
   CaseDetailResponse,
   UpdateCaseRequest,
@@ -103,6 +104,14 @@ export async function PATCH(
     const updated = await prisma.caseResult.update({
       where: { id },
       data,
+    });
+
+    await writeAuditLog({
+      userId: authResult.userId,
+      action: "UPDATE",
+      entityType: "case",
+      entityId: id,
+      changes: body,
     });
 
     return NextResponse.json<CaseDetailResponse>({ case: toCaseDTO(updated) });

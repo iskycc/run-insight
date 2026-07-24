@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { authenticateRequest, requireRole } from "@/lib/auth";
 import { validateImportData, type ImportType, type ValidationError } from "@/lib/validations";
 import { internalError, jsonError } from "@/lib/api-helpers";
+import { writeAuditLog } from "@/lib/audit";
 import { PROGRESS_CATEGORIES } from "@/types";
 import type { ImportResponse } from "@/types";
 
@@ -110,6 +111,14 @@ export async function POST(request: NextRequest) {
 
     // Use createMany for bulk insert
     const result = await prisma.caseResult.createMany({ data });
+
+    await writeAuditLog({
+      userId: authResult.userId,
+      action: "CREATE",
+      entityType: "case",
+      entityId: batchScopeId,
+      changes: { imported: result.count, fileName: fileName || "unknown" },
+    });
 
     // Write import history record
     await prisma.importRecord.create({

@@ -11,6 +11,7 @@ jest.mock("@/lib/prisma", () => ({
       count: jest.fn(),
       updateMany: jest.fn(),
     },
+    auditLog: { create: jest.fn() },
   },
 }));
 

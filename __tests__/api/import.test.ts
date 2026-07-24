@@ -15,6 +15,7 @@ jest.mock("@/lib/prisma", () => ({
     importRecord: {
       create: jest.fn(),
     },
+    auditLog: { create: jest.fn() },
   },
 }));
 

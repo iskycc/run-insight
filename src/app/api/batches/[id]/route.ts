@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { authenticateRequest, requireRole } from "@/lib/auth";
 import { internalError, jsonError } from "@/lib/api-helpers";
+import { writeAuditLog } from "@/lib/audit";
 
 export async function DELETE(
   request: NextRequest,
@@ -19,6 +20,13 @@ export async function DELETE(
     if (!existing) return jsonError("NOT_FOUND", "批跑不存在", 404);
 
     await prisma.batchScope.delete({ where: { id } });
+
+    await writeAuditLog({
+      userId: authResult.userId,
+      action: "DELETE",
+      entityType: "batch",
+      entityId: id,
+    });
 
     return NextResponse.json({ deleted: true });
   } catch {

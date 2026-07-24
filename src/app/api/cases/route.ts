@@ -4,6 +4,7 @@ import { authenticateRequest, requireRole } from "@/lib/auth";
 import { internalError, jsonError } from "@/lib/api-helpers";
 import { validateProgressCategory, isValidCuid, validateStringMaxLength } from "@/lib/validations";
 import { toCaseDTO } from "@/lib/serializers";
+import { writeAuditLog } from "@/lib/audit";
 import type {
   CasesResponse,
   BatchUpdateCaseRequest,
@@ -116,6 +117,17 @@ export async function PATCH(request: NextRequest) {
       where: { id: { in: caseIds } },
       data,
     });
+
+    // Write audit logs for each updated case
+    for (const id of caseIds) {
+      await writeAuditLog({
+        userId: authResult.userId,
+        action: "UPDATE",
+        entityType: "case",
+        entityId: id,
+        changes: updates,
+      });
+    }
 
     return NextResponse.json<BatchUpdateResponse>({ updated: result.count });
   } catch {
