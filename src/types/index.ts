@@ -257,3 +257,41 @@ export interface ApiError {
   error: string;
   message: string;
 }
+
+// ============ 对比与矩阵 ============
+
+export interface DiffItem {
+  caseNo: string;
+  name: string;
+  resultA: string;
+  resultB: string;
+}
+
+export interface BatchDiff {
+  unchanged: number;
+  passToFail: DiffItem[];
+  failToPass: DiffItem[];
+  newInB: DiffItem[];
+  removedFromB: DiffItem[];
+}
+
+export interface CompareResponse {
+  batchA: { id: string; name: string; caseCount: number };
+  batchB: { id: string; name: string; caseCount: number };
+  diff: BatchDiff;
+}
+
+export interface MatrixRow {
+  caseNo: string;
+  name: string;
+  results: Record<string, string>;
+}
+
+export interface MatrixResponse {
+  batches: { id: string; name: string }[];
+  rows: MatrixRow[];
+}
+
+// ============ 导出 ============
+
+export type ExportFormat = "csv" | "json";
