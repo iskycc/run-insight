@@ -11,6 +11,9 @@ jest.mock("@/lib/prisma", () => ({
     batchScope: {
       findUnique: jest.fn(),
     },
+    importRecord: {
+      create: jest.fn(),
+    },
   },
 }));
 

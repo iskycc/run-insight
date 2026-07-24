@@ -20,12 +20,14 @@ export async function POST(request: NextRequest) {
       projectId,
       testStageId,
       batchScopeId,
+      fileName,
     }: {
       rows: Record<string, unknown>[];
       importType: ImportType;
       projectId: string;
       testStageId: string;
       batchScopeId: string;
+      fileName?: string;
     } = body;
 
     // Validate required context fields
@@ -105,6 +107,20 @@ export async function POST(request: NextRequest) {
 
     // Use createMany for bulk insert
     const result = await prisma.caseResult.createMany({ data });
+
+    // Write import history record
+    await prisma.importRecord.create({
+      data: {
+        projectId,
+        importType: importType || "pre-analysis",
+        fileName: fileName || "unknown",
+        totalRows: rows.length,
+        importedCount: result.count,
+        errorCount: errors.length,
+        errors: errors.length > 0 ? errors : undefined,
+        userId: authResult.userId,
+      },
+    });
 
     return NextResponse.json<ImportResponse>(
       { imported: result.count, errors: [] },
