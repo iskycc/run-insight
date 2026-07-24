@@ -20,8 +20,14 @@ export async function GET(
       return jsonError("NOT_FOUND", "项目不存在", 404);
     }
 
+    const { searchParams } = request.nextUrl;
+    const includeArchived = searchParams.get("includeArchived") === "true";
+
+    const where: Record<string, unknown> = { projectId: id };
+    if (!includeArchived) where.archived = false;
+
     const stages = await prisma.testStage.findMany({
-      where: { projectId: id },
+      where,
       orderBy: { createdAt: "desc" },
       include: {
         _count: {

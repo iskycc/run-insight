@@ -10,7 +10,14 @@ export async function GET(request: NextRequest) {
   if (authResult instanceof NextResponse) return authResult;
 
   try {
+    const { searchParams } = request.nextUrl;
+    const includeArchived = searchParams.get("includeArchived") === "true";
+
+    const where: Record<string, unknown> = {};
+    if (!includeArchived) where.archived = false;
+
     const projects = await prisma.project.findMany({
+      where,
       orderBy: { createdAt: "desc" },
       include: {
         _count: {

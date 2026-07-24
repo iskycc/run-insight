@@ -20,8 +20,14 @@ export async function GET(
       return jsonError("NOT_FOUND", "阶段不存在", 404);
     }
 
+    const { searchParams } = request.nextUrl;
+    const includeArchived = searchParams.get("includeArchived") === "true";
+
+    const where: Record<string, unknown> = { testStageId: id };
+    if (!includeArchived) where.archived = false;
+
     const batches = await prisma.batchScope.findMany({
-      where: { testStageId: id },
+      where,
       orderBy: { createdAt: "desc" },
       include: {
         _count: {
