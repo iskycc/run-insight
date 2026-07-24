@@ -71,7 +71,9 @@ export interface CaseResultDTO {
   progressCategory: string | null;
   rootCause: string | null;
   mrOrTicket: string | null;
+  notes: string | null;
   assetSaved: boolean;
+  updatedBy: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -319,4 +321,48 @@ export interface ImportHistoryResponse {
   total: number;
   page: number;
   pageSize: number;
+}
+
+// ============ 角色 ============
+
+export type Role = "ADMIN" | "EDITOR" | "VIEWER";
+
+export interface UserWithRole extends UserDTO {
+  role: Role;
+  updatedAt: string;
+}
+
+// ============ 审计日志 ============
+
+export interface AuditLogDTO {
+  id: string;
+  userId: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  changes: unknown;
+  createdAt: string;
+}
+
+export interface AuditLogsResponse {
+  logs: AuditLogDTO[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+// ============ 用户管理 ============
+
+export interface CreateUserRequest {
+  username: string;
+  password: string;
+  role: Role;
+}
+
+export interface UpdateUserRequest {
+  role: Role;
+}
+
+export interface UsersResponse {
+  users: UserWithRole[];
 }

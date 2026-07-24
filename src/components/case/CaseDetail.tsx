@@ -17,7 +17,9 @@ export type CaseDetailData = {
   progressCategory: string | null;
   rootCause: string | null;
   mrOrTicket: string | null;
+  notes: string | null;
   assetSaved: boolean;
+  updatedBy: string | null;
   createdAt: string;
   updatedAt: string;
   project: { id: string; name: string };

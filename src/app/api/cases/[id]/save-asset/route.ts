@@ -18,7 +18,9 @@ function toCaseDTO(c: {
   progressCategory: string | null;
   rootCause: string | null;
   mrOrTicket: string | null;
+  notes: string | null;
   assetSaved: boolean;
+  updatedBy: string | null;
   createdAt: Date;
   updatedAt: Date;
 }): CaseResultDTO {
@@ -35,7 +37,9 @@ function toCaseDTO(c: {
     progressCategory: c.progressCategory,
     rootCause: c.rootCause,
     mrOrTicket: c.mrOrTicket,
+    notes: c.notes,
     assetSaved: c.assetSaved,
+    updatedBy: c.updatedBy,
     createdAt: c.createdAt.toISOString(),
     updatedAt: c.updatedAt.toISOString(),
   };
