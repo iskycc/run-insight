@@ -100,14 +100,22 @@ const CASE_TEMPLATES: CaseTpl[][] = [
 async function main() {
   console.log("🌱 Seeding enriched data ...\n");
 
-  // ── 1. Admin user ────────────────────────────────────────────────
+  // ── 1. Users ──────────────────────────────────────────────────
   const hashedPassword = await bcrypt.hash("admin123", 10);
   const admin = await prisma.user.upsert({
     where: { username: "admin" },
-    update: {},
-    create: { username: "admin", password: hashedPassword },
+    update: { role: "ADMIN" },
+    create: { username: "admin", password: hashedPassword, role: "ADMIN" },
   });
-  console.log(`✅ User: ${admin.username}`);
+  console.log(`✅ User: ${admin.username} (ADMIN)`);
+
+  const viewerHashed = await bcrypt.hash("viewer123", 10);
+  const viewer = await prisma.user.upsert({
+    where: { username: "viewer" },
+    update: { role: "VIEWER" },
+    create: { username: "viewer", password: viewerHashed, role: "VIEWER" },
+  });
+  console.log(`✅ User: ${viewer.username} (VIEWER)`);
 
   // ── 2. Projects → Stages → Batches → Cases ──────────────────────
   // Use deleteMany in reverse dependency order to allow re-seeding
