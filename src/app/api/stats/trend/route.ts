@@ -12,8 +12,13 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const limit = Math.min(30, Math.max(1, Number(searchParams.get("limit")) || 10));
+    const projectId = searchParams.get("projectId") || undefined;
+
+    const batchWhere: Record<string, unknown> = {};
+    if (projectId) batchWhere.projectId = projectId;
 
     const recentBatches = await prisma.batchScope.findMany({
+      where: batchWhere,
       orderBy: { createdAt: "desc" },
       take: limit,
     });
