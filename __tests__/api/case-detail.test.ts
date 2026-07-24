@@ -5,6 +5,7 @@ import { generateToken } from "@/lib/auth";
 
 jest.mock("@/lib/prisma", () => ({
   prisma: {
+    user: { findUnique: jest.fn().mockResolvedValue({ role: "ADMIN" }) },
     caseResult: {
       findUnique: jest.fn(),
       update: jest.fn(),
@@ -188,7 +189,7 @@ describe("PATCH /api/cases/[id]", () => {
     expect(res.status).toBe(200);
 
     const updateCall = (mockPrisma.caseResult.update as jest.Mock).mock.calls[0][0];
-    expect(updateCall.data).toEqual({});
+    expect(updateCall.data).toEqual({ updatedBy: "user_1" });
   });
 
   it("should update case with only some fields (partial update)", async () => {
@@ -212,6 +213,7 @@ describe("PATCH /api/cases/[id]", () => {
     const updateCall = (mockPrisma.caseResult.update as jest.Mock).mock.calls[0][0];
     expect(updateCall.data.rootCause).toBe("代码缺陷");
     expect(updateCall.data.mrOrTicket).toBe("MR-456");
+    expect(updateCall.data.updatedBy).toBe("user_1");
     expect(updateCall.data.assignee).toBeUndefined();
     expect(updateCall.data.progressCategory).toBeUndefined();
     expect(updateCall.data.assetSaved).toBeUndefined();

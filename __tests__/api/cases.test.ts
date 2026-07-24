@@ -5,6 +5,7 @@ import { generateToken } from "@/lib/auth";
 
 jest.mock("@/lib/prisma", () => ({
   prisma: {
+    user: { findUnique: jest.fn().mockResolvedValue({ role: "ADMIN" }) },
     caseResult: {
       findMany: jest.fn(),
       count: jest.fn(),
@@ -234,9 +235,10 @@ describe("PATCH /api/cases", () => {
     const res = await PATCH(req);
     expect(res.status).toBe(200);
 
-    // Verify only assignee is in the data, other fields are not
+    // Verify only assignee (and updatedBy) are in the data
     const updateCall = (mockPrisma.caseResult.updateMany as jest.Mock).mock.calls[0][0];
     expect(updateCall.data.assignee).toBe("李四");
+    expect(updateCall.data.updatedBy).toBe("user_1");
     expect(updateCall.data.progressCategory).toBeUndefined();
     expect(updateCall.data.rootCause).toBeUndefined();
     expect(updateCall.data.mrOrTicket).toBeUndefined();
@@ -296,7 +298,8 @@ describe("PATCH /api/cases", () => {
 
     const updateManyCall = (mockPrisma.caseResult.updateMany as jest.Mock).mock.calls[0][0];
     expect(updateManyCall.data.assignee).toBe("李四");
-    expect(Object.keys(updateManyCall.data)).toHaveLength(1);
+    expect(updateManyCall.data.updatedBy).toBe("user_1");
+    expect(Object.keys(updateManyCall.data)).toHaveLength(2);
   });
 
   it("should batch update with mrOrTicket field", async () => {

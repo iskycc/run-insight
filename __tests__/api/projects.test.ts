@@ -5,6 +5,7 @@ import { generateToken } from "@/lib/auth";
 
 jest.mock("@/lib/prisma", () => ({
   prisma: {
+    user: { findUnique: jest.fn().mockResolvedValue({ role: "ADMIN" }) },
     project: {
       findMany: jest.fn(),
       create: jest.fn(),

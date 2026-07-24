@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { authenticateRequest } from "@/lib/auth";
+import { authenticateRequest, requireRole } from "@/lib/auth";
 import { validateRequired } from "@/lib/validations";
 import { internalError, jsonError } from "@/lib/api-helpers";
 import type { TestStageDTO, TestStageWithStats, StagesResponse } from "@/types";
@@ -70,6 +70,9 @@ export async function POST(
 ) {
   const authResult = authenticateRequest(request);
   if (authResult instanceof NextResponse) return authResult;
+
+  const roleCheck = await requireRole(authResult.userId, ["ADMIN", "EDITOR"], prisma);
+  if (roleCheck) return roleCheck;
 
   try {
     const { id } = await params;

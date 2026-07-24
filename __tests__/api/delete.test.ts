@@ -6,6 +6,7 @@ import { authenticateRequest } from "@/lib/auth";
 
 jest.mock("@/lib/prisma", () => ({
   prisma: {
+    user: { findUnique: jest.fn().mockResolvedValue({ role: "ADMIN" }) },
     project: { delete: jest.fn(), findUnique: jest.fn() },
     testStage: { delete: jest.fn(), findUnique: jest.fn() },
     batchScope: { delete: jest.fn(), findUnique: jest.fn() },
@@ -13,6 +14,7 @@ jest.mock("@/lib/prisma", () => ({
 }));
 jest.mock("@/lib/auth", () => ({
   authenticateRequest: jest.fn(),
+  requireRole: jest.fn().mockResolvedValue(null),
 }));
 
 describe("DELETE APIs", () => {

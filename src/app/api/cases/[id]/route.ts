@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { authenticateRequest } from "@/lib/auth";
+import { authenticateRequest, requireRole } from "@/lib/auth";
 import { isValidCuid, validateProgressCategory, validateStringMaxLength } from "@/lib/validations";
 import { internalError, jsonError } from "@/lib/api-helpers";
 import { toCaseDTO } from "@/lib/serializers";
@@ -57,6 +57,9 @@ export async function PATCH(
   const authResult = authenticateRequest(request);
   if (authResult instanceof NextResponse) return authResult;
 
+  const roleCheck = await requireRole(authResult.userId, ["ADMIN", "EDITOR"], prisma);
+  if (roleCheck) return roleCheck;
+
   try {
     const { id } = await params;
 
@@ -90,6 +93,12 @@ export async function PATCH(
       data.mrOrTicket = body.mrOrTicket;
     }
     if (body.assetSaved !== undefined) data.assetSaved = body.assetSaved;
+    if (body.notes !== undefined) {
+      const err = validateStringMaxLength(body.notes, 5000, "备注");
+      if (err) return jsonError("VALIDATION_ERROR", err);
+      data.notes = body.notes;
+    }
+    data.updatedBy = authResult.userId;
 
     const updated = await prisma.caseResult.update({
       where: { id },

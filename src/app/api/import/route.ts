@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { authenticateRequest } from "@/lib/auth";
+import { authenticateRequest, requireRole } from "@/lib/auth";
 import { validateImportData, type ImportType, type ValidationError } from "@/lib/validations";
 import { internalError, jsonError } from "@/lib/api-helpers";
 import { PROGRESS_CATEGORIES } from "@/types";
@@ -11,6 +11,9 @@ const MAX_IMPORT_ROWS = 100_000;
 export async function POST(request: NextRequest) {
   const authResult = authenticateRequest(request);
   if (authResult instanceof NextResponse) return authResult;
+
+  const roleCheck = await requireRole(authResult.userId, ["ADMIN", "EDITOR"], prisma);
+  if (roleCheck) return roleCheck;
 
   try {
     const body = await request.json();

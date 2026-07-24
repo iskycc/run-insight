@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { authenticateRequest } from "@/lib/auth";
+import { authenticateRequest, requireRole } from "@/lib/auth";
 import { internalError, jsonError } from "@/lib/api-helpers";
 
 export async function DELETE(
@@ -9,6 +9,9 @@ export async function DELETE(
 ) {
   const authResult = authenticateRequest(request);
   if (authResult instanceof NextResponse) return authResult;
+
+  const roleCheck = await requireRole(authResult.userId, ["ADMIN"], prisma);
+  if (roleCheck) return roleCheck;
 
   try {
     const { id } = await params;

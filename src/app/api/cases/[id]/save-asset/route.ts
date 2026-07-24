@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { authenticateRequest } from "@/lib/auth";
+import { authenticateRequest, requireRole } from "@/lib/auth";
 import { isValidCuid } from "@/lib/validations";
 import { internalError, jsonError } from "@/lib/api-helpers";
 import type { CaseResultDTO, SaveAssetResponse } from "@/types";
@@ -51,6 +51,9 @@ export async function PATCH(
 ) {
   const authResult = authenticateRequest(request);
   if (authResult instanceof NextResponse) return authResult;
+
+  const roleCheck = await requireRole(authResult.userId, ["ADMIN", "EDITOR"], prisma);
+  if (roleCheck) return roleCheck;
 
   try {
     const { id } = await params;
