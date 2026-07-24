@@ -88,6 +88,25 @@ describe("POST /api/import", () => {
     expect(body.message).toContain("不能为空");
   });
 
+  it("should return 400 if rows exceed the import limit", async () => {
+    const rows = Array.from({ length: 100_001 }, (_, index) => ({
+      ...validPreRow,
+      caseNo: `TC-${index}`,
+    }));
+    const req = createRequest("/api/import", {
+      method: "POST",
+      body: JSON.stringify({ ...basePayload, rows }),
+      headers: { "Content-Type": "application/json" },
+    });
+    req.headers.set("cookie", authCookie());
+    const res = await POST(req);
+    expect(res.status).toBe(400);
+
+    const body = await res.json();
+    expect(body.message).toContain("超过上限 100000");
+    expect(mockPrisma.caseResult.createMany).not.toHaveBeenCalled();
+  });
+
   it("should return 400 for validation errors in rows", async () => {
     const badRow = { caseNo: "", name: "", resultSummary: "" };
     const req = createRequest("/api/import", {

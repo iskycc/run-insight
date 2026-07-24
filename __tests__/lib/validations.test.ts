@@ -391,15 +391,15 @@ describe("validateImportDataClient", () => {
     "MR/单号": "MR-123",
   };
 
-  it("should return error when rows exceed MAX_IMPORT_ROWS (10000)", () => {
-    const rows = Array.from({ length: 10001 }, (_, i) => ({
+  it("should return error when rows exceed MAX_IMPORT_ROWS (100000)", () => {
+    const rows = Array.from({ length: 100001 }, (_, i) => ({
       用例编号: `TC-${i}`,
       用例名称: "Test",
       结果概要: "PASS",
     }));
     const { errors, mappedRows } = validateImportDataClient(rows, validMapping, "pre-analysis");
-    expect(errors.some((e) => e.row === 0 && e.message.includes("10000"))).toBe(true);
-    expect(mappedRows).toHaveLength(10001);
+    expect(errors.some((e) => e.row === 0 && e.message.includes("100000"))).toBe(true);
+    expect(mappedRows).toHaveLength(100001);
   });
 
   it("should map rows through field mapping correctly", () => {

@@ -141,7 +141,7 @@ export function validateImportData(
 
 // ============ 客户端预校验 ============
 
-const MAX_IMPORT_ROWS = 10_000;
+const MAX_IMPORT_ROWS = 100_000;
 
 export function validateResultSummary(value: string): string | null {
   if (!value || value.trim().length === 0) {

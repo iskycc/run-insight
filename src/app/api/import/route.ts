@@ -6,6 +6,8 @@ import { internalError, jsonError } from "@/lib/api-helpers";
 import { PROGRESS_CATEGORIES } from "@/types";
 import type { ImportResponse } from "@/types";
 
+const MAX_IMPORT_ROWS = 100_000;
+
 export async function POST(request: NextRequest) {
   const authResult = authenticateRequest(request);
   if (authResult instanceof NextResponse) return authResult;
@@ -45,6 +47,10 @@ export async function POST(request: NextRequest) {
 
     if (!rows || !Array.isArray(rows) || rows.length === 0) {
       return jsonError("VALIDATION_ERROR", "导入数据不能为空");
+    }
+
+    if (rows.length > MAX_IMPORT_ROWS) {
+      return jsonError("VALIDATION_ERROR", `数据行数 (${rows.length}) 超过上限 ${MAX_IMPORT_ROWS}`);
     }
 
     // Validate row data
