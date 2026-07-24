@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { authenticateRequest, requireRole } from "@/lib/auth";
+import { authenticateRequest, requireRole, authenticateApiKey } from "@/lib/auth";
+import type { TokenPayload } from "@/lib/auth";
 import { validateImportData, type ImportType, type ValidationError } from "@/lib/validations";
 import { internalError, jsonError } from "@/lib/api-helpers";
 import { writeAuditLog } from "@/lib/audit";
@@ -10,11 +11,22 @@ import type { ImportResponse } from "@/types";
 const MAX_IMPORT_ROWS = 100_000;
 
 export async function POST(request: NextRequest) {
-  const authResult = authenticateRequest(request);
-  if (authResult instanceof NextResponse) return authResult;
+  // Try API Key authentication first
+  const apiKeyResult = await authenticateApiKey(request, prisma);
+  let authResult: TokenPayload;
+  let isApiKey = false;
 
-  const roleCheck = await requireRole(authResult.userId, ["ADMIN", "EDITOR"], prisma);
-  if (roleCheck) return roleCheck;
+  if (apiKeyResult) {
+    isApiKey = true;
+    authResult = { userId: "api-key", username: "api-key" };
+  } else {
+    const jwtResult = authenticateRequest(request);
+    if (jwtResult instanceof NextResponse) return jwtResult;
+    authResult = jwtResult;
+
+    const roleCheck = await requireRole(authResult.userId, ["ADMIN", "EDITOR"], prisma);
+    if (roleCheck) return roleCheck;
+  }
 
   try {
     const body = await request.json();
@@ -113,7 +125,7 @@ export async function POST(request: NextRequest) {
     const result = await prisma.caseResult.createMany({ data });
 
     await writeAuditLog({
-      userId: authResult.userId,
+      userId: isApiKey ? "api-key" : authResult.userId,
       action: "CREATE",
       entityType: "case",
       entityId: batchScopeId,
@@ -130,7 +142,7 @@ export async function POST(request: NextRequest) {
         importedCount: result.count,
         errorCount: errors.length,
         errors: errors.length > 0 ? errors : undefined,
-        userId: authResult.userId,
+        userId: isApiKey ? "api-key" : authResult.userId,
       },
     });
 
