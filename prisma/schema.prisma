@@ -11,7 +11,8 @@ model User {
   id        String   @id @default(cuid())
   username  String   @unique
   password  String
-  createdAt DateTime @default(now())
+  createdAt     DateTime  @default(now())
+  importRecords ImportRecord[]
 }
 
 model Project {
@@ -22,6 +23,7 @@ model Project {
   stages    TestStage[]
   cases     CaseResult[]
   batches   BatchScope[]
+  importRecords ImportRecord[]
 }
 
 model TestStage {
@@ -78,4 +80,21 @@ model CaseResult {
   @@index([batchScopeId, progressCategory])
   @@index([projectId, progressCategory])
   @@index([assetSaved])
+}
+
+model ImportRecord {
+  id            String   @id @default(cuid())
+  projectId     String
+  importType    String
+  fileName      String
+  totalRows     Int
+  importedCount Int
+  errorCount    Int
+  errors        Json?
+  userId        String
+  project       Project  @relation(fields: [projectId], references: [id])
+  user          User     @relation(fields: [userId], references: [id])
+  createdAt     DateTime @default(now())
+
+  @@index([projectId])
 }
