@@ -16,11 +16,24 @@ export async function GET(request: NextRequest) {
     const projectId = searchParams.get("projectId") || undefined;
     const testStageId = searchParams.get("testStageId") || undefined;
     const batchScopeId = searchParams.get("batchScopeId") || undefined;
+    const startDate = searchParams.get("startDate") || undefined;
+    const endDate = searchParams.get("endDate") || undefined;
 
     const where: Record<string, unknown> = {};
     if (projectId) where.projectId = projectId;
     if (testStageId) where.testStageId = testStageId;
     if (batchScopeId) where.batchScopeId = batchScopeId;
+
+    const dateFilter: Record<string, Date> = {};
+    if (startDate) dateFilter.gte = new Date(startDate);
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      dateFilter.lte = end;
+    }
+    if (Object.keys(dateFilter).length > 0) {
+      where.createdAt = dateFilter;
+    }
 
     // Build where clauses for project/testStage/batchScope counts
     // Prisma count() types are strict — use conditional calls instead of ternary args
