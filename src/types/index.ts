@@ -31,6 +31,7 @@ export type ResultSummary = (typeof RESULT_SUMMARIES)[number];
 export interface UserDTO {
   id: string;
   username: string;
+  role?: Role;
   createdAt: string;
 }
 
@@ -39,6 +40,7 @@ export interface ProjectDTO {
   name: string;
   createdAt: string;
   updatedAt: string;
+  archived: boolean;
 }
 
 export interface TestStageDTO {
@@ -382,4 +384,19 @@ export interface ApiKeyCreateResponse extends ApiKeyResponse {
 
 export interface ApiKeysListResponse {
   keys: ApiKeyResponse[];
+}
+
+// ============ 责任人统计 ============
+
+export interface AssigneeStat {
+  assignee: string;
+  totalCases: number;
+  failCount: number;
+  fixCount: number;
+  savedAssetCount: number;
+  fixRate: number;
+}
+
+export interface AssigneeStatsResponse {
+  stats: AssigneeStat[];
 }

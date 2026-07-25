@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { AuthProvider } from "@/components/shared/AuthProvider";
+import { ToastProvider } from "@/contexts/ToastContext";
+import { ToastContainer } from "@/components/shared/Toast";
 import { Header } from "@/components/layout/Header";
 import { Nav } from "@/components/layout/Nav";
 import "./globals.css";
@@ -17,11 +19,14 @@ export default function RootLayout({
   return (
     <html lang="zh-CN">
       <body className="min-h-screen bg-bg font-sans text-text-primary">
-        <AuthProvider>
-          <Header />
-          <Nav />
-          <main className="min-h-[calc(100vh-104px)]">{children}</main>
-        </AuthProvider>
+        <ToastProvider>
+          <AuthProvider>
+            <Header />
+            <Nav />
+            <main className="min-h-[calc(100vh-104px)]">{children}</main>
+          </AuthProvider>
+          <ToastContainer />
+        </ToastProvider>
       </body>
     </html>
   );

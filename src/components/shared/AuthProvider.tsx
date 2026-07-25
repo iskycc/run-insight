@@ -12,6 +12,7 @@ import {
 type User = {
   id: string;
   username: string;
+  role?: 'ADMIN' | 'EDITOR' | 'VIEWER';
 };
 
 type AuthContextValue = {

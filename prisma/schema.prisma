@@ -14,28 +14,29 @@ enum Role {
 }
 
 model User {
-  id           String         @id @default(cuid())
-  username     String         @unique
-  password     String
-  role         Role           @default(EDITOR)
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  id            String         @id @default(cuid())
+  username      String         @unique
+  password      String
+  role          Role           @default(EDITOR)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
   importRecords ImportRecord[]
-  auditLogs    AuditLog[]
-  caseUpdates  CaseResult[]   @relation("CaseUpdater")
+  auditLogs     AuditLog[]
+  apiKeys       ApiKey[]       @relation("UserToApiKey")
+  caseUpdates   CaseResult[]   @relation("CaseUpdater")
 }
 
 model Project {
-  id        String       @id @default(cuid())
-  name      String       @unique
-  archived  Boolean      @default(false)
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
-  stages    TestStage[]
-  cases     CaseResult[]
-  batches   BatchScope[]
-  importRecords ImportRecord[]
-  apiKeys   ApiKey[]
+  id            String         @id @default(cuid())
+  name          String         @unique
+  archived      Boolean        @default(false)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  stages        TestStage[]    @relation("ProjectToTestStage")
+  cases         CaseResult[]   @relation("ProjectToCaseResult")
+  batches       BatchScope[]   @relation("ProjectToBatchScope")
+  importRecords ImportRecord[] @relation("ProjectToImportRecord")
+  apiKeys       ApiKey[]       @relation("ProjectToApiKey")
 }
 
 model TestStage {
@@ -43,9 +44,9 @@ model TestStage {
   projectId String
   name      String
   archived  Boolean      @default(false)
-  project   Project      @relation(fields: [projectId], references: [id])
-  batches   BatchScope[]
-  cases     CaseResult[]
+  project   Project      @relation("ProjectToTestStage", fields: [projectId], references: [id], onDelete: Cascade)
+  batches   BatchScope[] @relation("TestStageToBatchScope")
+  cases     CaseResult[] @relation("TestStageToCaseResult")
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
@@ -58,9 +59,9 @@ model BatchScope {
   testStageId String
   name        String
   archived    Boolean      @default(false)
-  project     Project      @relation(fields: [projectId], references: [id])
-  stage       TestStage    @relation(fields: [testStageId], references: [id])
-  cases       CaseResult[]
+  project     Project      @relation("ProjectToBatchScope", fields: [projectId], references: [id], onDelete: Cascade)
+  stage       TestStage    @relation("TestStageToBatchScope", fields: [testStageId], references: [id], onDelete: Cascade)
+  cases       CaseResult[] @relation("BatchScopeToCaseResult")
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
@@ -83,10 +84,10 @@ model CaseResult {
   notes            String?    @db.Text
   assetSaved       Boolean    @default(false)
   updatedBy        String?
-  project          Project    @relation(fields: [projectId], references: [id])
-  stage            TestStage  @relation(fields: [testStageId], references: [id])
-  batchScope       BatchScope @relation(fields: [batchScopeId], references: [id])
-  updater          User?      @relation("CaseUpdater", fields: [updatedBy], references: [id])
+  project          Project    @relation("ProjectToCaseResult", fields: [projectId], references: [id], onDelete: Cascade)
+  stage            TestStage  @relation("TestStageToCaseResult", fields: [testStageId], references: [id], onDelete: Cascade)
+  batchScope       BatchScope @relation("BatchScopeToCaseResult", fields: [batchScopeId], references: [id], onDelete: Cascade)
+  updater          User?      @relation("CaseUpdater", fields: [updatedBy], references: [id], onDelete: SetNull)
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
 
@@ -109,7 +110,7 @@ model ImportRecord {
   errorCount    Int
   errors        Json?
   userId        String
-  project       Project  @relation(fields: [projectId], references: [id])
+  project       Project  @relation("ProjectToImportRecord", fields: [projectId], references: [id], onDelete: Cascade)
   user          User     @relation(fields: [userId], references: [id])
   createdAt     DateTime @default(now())
 
@@ -133,10 +134,12 @@ model AuditLog {
 model ApiKey {
   id          String   @id @default(cuid())
   projectId   String
+  userId      String?
   keyHash     String
   description String
   createdAt   DateTime @default(now())
-  project     Project  @relation(fields: [projectId], references: [id])
+  project     Project  @relation("ProjectToApiKey", fields: [projectId], references: [id], onDelete: Cascade)
+  user        User?    @relation("UserToApiKey", fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([keyHash])
 }

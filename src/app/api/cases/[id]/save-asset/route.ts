@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { authenticateRequest, requireRole } from "@/lib/auth";
 import { isValidCuid } from "@/lib/validations";
 import { internalError, jsonError } from "@/lib/api-helpers";
+import { writeAuditLog } from "@/lib/audit";
 import type { CaseResultDTO, SaveAssetResponse } from "@/types";
 
 function toCaseDTO(c: {
@@ -78,6 +79,14 @@ export async function PATCH(
     const updated = await prisma.caseResult.update({
       where: { id },
       data: { assetSaved: true },
+    });
+
+    await writeAuditLog({
+      userId: authResult.userId,
+      action: "UPDATE",
+      entityType: "case",
+      entityId: id,
+      changes: { assetSaved: true },
     });
 
     return NextResponse.json<SaveAssetResponse>({ case: toCaseDTO(updated) });

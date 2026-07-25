@@ -56,7 +56,7 @@ export async function POST(
     const keyHash = crypto.createHash("sha256").update(rawKey).digest("hex");
 
     const record = await prisma.apiKey.create({
-      data: { projectId: id, keyHash, description: body.description || "" },
+      data: { projectId: id, userId: authResult.userId, keyHash, description: body.description || "" },
       select: { id: true, description: true, createdAt: true },
     });
 

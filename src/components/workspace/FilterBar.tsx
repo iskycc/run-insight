@@ -1,5 +1,7 @@
 'use client';
 
+import { PROGRESS_CATEGORIES, PROGRESS_LABELS, type ProgressCategory } from '@/types';
+
 interface FilterBarProps {
   projects: { id: string; name: string }[];
   stages: { id: string; projectId: string; name: string }[];
@@ -7,7 +9,15 @@ interface FilterBarProps {
   selectedProjectId: string;
   selectedStageId: string;
   selectedBatchScopeId: string;
-  onFilterChange: (filters: { projectId: string; stageId: string; batchScopeId: string }) => void;
+  selectedProgressCategory: string;
+  selectedAssetSaved: string;
+  onFilterChange: (filters: {
+    projectId: string;
+    stageId: string;
+    batchScopeId: string;
+    progressCategory: string;
+    assetSaved: string;
+  }) => void;
 }
 
 export default function FilterBar({
@@ -17,6 +27,8 @@ export default function FilterBar({
   selectedProjectId,
   selectedStageId,
   selectedBatchScopeId,
+  selectedProgressCategory,
+  selectedAssetSaved,
   onFilterChange,
 }: FilterBarProps) {
   const filteredStages = selectedProjectId
@@ -26,8 +38,25 @@ export default function FilterBar({
     ? batches.filter((b) => b.testStageId === selectedStageId)
     : [];
 
+  const emit = (patch: Partial<{
+    projectId: string;
+    stageId: string;
+    batchScopeId: string;
+    progressCategory: string;
+    assetSaved: string;
+  }>) => {
+    onFilterChange({
+      projectId: selectedProjectId,
+      stageId: selectedStageId,
+      batchScopeId: selectedBatchScopeId,
+      progressCategory: selectedProgressCategory,
+      assetSaved: selectedAssetSaved,
+      ...patch,
+    });
+  };
+
   return (
-    <div className="panel grid gap-4 p-4 sm:grid-cols-3">
+    <div className="panel grid gap-4 p-4 sm:grid-cols-3 lg:grid-cols-5">
       <div className="flex min-w-0 flex-col gap-1.5">
         <label htmlFor="filter-project" className="text-xs font-medium text-[var(--color-text-secondary)]">
           项目
@@ -37,7 +66,7 @@ export default function FilterBar({
           aria-label="项目"
           value={selectedProjectId}
           onChange={(e) =>
-            onFilterChange({ projectId: e.target.value, stageId: '', batchScopeId: '' })
+            emit({ projectId: e.target.value, stageId: '', batchScopeId: '' })
           }
           className="field-control h-10 w-full px-3 text-sm"
         >
@@ -60,7 +89,7 @@ export default function FilterBar({
           value={selectedStageId}
           disabled={!selectedProjectId}
           onChange={(e) =>
-            onFilterChange({ projectId: selectedProjectId, stageId: e.target.value, batchScopeId: '' })
+            emit({ stageId: e.target.value, batchScopeId: '' })
           }
           className="field-control h-10 w-full px-3 text-sm"
         >
@@ -83,7 +112,7 @@ export default function FilterBar({
           value={selectedBatchScopeId}
           disabled={!selectedStageId}
           onChange={(e) =>
-            onFilterChange({ projectId: selectedProjectId, stageId: selectedStageId, batchScopeId: e.target.value })
+            emit({ batchScopeId: e.target.value })
           }
           className="field-control h-10 w-full px-3 text-sm"
         >
@@ -93,6 +122,43 @@ export default function FilterBar({
               {b.name}
             </option>
           ))}
+        </select>
+      </div>
+
+      <div className="flex min-w-0 flex-col gap-1.5">
+        <label htmlFor="filter-progress" className="text-xs font-medium text-[var(--color-text-secondary)]">
+          进展
+        </label>
+        <select
+          id="filter-progress"
+          aria-label="进展"
+          value={selectedProgressCategory}
+          onChange={(e) => emit({ progressCategory: e.target.value })}
+          className="field-control h-10 w-full px-3 text-sm"
+        >
+          <option value="">全部进展</option>
+          {PROGRESS_CATEGORIES.map((p: ProgressCategory) => (
+            <option key={p} value={p}>
+              {PROGRESS_LABELS[p]}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="flex min-w-0 flex-col gap-1.5">
+        <label htmlFor="filter-asset" className="text-xs font-medium text-[var(--color-text-secondary)]">
+          资产状态
+        </label>
+        <select
+          id="filter-asset"
+          aria-label="资产状态"
+          value={selectedAssetSaved}
+          onChange={(e) => emit({ assetSaved: e.target.value })}
+          className="field-control h-10 w-full px-3 text-sm"
+        >
+          <option value="">全部</option>
+          <option value="true">已保存</option>
+          <option value="false">未保存</option>
         </select>
       </div>
     </div>

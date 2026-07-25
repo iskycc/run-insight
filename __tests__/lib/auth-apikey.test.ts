@@ -9,19 +9,19 @@ describe("authenticateApiKey", () => {
     expect(result).toBeNull();
   });
 
-  it("should return projectId when key is valid", async () => {
+  it("should return projectId and userId when key is valid", async () => {
     const rawKey = crypto.randomBytes(32).toString("hex");
     const keyHash = crypto.createHash("sha256").update(rawKey).digest("hex");
 
     const mockPrisma = {
-      apiKey: { findFirst: jest.fn().mockResolvedValue({ projectId: "p1" }) },
+      apiKey: { findFirst: jest.fn().mockResolvedValue({ projectId: "p1", userId: "u1" }) },
     };
     const headers = new Headers();
     headers.set("x-api-key", rawKey);
     const req = { headers } as any;
 
     const result = await authenticateApiKey(req, mockPrisma as any);
-    expect(result).toEqual({ projectId: "p1" });
+    expect(result).toEqual({ projectId: "p1", userId: "u1" });
     expect(mockPrisma.apiKey.findFirst).toHaveBeenCalledWith({ where: { keyHash } });
   });
 
@@ -35,5 +35,21 @@ describe("authenticateApiKey", () => {
 
     const result = await authenticateApiKey(req, mockPrisma as any);
     expect(result).toBeNull();
+  });
+
+  it("should return null when key has no associated user", async () => {
+    const rawKey = crypto.randomBytes(32).toString("hex");
+    const keyHash = crypto.createHash("sha256").update(rawKey).digest("hex");
+
+    const mockPrisma = {
+      apiKey: { findFirst: jest.fn().mockResolvedValue({ projectId: "p1", userId: null }) },
+    };
+    const headers = new Headers();
+    headers.set("x-api-key", rawKey);
+    const req = { headers } as any;
+
+    const result = await authenticateApiKey(req, mockPrisma as any);
+    expect(result).toBeNull();
+    expect(mockPrisma.apiKey.findFirst).toHaveBeenCalledWith({ where: { keyHash } });
   });
 });

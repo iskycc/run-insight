@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { authenticateRequest, requireRole } from "@/lib/auth";
 import { validateRequired } from "@/lib/validations";
 import { internalError, jsonError } from "@/lib/api-helpers";
+import { writeAuditLog } from "@/lib/audit";
 import type { ProjectDTO, ProjectWithStats, ProjectsResponse } from "@/types";
 
 export async function GET(request: NextRequest) {
@@ -47,6 +48,7 @@ export async function GET(request: NextRequest) {
       name: p.name,
       createdAt: p.createdAt.toISOString(),
       updatedAt: p.updatedAt.toISOString(),
+      archived: p.archived,
       stageCount: p._count.stages,
       caseCount: p._count.cases,
       passCount: passMap.get(p.id) ?? 0,
@@ -84,7 +86,16 @@ export async function POST(request: NextRequest) {
       name: project.name,
       createdAt: project.createdAt.toISOString(),
       updatedAt: project.updatedAt.toISOString(),
+      archived: project.archived,
     };
+
+    await writeAuditLog({
+      userId: authResult.userId,
+      action: "CREATE",
+      entityType: "project",
+      entityId: project.id,
+      changes: { name: project.name },
+    });
 
     return NextResponse.json({ project: projectDTO }, { status: 201 });
   } catch (error: unknown) {

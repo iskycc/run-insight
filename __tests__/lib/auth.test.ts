@@ -33,3 +33,37 @@ describe("auth utilities", () => {
     });
   });
 });
+
+describe("JWT_SECRET production guard", () => {
+  const originalEnv = process.env.NODE_ENV;
+  const originalSecret = process.env.JWT_SECRET;
+
+  afterEach(() => {
+    Object.assign(process.env, { NODE_ENV: originalEnv });
+    if (originalSecret === undefined) {
+      delete process.env.JWT_SECRET;
+    } else {
+      process.env.JWT_SECRET = originalSecret;
+    }
+  });
+
+  it("exits the process in production when JWT_SECRET is missing", () => {
+    delete process.env.JWT_SECRET;
+    Object.assign(process.env, { NODE_ENV: "production" });
+
+    const exitSpy = jest.spyOn(process, "exit").mockImplementation((code) => {
+      throw new Error(`process.exit(${code})`);
+    });
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+
+    expect(() => {
+      jest.isolateModules(() => {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        require("@/lib/auth");
+      });
+    }).toThrow("process.exit(1)");
+
+    exitSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+});

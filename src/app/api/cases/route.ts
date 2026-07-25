@@ -5,11 +5,26 @@ import { internalError, jsonError } from "@/lib/api-helpers";
 import { validateProgressCategory, isValidCuid, validateStringMaxLength } from "@/lib/validations";
 import { toCaseDTO } from "@/lib/serializers";
 import { writeAuditLog } from "@/lib/audit";
+import { RESULT_SUMMARIES } from "@/types";
 import type {
   CasesResponse,
   BatchUpdateCaseRequest,
   BatchUpdateResponse,
+  ResultSummary,
 } from "@/types";
+
+const SORTABLE_FIELDS = [
+  "caseNo",
+  "name",
+  "resultSummary",
+  "assignee",
+  "progressCategory",
+  "assetSaved",
+  "createdAt",
+  "updatedAt",
+] as const;
+
+type SortableField = (typeof SORTABLE_FIELDS)[number];
 
 export async function GET(request: NextRequest) {
   const authResult = authenticateRequest(request);
@@ -23,8 +38,25 @@ export async function GET(request: NextRequest) {
     const progressCategory = searchParams.get("progressCategory") || undefined;
     const assetSavedStr = searchParams.get("assetSaved") || undefined;
     const search = searchParams.get("search") || undefined;
+    const resultSummary = searchParams.get("resultSummary") || undefined;
+    const assignee = searchParams.get("assignee") || undefined;
+    const dateFrom = searchParams.get("dateFrom") || undefined;
+    const dateTo = searchParams.get("dateTo") || undefined;
+    const sortField = searchParams.get("sortField") || "createdAt";
+    const sortOrder = searchParams.get("sortOrder") || "desc";
     const page = Math.max(1, Number(searchParams.get("page")) || 1);
     const pageSize = Math.min(100, Math.max(1, Number(searchParams.get("pageSize")) || 20));
+
+    if (!SORTABLE_FIELDS.includes(sortField as SortableField)) {
+      return jsonError("VALIDATION_ERROR", "排序字段不合法");
+    }
+    if (sortOrder !== "asc" && sortOrder !== "desc") {
+      return jsonError("VALIDATION_ERROR", "排序方向不合法");
+    }
+
+    if (resultSummary && !RESULT_SUMMARIES.includes(resultSummary as ResultSummary)) {
+      return jsonError("VALIDATION_ERROR", "结果概要筛选值不合法");
+    }
 
     const where: Record<string, unknown> = {};
     if (projectId) where.projectId = projectId;
@@ -32,6 +64,14 @@ export async function GET(request: NextRequest) {
     if (batchScopeId) where.batchScopeId = batchScopeId;
     if (progressCategory) where.progressCategory = progressCategory;
     if (assetSavedStr !== undefined) where.assetSaved = assetSavedStr === "true";
+    if (resultSummary) where.resultSummary = resultSummary;
+    if (assignee) where.assignee = { contains: assignee };
+    if (dateFrom || dateTo) {
+      const createdAt: Record<string, Date> = {};
+      if (dateFrom) createdAt.gte = new Date(`${dateFrom}T00:00:00.000Z`);
+      if (dateTo) createdAt.lte = new Date(`${dateTo}T23:59:59.999Z`);
+      where.createdAt = createdAt;
+    }
     if (search) {
       where.OR = [
         { caseNo: { contains: search } },
@@ -39,10 +79,12 @@ export async function GET(request: NextRequest) {
       ];
     }
 
+    const orderBy: Record<string, "asc" | "desc"> = { [sortField]: sortOrder };
+
     const [cases, total] = await Promise.all([
       prisma.caseResult.findMany({
         where,
-        orderBy: { createdAt: "desc" },
+        orderBy,
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),

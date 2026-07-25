@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { authenticateRequest, requireRole } from "@/lib/auth";
 import { internalError, jsonError } from "@/lib/api-helpers";
+import { writeAuditLog } from "@/lib/audit";
 import type { BatchSaveAssetRequest, BatchSaveAssetResponse } from "@/types";
 
 export async function POST(request: NextRequest) {
@@ -27,6 +28,16 @@ export async function POST(request: NextRequest) {
       },
       data: { assetSaved: true },
     });
+
+    for (const caseId of caseIds) {
+      await writeAuditLog({
+        userId: authResult.userId,
+        action: "UPDATE",
+        entityType: "case",
+        entityId: caseId,
+        changes: { assetSaved: true },
+      });
+    }
 
     return NextResponse.json<BatchSaveAssetResponse>({ updated: result.count });
   } catch {

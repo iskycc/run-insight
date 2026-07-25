@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
     const userDTO: UserDTO = {
       id: user.id,
       username: user.username,
+      role: user.role,
       createdAt: user.createdAt.toISOString(),
     };
 

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { authenticateRequest, requireRole } from "@/lib/auth";
 import { validateRequired } from "@/lib/validations";
 import { internalError, jsonError } from "@/lib/api-helpers";
+import { writeAuditLog } from "@/lib/audit";
 import type { TestStageDTO, TestStageWithStats, StagesResponse } from "@/types";
 
 export async function GET(
@@ -110,6 +111,14 @@ export async function POST(
       createdAt: stage.createdAt.toISOString(),
       updatedAt: stage.updatedAt.toISOString(),
     };
+
+    await writeAuditLog({
+      userId: authResult.userId,
+      action: "CREATE",
+      entityType: "stage",
+      entityId: stage.id,
+      changes: { name: stage.name, projectId: id },
+    });
 
     return NextResponse.json({ stage: stageDTO }, { status: 201 });
   } catch (error: unknown) {

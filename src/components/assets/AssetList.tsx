@@ -2,7 +2,7 @@
 
 import { Badge } from '@/components/shared/Badge';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { PROGRESS_LABELS, type ProgressCategory } from '@/types';
+import { getProgressBadgeKey, getProgressLabel } from '@/lib/progress';
 
 export type AssetItem = {
   id: string;
@@ -32,15 +32,6 @@ type AssetListProps = {
   pageSize: number;
   onPageChange: (page: number) => void;
   onSelect: (id: string) => void;
-};
-
-const PROGRESS_BADGE_MAP: Record<string, 'pending' | 'analyzing' | 'located' | 'fixed' | 'not-issue' | 'blocked'> = {
-  PENDING: 'pending',
-  ANALYZING: 'analyzing',
-  LOCATED: 'located',
-  FIXED: 'fixed',
-  NOT_ISSUE: 'not-issue',
-  BLOCKED: 'blocked',
 };
 
 export function AssetList({ assets, total, page, pageSize, onPageChange, onSelect }: AssetListProps) {
@@ -73,12 +64,8 @@ export function AssetList({ assets, total, page, pageSize, onPageChange, onSelec
           </thead>
           <tbody>
             {assets.map((asset) => {
-              const progressKey = asset.progressCategory
-                ? PROGRESS_BADGE_MAP[asset.progressCategory]
-                : undefined;
-              const progressLabel = asset.progressCategory
-                ? PROGRESS_LABELS[asset.progressCategory as ProgressCategory] ?? asset.progressCategory
-                : null;
+              const progressKey = getProgressBadgeKey(asset.progressCategory) ?? undefined;
+              const progressLabel = getProgressLabel(asset.progressCategory) ?? asset.progressCategory;
               return (
                 <tr
                   key={asset.id}
@@ -110,12 +97,8 @@ export function AssetList({ assets, total, page, pageSize, onPageChange, onSelec
       {/* 移动端卡片 */}
       <div className="md:hidden space-y-sm">
         {assets.map((asset) => {
-          const progressKey = asset.progressCategory
-            ? PROGRESS_BADGE_MAP[asset.progressCategory]
-            : undefined;
-          const progressLabel = asset.progressCategory
-            ? PROGRESS_LABELS[asset.progressCategory as ProgressCategory] ?? asset.progressCategory
-            : null;
+          const progressKey = getProgressBadgeKey(asset.progressCategory) ?? undefined;
+          const progressLabel = getProgressLabel(asset.progressCategory) ?? asset.progressCategory;
           return (
             <div
               key={asset.id}

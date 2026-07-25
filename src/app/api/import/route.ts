@@ -1,24 +1,58 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma/client";
 import { authenticateRequest, requireRole, authenticateApiKey } from "@/lib/auth";
 import type { TokenPayload } from "@/lib/auth";
 import { validateImportData, type ImportType, type ValidationError } from "@/lib/validations";
 import { internalError, jsonError } from "@/lib/api-helpers";
-import { writeAuditLog } from "@/lib/audit";
+import { checkRateLimit, getClientIp, importRateLimiter } from "@/lib/rate-limiter";
 import { PROGRESS_CATEGORIES } from "@/types";
 import type { ImportResponse } from "@/types";
 
 const MAX_IMPORT_ROWS = 100_000;
 
+type ImportRowInput = Record<string, unknown>;
+
+interface CaseResultUpsertData {
+  caseNo: string;
+  name: string;
+  resultSummary: string;
+  logUrl: string | null;
+  projectId: string;
+  testStageId: string;
+  batchScopeId: string;
+  assignee: string | null;
+  progressCategory: string | null;
+  rootCause: string | null;
+  mrOrTicket: string | null;
+}
+
+function transformRow(row: ImportRowInput, context: { projectId: string; testStageId: string; batchScopeId: string }): CaseResultUpsertData {
+  return {
+    caseNo: String(row.caseNo),
+    name: String(row.name),
+    resultSummary: String(row.resultSummary).toUpperCase(),
+    logUrl: row.logUrl ? String(row.logUrl) : null,
+    projectId: context.projectId,
+    testStageId: context.testStageId,
+    batchScopeId: context.batchScopeId,
+    assignee: row.assignee ? String(row.assignee) : null,
+    progressCategory: row.progressCategory ? String(row.progressCategory).toUpperCase() : null,
+    rootCause: row.rootCause ? String(row.rootCause) : null,
+    mrOrTicket: row.mrOrTicket ? String(row.mrOrTicket) : null,
+  };
+}
+
 export async function POST(request: NextRequest) {
+  const rateLimit = await checkRateLimit(importRateLimiter, getClientIp(request));
+  if (rateLimit) return rateLimit;
+
   // Try API Key authentication first
   const apiKeyResult = await authenticateApiKey(request, prisma);
   let authResult: TokenPayload;
-  let isApiKey = false;
 
   if (apiKeyResult) {
-    isApiKey = true;
-    authResult = { userId: "api-key", username: "api-key" };
+    authResult = { userId: apiKeyResult.userId, username: "api-key" };
   } else {
     const jwtResult = authenticateRequest(request);
     if (jwtResult instanceof NextResponse) return jwtResult;
@@ -38,7 +72,7 @@ export async function POST(request: NextRequest) {
       batchScopeId,
       fileName,
     }: {
-      rows: Record<string, unknown>[];
+      rows: ImportRowInput[];
       importType: ImportType;
       projectId: string;
       testStageId: string;
@@ -105,49 +139,93 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Transform rows to CaseResult create data
-    const data = rows.map((row) => ({
-      caseNo: String(row.caseNo),
-      name: String(row.name),
-      resultSummary: String(row.resultSummary).toUpperCase(),
-      logUrl: row.logUrl ? String(row.logUrl) : null,
-      projectId,
-      testStageId,
-      batchScopeId,
-      assignee: row.assignee ? String(row.assignee) : null,
-      progressCategory: row.progressCategory ? String(row.progressCategory).toUpperCase() : null,
-      rootCause: row.rootCause ? String(row.rootCause) : null,
-      mrOrTicket: row.mrOrTicket ? String(row.mrOrTicket) : null,
-      assetSaved: false,
-    }));
+    // Transform rows to CaseResult upsert data
+    const upsertData: CaseResultUpsertData[] = rows.map((row) =>
+      transformRow(row, { projectId, testStageId, batchScopeId })
+    );
 
-    // Use createMany for bulk insert
-    const result = await prisma.caseResult.createMany({ data });
+    // Run upserts + import record + audit log inside a single transaction
+    // so that partial failures roll back together.
+    const { imported } = await prisma.$transaction(async (tx) => {
+      let createdCount = 0;
+      let updatedCount = 0;
 
-    await writeAuditLog({
-      userId: isApiKey ? "api-key" : authResult.userId,
-      action: "CREATE",
-      entityType: "case",
-      entityId: batchScopeId,
-      changes: { imported: result.count, fileName: fileName || "unknown" },
-    });
+      for (const data of upsertData) {
+        const result = await tx.caseResult.upsert({
+          where: {
+            projectId_testStageId_batchScopeId_caseNo: {
+              projectId: data.projectId,
+              testStageId: data.testStageId,
+              batchScopeId: data.batchScopeId,
+              caseNo: data.caseNo,
+            },
+          },
+          create: {
+            ...data,
+            assetSaved: false,
+          },
+          update: {
+            // Re-importing the same caseNo re-syncs execution result fields
+            // but preserves analysis fields that are not in the import payload
+            // (assignee / progressCategory / rootCause / mrOrTicket are explicit
+            // so re-analysis imports can still update them).
+            name: data.name,
+            resultSummary: data.resultSummary,
+            logUrl: data.logUrl,
+            assignee: data.assignee,
+            progressCategory: data.progressCategory,
+            rootCause: data.rootCause,
+            mrOrTicket: data.mrOrTicket,
+          },
+          select: { createdAt: true, updatedAt: true, assetSaved: true },
+        });
 
-    // Write import history record
-    await prisma.importRecord.create({
-      data: {
-        projectId,
-        importType: importType || "pre-analysis",
-        fileName: fileName || "unknown",
-        totalRows: rows.length,
-        importedCount: result.count,
-        errorCount: errors.length,
-        errors: errors.length > 0 ? (errors as any) : undefined,
-        userId: isApiKey ? "api-key" : authResult.userId,
-      },
-    });
+        if (result.assetSaved === undefined) {
+          // Defensive: should not happen because we always select, but keep TS happy
+          createdCount += 1;
+        } else if (result.createdAt.getTime() === result.updatedAt.getTime()) {
+          createdCount += 1;
+        } else {
+          updatedCount += 1;
+        }
+      }
+
+      await tx.importRecord.create({
+        data: {
+          projectId,
+          importType: importType || "pre-analysis",
+          fileName: fileName || "unknown",
+          totalRows: rows.length,
+          importedCount: createdCount + updatedCount,
+          errorCount: 0,
+          userId: authResult.userId,
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId: authResult.userId,
+          action: "CREATE",
+          entityType: "case",
+          entityId: batchScopeId,
+          changes: {
+            imported: createdCount + updatedCount,
+            created: createdCount,
+            updated: updatedCount,
+            fileName: fileName || "unknown",
+          } as Prisma.InputJsonValue,
+        },
+      });
+
+      return {
+        imported: createdCount + updatedCount,
+        created: createdCount,
+        updated: updatedCount,
+      };
+    }, { timeout: 60_000 });
 
     return NextResponse.json<ImportResponse>(
-      { imported: result.count, errors: [] },
+      { imported, errors: [] },
       { status: 201 }
     );
   } catch (error: unknown) {

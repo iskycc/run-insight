@@ -117,4 +117,59 @@ describe("GET /api/export", () => {
     const res = await GET(req);
     expect(res.status).toBe(500);
   });
+
+  it("should return an xlsx file with correct headers and content", async () => {
+    (mockPrisma.caseResult.findMany as jest.Mock).mockResolvedValue([sampleCase]);
+
+    const req = createRequest("/api/export?format=xlsx");
+    req.headers.set("cookie", authCookie());
+    const res = await GET(req);
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe(
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    expect(res.headers.get("content-disposition")).toMatch(/filename="run-insight-\d{4}-\d{2}-\d{2}\.xlsx"/);
+    const buffer = await res.arrayBuffer();
+    expect(buffer.byteLength).toBeGreaterThan(0);
+    // xlsx files start with the ZIP magic number "PK\x03\x04"
+    const head = new Uint8Array(buffer, 0, 4);
+    expect(head[0]).toBe(0x50);
+    expect(head[1]).toBe(0x4b);
+    expect(head[2]).toBe(0x03);
+    expect(head[3]).toBe(0x04);
+  });
+
+  it("should accept format=excel as an alias for xlsx", async () => {
+    (mockPrisma.caseResult.findMany as jest.Mock).mockResolvedValue([sampleCase]);
+
+    const req = createRequest("/api/export?format=excel");
+    req.headers.set("cookie", authCookie());
+    const res = await GET(req);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe(
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+  });
+
+  it("should return 400 for an unsupported export format", async () => {
+    (mockPrisma.caseResult.findMany as jest.Mock).mockResolvedValue([]);
+
+    const req = createRequest("/api/export?format=xml");
+    req.headers.set("cookie", authCookie());
+    const res = await GET(req);
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toBe("VALIDATION_ERROR");
+    expect(body.message).toContain("不支持的导出格式");
+  });
+
+  it("should default to CSV when no format is specified", async () => {
+    (mockPrisma.caseResult.findMany as jest.Mock).mockResolvedValue([sampleCase]);
+
+    const req = createRequest("/api/export");
+    req.headers.set("cookie", authCookie());
+    const res = await GET(req);
+    expect(res.headers.get("content-type")).toContain("text/csv");
+  });
 });

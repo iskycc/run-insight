@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { authenticateRequest, requireRole } from "@/lib/auth";
 import { validateRequired } from "@/lib/validations";
 import { internalError, jsonError } from "@/lib/api-helpers";
+import { writeAuditLog } from "@/lib/audit";
 import type { BatchScopeDTO, BatchScopeWithStats, BatchesResponse } from "@/types";
 
 export async function GET(
@@ -112,6 +113,14 @@ export async function POST(
       createdAt: batch.createdAt.toISOString(),
       updatedAt: batch.updatedAt.toISOString(),
     };
+
+    await writeAuditLog({
+      userId: authResult.userId,
+      action: "CREATE",
+      entityType: "batch",
+      entityId: batch.id,
+      changes: { name: batch.name, projectId: batch.projectId, testStageId: id },
+    });
 
     return NextResponse.json({ batch: batchDTO }, { status: 201 });
   } catch (error: unknown) {

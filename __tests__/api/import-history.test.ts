@@ -1,11 +1,12 @@
 import { GET } from "@/app/api/import-history/route";
+import { GET as GET_BY_ID } from "@/app/api/import-history/[id]/route";
 import { prisma } from "@/lib/prisma";
 import { authenticateRequest } from "@/lib/auth";
 import { NextRequest, NextResponse } from "next/server";
 
 jest.mock("@/lib/prisma", () => ({
   prisma: {
-    importRecord: { findMany: jest.fn(), count: jest.fn() },
+    importRecord: { findMany: jest.fn(), count: jest.fn(), findUnique: jest.fn() },
   },
 }));
 jest.mock("@/lib/auth", () => ({
@@ -85,5 +86,62 @@ describe("GET /api/import-history", () => {
     expect(mockPrisma.importRecord.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ skip: 10, take: 10 })
     );
+  });
+});
+
+describe("GET /api/import-history/[id]", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (authenticateRequest as jest.Mock).mockReturnValue({ userId: "u1", username: "admin" });
+  });
+
+  it("returns import record details", async () => {
+    const record = {
+      id: "r1",
+      projectId: "p1",
+      importType: "pre-analysis",
+      fileName: "test.csv",
+      totalRows: 10,
+      importedCount: 8,
+      errorCount: 2,
+      errors: [{ row: 3, field: "caseNo", message: "用例编号不能为空" }],
+      userId: "u1",
+      createdAt: new Date("2026-07-01"),
+    };
+    (mockPrisma.importRecord.findUnique as jest.Mock).mockResolvedValue(record);
+
+    const req = createRequest("http://localhost/api/import-history/r1");
+    const res = await GET_BY_ID(req, { params: Promise.resolve({ id: "r1" }) });
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.id).toBe("r1");
+    expect(body.errors).toHaveLength(1);
+  });
+
+  it("returns 404 when record not found", async () => {
+    (mockPrisma.importRecord.findUnique as jest.Mock).mockResolvedValue(null);
+
+    const req = createRequest("http://localhost/api/import-history/missing");
+    const res = await GET_BY_ID(req, { params: Promise.resolve({ id: "missing" }) });
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 401 when not authenticated", async () => {
+    (authenticateRequest as jest.Mock).mockReturnValue(
+      NextResponse.json({ error: "UNAUTHORIZED", message: "未登录" }, { status: 401 })
+    );
+
+    const req = createRequest("http://localhost/api/import-history/r1");
+    const res = await GET_BY_ID(req, { params: Promise.resolve({ id: "r1" }) });
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 500 on database error", async () => {
+    (mockPrisma.importRecord.findUnique as jest.Mock).mockRejectedValue(new Error("DB error"));
+
+    const req = createRequest("http://localhost/api/import-history/r1");
+    const res = await GET_BY_ID(req, { params: Promise.resolve({ id: "r1" }) });
+    expect(res.status).toBe(500);
   });
 });

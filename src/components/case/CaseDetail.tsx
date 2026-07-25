@@ -2,7 +2,8 @@
 
 import { Badge } from '@/components/shared/Badge';
 import { Button } from '@/components/shared/Button';
-import { PROGRESS_LABELS, type ProgressCategory } from '@/types';
+import { isSafeHttpUrl } from '@/lib/url';
+import { getProgressBadgeKey, getProgressLabel } from '@/lib/progress';
 
 export type CaseDetailData = {
   id: string;
@@ -33,15 +34,6 @@ type CaseDetailProps = {
   onSaveAsset: () => void;
 };
 
-const PROGRESS_BADGE_MAP: Record<string, 'pending' | 'analyzing' | 'located' | 'fixed' | 'not-issue' | 'blocked'> = {
-  PENDING: 'pending',
-  ANALYZING: 'analyzing',
-  LOCATED: 'located',
-  FIXED: 'fixed',
-  NOT_ISSUE: 'not-issue',
-  BLOCKED: 'blocked',
-};
-
 function InfoRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-xs">
@@ -52,12 +44,8 @@ function InfoRow({ label, children }: { label: string; children: React.ReactNode
 }
 
 export function CaseDetail({ caseData, onEdit, onSaveAsset }: CaseDetailProps) {
-  const progressKey = caseData.progressCategory
-    ? PROGRESS_BADGE_MAP[caseData.progressCategory]
-    : undefined;
-  const progressLabel = caseData.progressCategory
-    ? PROGRESS_LABELS[caseData.progressCategory as ProgressCategory] ?? caseData.progressCategory
-    : null;
+  const progressKey = getProgressBadgeKey(caseData.progressCategory) ?? undefined;
+  const progressLabel = getProgressLabel(caseData.progressCategory) ?? caseData.progressCategory;
 
   return (
     <div className="space-y-lg">
@@ -103,7 +91,7 @@ export function CaseDetail({ caseData, onEdit, onSaveAsset }: CaseDetailProps) {
             </span>
           </InfoRow>
           <InfoRow label="执行日志">
-            {caseData.logUrl ? (
+            {caseData.logUrl && isSafeHttpUrl(caseData.logUrl) ? (
               <a
                 href={caseData.logUrl}
                 target="_blank"
@@ -138,7 +126,7 @@ export function CaseDetail({ caseData, onEdit, onSaveAsset }: CaseDetailProps) {
           </InfoRow>
           <InfoRow label="MR 链接 / 单号">
             {caseData.mrOrTicket ? (
-              caseData.mrOrTicket.startsWith('http') ? (
+              isSafeHttpUrl(caseData.mrOrTicket) ? (
                 <a
                   href={caseData.mrOrTicket}
                   target="_blank"

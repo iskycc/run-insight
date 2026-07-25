@@ -7,6 +7,10 @@ import type { Role } from "@/generated/prisma/enums";
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
+  if (process.env.NODE_ENV === "production") {
+    console.error("❌ JWT_SECRET 环境变量未设置，无法在生产环境启动。");
+    process.exit(1);
+  }
   console.warn("⚠️ JWT_SECRET 环境变量未设置，使用不安全的默认值。生产环境请务必设置！");
 }
 const SECRET = JWT_SECRET || "run-insight-jwt-secret-change-in-production-2026";
@@ -101,12 +105,13 @@ export async function requireRole(
 
 export async function authenticateApiKey(
   request: NextRequest,
-  prismaClient: { apiKey: { findFirst: (args: { where: { keyHash: string } }) => Promise<{ projectId: string } | null> } }
-): Promise<{ projectId: string } | null> {
+  prismaClient: { apiKey: { findFirst: (args: { where: { keyHash: string } }) => Promise<{ projectId: string; userId: string | null } | null> } }
+): Promise<{ projectId: string; userId: string } | null> {
   const apiKey = request.headers.get("x-api-key");
   if (!apiKey) return null;
 
   const keyHash = crypto.createHash("sha256").update(apiKey).digest("hex");
   const record = await prismaClient.apiKey.findFirst({ where: { keyHash } });
-  return record ? { projectId: record.projectId } : null;
+  if (!record || !record.userId) return null;
+  return { projectId: record.projectId, userId: record.userId };
 }

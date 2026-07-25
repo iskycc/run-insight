@@ -7,6 +7,7 @@ import { useAuth } from '@/components/shared/AuthProvider';
 const NAV_ITEMS = [
   { href: '/', label: '大盘', public: true },
   { href: '/workspace', label: '工作台', public: false },
+  { href: '/compare', label: '对比', public: false },
   { href: '/import', label: '导入', public: false },
   { href: '/assets', label: '资产库', public: false },
 ] as const;

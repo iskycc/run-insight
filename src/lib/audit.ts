@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma/client";
 
 export async function writeAuditLog(params: {
   userId: string;
@@ -8,7 +9,9 @@ export async function writeAuditLog(params: {
   changes?: unknown;
 }) {
   try {
-    await prisma.auditLog.create({ data: params } as any);
+    await prisma.auditLog.create({
+      data: params as unknown as Prisma.AuditLogCreateInput,
+    });
   } catch {
     // Log write failure should not affect main operation
   }

@@ -1,4 +1,4 @@
-import { PATCH as patchProject } from "@/app/api/projects/[id]/route";
+import { PATCH as patchProject, DELETE as deleteProject } from "@/app/api/projects/[id]/route";
 import { GET as getProjects } from "@/app/api/projects/route";
 import { prisma } from "@/lib/prisma";
 import { NextRequest } from "next/server";
@@ -7,7 +7,7 @@ import { generateToken } from "@/lib/auth";
 jest.mock("@/lib/prisma", () => ({
   prisma: {
     user: { findUnique: jest.fn().mockResolvedValue({ role: "ADMIN" }) },
-    project: { findUnique: jest.fn(), update: jest.fn(), findMany: jest.fn(), count: jest.fn() },
+    project: { findUnique: jest.fn(), update: jest.fn(), delete: jest.fn(), findMany: jest.fn(), count: jest.fn() },
     testStage: { count: jest.fn() },
     batchScope: { count: jest.fn() },
     caseResult: { count: jest.fn(), groupBy: jest.fn() },
@@ -69,5 +69,69 @@ describe("Archive API", () => {
 
     const findManyCall = (mockPrisma.project.findMany as jest.Mock).mock.calls[0][0];
     expect(findManyCall.where.archived).toBeUndefined();
+  });
+
+  it("should return 404 when archiving a non-existent project", async () => {
+    (mockPrisma.project.findUnique as jest.Mock).mockResolvedValue(null);
+
+    const req = new NextRequest(new URL("http://localhost/api/projects/p-missing"), {
+      method: "PATCH",
+      body: JSON.stringify({ archived: true }),
+      headers: { "Content-Type": "application/json", cookie: authCookie() },
+    });
+    const res = await patchProject(req, { params: Promise.resolve({ id: "p-missing" }) });
+    expect(res.status).toBe(404);
+  });
+
+  it("should return 500 when archive update fails", async () => {
+    (mockPrisma.project.findUnique as jest.Mock).mockResolvedValue({ id: "p1" });
+    (mockPrisma.project.update as jest.Mock).mockRejectedValue(new Error("DB error"));
+
+    const req = new NextRequest(new URL("http://localhost/api/projects/p1"), {
+      method: "PATCH",
+      body: JSON.stringify({ archived: true }),
+      headers: { "Content-Type": "application/json", cookie: authCookie() },
+    });
+    const res = await patchProject(req, { params: Promise.resolve({ id: "p1" }) });
+    expect(res.status).toBe(500);
+  });
+
+  it("should delete a project and write an audit log", async () => {
+    (mockPrisma.project.findUnique as jest.Mock).mockResolvedValue({ id: "p1" });
+    (mockPrisma.project.delete as jest.Mock).mockResolvedValue({});
+    (mockPrisma.auditLog.create as jest.Mock).mockResolvedValue({});
+
+    const req = new NextRequest(new URL("http://localhost/api/projects/p1"), {
+      method: "DELETE",
+      headers: { cookie: authCookie() },
+    });
+    const res = await deleteProject(req, { params: Promise.resolve({ id: "p1" }) });
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.deleted).toBe(true);
+  });
+
+  it("should return 404 when deleting a non-existent project", async () => {
+    (mockPrisma.project.findUnique as jest.Mock).mockResolvedValue(null);
+
+    const req = new NextRequest(new URL("http://localhost/api/projects/p-missing"), {
+      method: "DELETE",
+      headers: { cookie: authCookie() },
+    });
+    const res = await deleteProject(req, { params: Promise.resolve({ id: "p-missing" }) });
+    expect(res.status).toBe(404);
+  });
+
+  it("should return 500 when delete fails", async () => {
+    (mockPrisma.project.findUnique as jest.Mock).mockResolvedValue({ id: "p1" });
+    (mockPrisma.project.delete as jest.Mock).mockRejectedValue(new Error("DB error"));
+
+    const req = new NextRequest(new URL("http://localhost/api/projects/p1"), {
+      method: "DELETE",
+      headers: { cookie: authCookie() },
+    });
+    const res = await deleteProject(req, { params: Promise.resolve({ id: "p1" }) });
+    expect(res.status).toBe(500);
   });
 });

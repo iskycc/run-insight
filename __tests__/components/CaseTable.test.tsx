@@ -49,13 +49,23 @@ const defaultProps = {
   totalCount: 25,
   page: 1,
   pageSize: 10,
+  sortField: 'createdAt' as const,
+  sortOrder: 'desc' as const,
+  selectedIds: [] as string[],
   onPageChange: jest.fn(),
   onSortChange: jest.fn(),
   onSaveAsset: jest.fn(),
   onViewDetail: jest.fn(),
+  onSelectionChange: jest.fn(),
+  onClearSelection: jest.fn(),
+  onBatchAction: jest.fn(),
 };
 
 describe('CaseTable', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
   test('renders table with case rows', () => {
     render(<CaseTable {...defaultProps} />);
 
@@ -100,5 +110,127 @@ describe('CaseTable', () => {
     await userEvent.setup().click(detailButtons[0]);
 
     expect(onViewDetail).toHaveBeenCalledWith('1');
+  });
+
+  test('clicking sortable column header calls onSortChange with toggled order', async () => {
+    const onSortChange = jest.fn();
+    render(
+      <CaseTable
+        {...defaultProps}
+        sortField="caseNo"
+        sortOrder="desc"
+        onSortChange={onSortChange}
+      />,
+    );
+
+    // caseNo column header is active in desc state → next click toggles to asc
+    const caseNoHeader = screen.getByRole('button', { name: /编号/ });
+    await userEvent.setup().click(caseNoHeader);
+
+    expect(onSortChange).toHaveBeenCalledWith({ field: 'caseNo', order: 'asc' });
+  });
+
+  test('clicking an inactive column header calls onSortChange with asc', async () => {
+    const onSortChange = jest.fn();
+    render(
+      <CaseTable
+        {...defaultProps}
+        sortField="createdAt"
+        sortOrder="desc"
+        onSortChange={onSortChange}
+      />,
+    );
+
+    const nameHeader = screen.getByRole('button', { name: /名称/ });
+    await userEvent.setup().click(nameHeader);
+
+    expect(onSortChange).toHaveBeenCalledWith({ field: 'name', order: 'asc' });
+  });
+
+  test('selecting a row checkbox calls onSelectionChange with the id', async () => {
+    const onSelectionChange = jest.fn();
+    render(<CaseTable {...defaultProps} onSelectionChange={onSelectionChange} />);
+
+    const rowCheckbox = screen.getByLabelText('选择用例 C001');
+    await userEvent.setup().click(rowCheckbox);
+
+    expect(onSelectionChange).toHaveBeenCalledWith(['1']);
+  });
+
+  test('header checkbox selects all rows on the current page', async () => {
+    const onSelectionChange = jest.fn();
+    render(<CaseTable {...defaultProps} onSelectionChange={onSelectionChange} />);
+
+    const headerCheckbox = screen.getByLabelText('全选当前页');
+    await userEvent.setup().click(headerCheckbox);
+
+    expect(onSelectionChange).toHaveBeenCalledWith(['1', '2']);
+  });
+
+  test('header checkbox deselects when all on the page are already selected', async () => {
+    const onSelectionChange = jest.fn();
+    render(
+      <CaseTable
+        {...defaultProps}
+        selectedIds={['1', '2']}
+        onSelectionChange={onSelectionChange}
+      />,
+    );
+
+    const headerCheckbox = screen.getByLabelText('全选当前页');
+    await userEvent.setup().click(headerCheckbox);
+
+    expect(onSelectionChange).toHaveBeenCalledWith([]);
+  });
+
+  test('batch action bar appears when there are selectedIds', () => {
+    const { container } = render(<CaseTable {...defaultProps} selectedIds={['1', '2']} />);
+
+    // The action bar should render three batch buttons plus a clear button
+    expect(screen.getByText('批量更新进展')).toBeInTheDocument();
+    expect(screen.getByText('批量指派责任人')).toBeInTheDocument();
+    expect(screen.getByText('批量保存资产')).toBeInTheDocument();
+    expect(screen.getByText('清除选择')).toBeInTheDocument();
+
+    // The counter is split across text nodes due to the highlighted span;
+    // verify by checking the wrapper textContent contains both fragments.
+    const counter = container.querySelector('span.text-text-primary');
+    expect(counter?.textContent).toContain('已选中');
+    expect(counter?.textContent).toContain('个用例');
+    expect(counter?.textContent).toContain('2');
+  });
+
+  test('clicking batch action button calls onBatchAction with the action type', async () => {
+    const onBatchAction = jest.fn();
+    render(
+      <CaseTable
+        {...defaultProps}
+        selectedIds={['1', '2']}
+        onBatchAction={onBatchAction}
+      />,
+    );
+
+    await userEvent.setup().click(screen.getByText('批量保存资产'));
+    expect(onBatchAction).toHaveBeenCalledWith('assetSaved');
+
+    await userEvent.setup().click(screen.getByText('批量更新进展'));
+    expect(onBatchAction).toHaveBeenCalledWith('progressCategory');
+
+    await userEvent.setup().click(screen.getByText('批量指派责任人'));
+    expect(onBatchAction).toHaveBeenCalledWith('assignee');
+  });
+
+  test('clicking 清除选择 calls onClearSelection', async () => {
+    const onClearSelection = jest.fn();
+    render(
+      <CaseTable
+        {...defaultProps}
+        selectedIds={['1']}
+        onClearSelection={onClearSelection}
+      />,
+    );
+
+    await userEvent.setup().click(screen.getByText('清除选择'));
+    expect(onClearSelection).toHaveBeenCalled();
   });
 });

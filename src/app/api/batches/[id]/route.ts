@@ -26,6 +26,14 @@ export async function PATCH(
 
     const updated = await prisma.batchScope.update({ where: { id }, data });
 
+    await writeAuditLog({
+      userId: authResult.userId,
+      action: "UPDATE",
+      entityType: "batch",
+      entityId: id,
+      changes: data,
+    });
+
     return NextResponse.json({
       id: updated.id,
       name: updated.name,

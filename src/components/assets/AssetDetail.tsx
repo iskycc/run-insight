@@ -2,21 +2,13 @@
 
 import { Button } from '@/components/shared/Button';
 import { Badge } from '@/components/shared/Badge';
-import { PROGRESS_LABELS, type ProgressCategory } from '@/types';
+import { isSafeHttpUrl } from '@/lib/url';
+import { getProgressBadgeKey, getProgressLabel } from '@/lib/progress';
 import type { AssetItem } from './AssetList';
 
 type AssetDetailProps = {
   asset: AssetItem;
   onClose: () => void;
-};
-
-const PROGRESS_BADGE_MAP: Record<string, 'pending' | 'analyzing' | 'located' | 'fixed' | 'not-issue' | 'blocked'> = {
-  PENDING: 'pending',
-  ANALYZING: 'analyzing',
-  LOCATED: 'located',
-  FIXED: 'fixed',
-  NOT_ISSUE: 'not-issue',
-  BLOCKED: 'blocked',
 };
 
 function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
@@ -29,12 +21,8 @@ function DetailRow({ label, children }: { label: string; children: React.ReactNo
 }
 
 export function AssetDetail({ asset, onClose }: AssetDetailProps) {
-  const progressKey = asset.progressCategory
-    ? PROGRESS_BADGE_MAP[asset.progressCategory]
-    : undefined;
-  const progressLabel = asset.progressCategory
-    ? PROGRESS_LABELS[asset.progressCategory as ProgressCategory] ?? asset.progressCategory
-    : null;
+  const progressKey = getProgressBadgeKey(asset.progressCategory) ?? undefined;
+  const progressLabel = getProgressLabel(asset.progressCategory) ?? asset.progressCategory;
 
   return (
     <div className="panel space-y-lg p-lg">
@@ -83,9 +71,9 @@ export function AssetDetail({ asset, onClose }: AssetDetailProps) {
 
           <DetailRow label="MR 链接 / 单号">
             {asset.mrOrTicket ? (
-              asset.mrOrTicket.startsWith('http') ? (
-              <a
-                href={asset.mrOrTicket}
+              isSafeHttpUrl(asset.mrOrTicket) ? (
+                <a
+                  href={asset.mrOrTicket}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="break-all text-accent underline hover:text-accent-hover"
@@ -101,7 +89,7 @@ export function AssetDetail({ asset, onClose }: AssetDetailProps) {
           </DetailRow>
 
           <DetailRow label="执行日志">
-            {asset.logUrl ? (
+            {asset.logUrl && isSafeHttpUrl(asset.logUrl) ? (
               <a
                 href={asset.logUrl}
                 target="_blank"

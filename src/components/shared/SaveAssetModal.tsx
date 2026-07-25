@@ -3,6 +3,7 @@
 import { Modal } from './Modal';
 import { Badge } from './Badge';
 import { Button } from './Button';
+import { getProgressBadgeKey } from '@/lib/progress';
 import type { CaseResultDTO } from '@/types';
 
 type SaveAssetModalProps = {
@@ -12,26 +13,9 @@ type SaveAssetModalProps = {
   caseData: CaseResultDTO;
 };
 
-const PROGRESS_MAP: Record<string, 'pending' | 'analyzing' | 'located' | 'fixed' | 'not-issue' | 'blocked'> = {
-  'PENDING': 'pending',
-  'ANALYZING': 'analyzing',
-  'LOCATED': 'located',
-  'FIXED': 'fixed',
-  'NOT_ISSUE': 'not-issue',
-  'BLOCKED': 'blocked',
-  '待分析': 'pending',
-  '分析中': 'analyzing',
-  '已定位': 'located',
-  '已修复': 'fixed',
-  '非问题': 'not-issue',
-  '阻塞': 'blocked',
-};
-
 export function SaveAssetModal({ open, onClose, onConfirm, caseData }: SaveAssetModalProps) {
   const hasProgress = !!caseData.progressCategory;
-  const progressKey = caseData.progressCategory
-    ? PROGRESS_MAP[caseData.progressCategory]
-    : undefined;
+  const progressKey = getProgressBadgeKey(caseData.progressCategory) ?? undefined;
 
   return (
     <Modal

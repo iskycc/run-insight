@@ -144,6 +144,50 @@ describe("GET /api/cases", () => {
     expect(findManyCall.take).toBe(10);
   });
 
+  it("should pass sortField and sortOrder into orderBy", async () => {
+    (mockPrisma.caseResult.findMany as jest.Mock).mockResolvedValue([]);
+    (mockPrisma.caseResult.count as jest.Mock).mockResolvedValue(0);
+
+    const req = createRequest("/api/cases?sortField=caseNo&sortOrder=asc");
+    req.headers.set("cookie", authCookie());
+    await GET(req);
+
+    const findManyCall = (mockPrisma.caseResult.findMany as jest.Mock).mock.calls[0][0];
+    expect(findManyCall.orderBy).toEqual({ caseNo: "asc" });
+  });
+
+  it("should reject invalid sortField with 400", async () => {
+    const req = createRequest("/api/cases?sortField=evil");
+    req.headers.set("cookie", authCookie());
+    const res = await GET(req);
+    expect(res.status).toBe(400);
+
+    const body = await res.json();
+    expect(body.error).toBe("VALIDATION_ERROR");
+  });
+
+  it("should reject invalid sortOrder with 400", async () => {
+    const req = createRequest("/api/cases?sortOrder=sideways");
+    req.headers.set("cookie", authCookie());
+    const res = await GET(req);
+    expect(res.status).toBe(400);
+
+    const body = await res.json();
+    expect(body.error).toBe("VALIDATION_ERROR");
+  });
+
+  it("should filter by assetSaved=false", async () => {
+    (mockPrisma.caseResult.findMany as jest.Mock).mockResolvedValue([]);
+    (mockPrisma.caseResult.count as jest.Mock).mockResolvedValue(0);
+
+    const req = createRequest("/api/cases?assetSaved=false");
+    req.headers.set("cookie", authCookie());
+    await GET(req);
+
+    const findManyCall = (mockPrisma.caseResult.findMany as jest.Mock).mock.calls[0][0];
+    expect(findManyCall.where.assetSaved).toBe(false);
+  });
+
   it("should return 500 on database error", async () => {
     (mockPrisma.caseResult.findMany as jest.Mock).mockRejectedValue(new Error("DB error"));
 

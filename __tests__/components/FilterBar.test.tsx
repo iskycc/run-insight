@@ -28,16 +28,24 @@ const defaultProps = {
   selectedProjectId: '',
   selectedStageId: '',
   selectedBatchScopeId: '',
+  selectedProgressCategory: '',
+  selectedAssetSaved: '',
   onFilterChange: jest.fn(),
 };
 
 describe('FilterBar', () => {
-  test('renders project/stage/batch selects', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test('renders project/stage/batch/progress/asset selects', () => {
     render(<FilterBar {...defaultProps} />);
 
     expect(screen.getByLabelText('项目')).toBeInTheDocument();
     expect(screen.getByLabelText('测试阶段')).toBeInTheDocument();
     expect(screen.getByLabelText('批跑范围')).toBeInTheDocument();
+    expect(screen.getByLabelText('进展')).toBeInTheDocument();
+    expect(screen.getByLabelText('资产状态')).toBeInTheDocument();
   });
 
   test('cascading: changing project calls onFilterChange', async () => {
@@ -50,6 +58,8 @@ describe('FilterBar', () => {
       projectId: 'p1',
       stageId: '',
       batchScopeId: '',
+      progressCategory: '',
+      assetSaved: '',
     });
   });
 
@@ -61,5 +71,35 @@ describe('FilterBar', () => {
     const stageOptions = Array.from(stageSelect.options);
     expect(stageOptions).toHaveLength(1);
     expect(stageOptions[0].value).toBe('');
+  });
+
+  test('changing progress category calls onFilterChange', async () => {
+    const onFilterChange = jest.fn();
+    render(<FilterBar {...defaultProps} onFilterChange={onFilterChange} />);
+
+    await userEvent.setup().selectOptions(screen.getByLabelText('进展'), 'FIXED');
+
+    expect(onFilterChange).toHaveBeenCalledWith({
+      projectId: '',
+      stageId: '',
+      batchScopeId: '',
+      progressCategory: 'FIXED',
+      assetSaved: '',
+    });
+  });
+
+  test('changing asset saved filter calls onFilterChange', async () => {
+    const onFilterChange = jest.fn();
+    render(<FilterBar {...defaultProps} onFilterChange={onFilterChange} />);
+
+    await userEvent.setup().selectOptions(screen.getByLabelText('资产状态'), 'true');
+
+    expect(onFilterChange).toHaveBeenCalledWith({
+      projectId: '',
+      stageId: '',
+      batchScopeId: '',
+      progressCategory: '',
+      assetSaved: 'true',
+    });
   });
 });

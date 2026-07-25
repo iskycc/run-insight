@@ -26,6 +26,14 @@ export async function PATCH(
 
     const updated = await prisma.testStage.update({ where: { id }, data });
 
+    await writeAuditLog({
+      userId: authResult.userId,
+      action: "UPDATE",
+      entityType: "stage",
+      entityId: id,
+      changes: data,
+    });
+
     return NextResponse.json({
       id: updated.id,
       name: updated.name,
