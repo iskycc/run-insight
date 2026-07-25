@@ -20,7 +20,10 @@ jest.mock("@/lib/prisma", () => ({
 const mockPrisma = prisma as jest.Mocked<typeof prisma>;
 
 function createRequest(url: string, options?: Record<string, unknown>): NextRequest {
-  return new NextRequest(new URL(url, "http://localhost:3000"), options as RequestInit);
+  return new NextRequest(
+    new URL(url, "http://localhost:3000"),
+    options as ConstructorParameters<typeof NextRequest>[1],
+  );
 }
 
 function authCookie(): Record<string, string> {
@@ -66,6 +69,46 @@ describe("GET /api/projects", () => {
     const body = await res.json();
     expect(body.projects).toHaveLength(1);
     expect(body.projects[0].name).toBe("测试项目");
+  });
+
+  it("limits non-admin users to memberships and returns project capabilities", async () => {
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValueOnce({ role: "VIEWER" });
+    (mockPrisma.project.findMany as jest.Mock).mockResolvedValue([
+      {
+        id: "p1",
+        name: "成员项目",
+        archived: false,
+        createdAt: new Date("2026-01-01"),
+        updatedAt: new Date("2026-01-01"),
+        members: [{ role: "EDITOR" }],
+        _count: { stages: 0, cases: 0 },
+      },
+    ]);
+    (mockPrisma.caseResult.groupBy as jest.Mock)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+
+    const req = createRequest("/api/projects");
+    req.headers.set("cookie", authCookie().cookie);
+    const res = await getProjects(req);
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(mockPrisma.project.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          members: { some: { userId: "user_1" } },
+        }),
+      })
+    );
+    expect(body.projects[0]).toEqual(
+      expect.objectContaining({
+        projectRole: "EDITOR",
+        canView: true,
+        canEdit: true,
+        canAdmin: false,
+      })
+    );
   });
 });
 

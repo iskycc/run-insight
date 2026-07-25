@@ -7,6 +7,7 @@ import type { ReactNode } from 'react';
 const NAV_ITEMS = [
   { href: '/admin/users', label: '用户管理' },
   { href: '/admin/audit-logs', label: '审计日志' },
+  { href: '/admin/root-causes', label: '根因分类' },
 ] as const;
 
 export default function AdminLayout({ children }: { children: ReactNode }) {

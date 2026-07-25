@@ -2,18 +2,32 @@ import { GET, POST } from "@/app/api/users/route";
 import { PATCH } from "@/app/api/users/[id]/route";
 import { prisma } from "@/lib/prisma";
 import { authenticateRequest } from "@/lib/auth";
+import { writeAuditLog } from "@/lib/audit";
 import { NextResponse } from "next/server";
 
 jest.mock("@/lib/prisma", () => ({
-  prisma: {
-    user: { findMany: jest.fn(), findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
-  },
+  prisma: (() => {
+    const user = {
+      findMany: jest.fn(),
+      findUnique: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      count: jest.fn(),
+    };
+    return {
+      user,
+      $transaction: jest.fn(async (callback: (tx: { user: typeof user }) => Promise<unknown>) =>
+        callback({ user })
+      ),
+    };
+  })(),
 }));
 jest.mock("@/lib/auth", () => ({
   authenticateRequest: jest.fn(),
   requireRole: jest.requireActual("@/lib/auth").requireRole,
   hashPassword: jest.fn().mockResolvedValue("hashed"),
 }));
+jest.mock("@/lib/audit", () => ({ writeAuditLog: jest.fn() }));
 
 describe("User management API", () => {
   beforeEach(() => {
@@ -41,10 +55,20 @@ describe("User management API", () => {
     const req = {
       url: "http://localhost/api/users",
       headers: new Headers(),
-      json: async () => ({ username: "newuser", password: "pass123", role: "EDITOR" }),
+      json: async () => ({ username: "newuser", password: "pass1234", role: "EDITOR" }),
     } as unknown as Request;
     const res = await POST(req as any);
     expect(res.status).toBe(201);
+    expect(writeAuditLog).toHaveBeenCalledWith({
+      userId: "u1",
+      action: "CREATE",
+      entityType: "user",
+      entityId: "u2",
+      changes: { username: "newuser", role: "EDITOR" },
+    });
+    expect(writeAuditLog).not.toHaveBeenCalledWith(
+      expect.objectContaining({ changes: expect.objectContaining({ password: expect.anything() }) })
+    );
   });
 
   it("should update user role", async () => {
@@ -60,6 +84,77 @@ describe("User management API", () => {
     } as unknown as Request;
     const res = await PATCH(req as any, { params: Promise.resolve({ id: "u2" }) });
     expect(res.status).toBe(200);
+    expect(writeAuditLog).toHaveBeenCalledWith({
+      userId: "u1",
+      action: "UPDATE",
+      entityType: "user",
+      entityId: "u2",
+      changes: { role: "VIEWER" },
+    });
+  });
+
+  it("should forbid administrators from changing their own role", async () => {
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue({ role: "ADMIN" });
+
+    const req = {
+      url: "http://localhost/api/users/u1",
+      headers: new Headers(),
+      json: async () => ({ role: "VIEWER" }),
+    } as unknown as Request;
+    const res = await PATCH(req as any, { params: Promise.resolve({ id: "u1" }) });
+
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({
+      error: "FORBIDDEN",
+      message: "不能修改自己的角色",
+    });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it("should preserve the last administrator", async () => {
+    (prisma.user.findUnique as jest.Mock)
+      .mockResolvedValueOnce({ role: "ADMIN" })
+      .mockResolvedValueOnce({ id: "u2", role: "ADMIN" });
+    (prisma.user.count as jest.Mock).mockResolvedValue(1);
+
+    const req = {
+      url: "http://localhost/api/users/u2",
+      headers: new Headers(),
+      json: async () => ({ role: "EDITOR" }),
+    } as unknown as Request;
+    const res = await PATCH(req as any, { params: Promise.resolve({ id: "u2" }) });
+
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({
+      error: "FORBIDDEN",
+      message: "系统至少需要保留一个管理员",
+    });
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it("should allow demoting an administrator when another administrator remains", async () => {
+    (prisma.user.findUnique as jest.Mock)
+      .mockResolvedValueOnce({ role: "ADMIN" })
+      .mockResolvedValueOnce({ id: "u2", role: "ADMIN" });
+    (prisma.user.count as jest.Mock).mockResolvedValue(2);
+    (prisma.user.update as jest.Mock).mockResolvedValue({
+      id: "u2",
+      username: "admin2",
+      role: "EDITOR",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const req = {
+      url: "http://localhost/api/users/u2",
+      headers: new Headers(),
+      json: async () => ({ role: "EDITOR" }),
+    } as unknown as Request;
+    const res = await PATCH(req as any, { params: Promise.resolve({ id: "u2" }) });
+
+    expect(res.status).toBe(200);
+    expect(prisma.user.count).toHaveBeenCalledWith({ where: { role: "ADMIN" } });
   });
 
   it("should return 403 for non-admin users", async () => {
@@ -129,6 +224,42 @@ describe("User management API", () => {
     expect(res.status).toBe(400);
   });
 
+  it("should reject a new user password shorter than eight characters", async () => {
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue({ role: "ADMIN" });
+
+    const req = {
+      url: "http://localhost/api/users",
+      headers: new Headers(),
+      json: async () => ({ username: "newuser", password: "short", role: "EDITOR" }),
+    } as unknown as Request;
+    const res = await POST(req as any);
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: "VALIDATION_ERROR",
+      message: "密码长度必须为 8 到 128 个字符",
+    });
+    expect(prisma.user.create).not.toHaveBeenCalled();
+  });
+
+  it("should return 400 when creating user with an invalid runtime role", async () => {
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue({ role: "ADMIN" });
+
+    const req = {
+      url: "http://localhost/api/users",
+      headers: new Headers(),
+      json: async () => ({ username: "newuser", password: "pass1234", role: "OWNER" }),
+    } as unknown as Request;
+    const res = await POST(req as any);
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: "VALIDATION_ERROR",
+      message: "角色不合法",
+    });
+    expect(prisma.user.create).not.toHaveBeenCalled();
+  });
+
   it("should return 409 when username already exists", async () => {
     (prisma.user.findUnique as jest.Mock)
       .mockResolvedValueOnce({ role: "ADMIN" })
@@ -137,7 +268,7 @@ describe("User management API", () => {
     const req = {
       url: "http://localhost/api/users",
       headers: new Headers(),
-      json: async () => ({ username: "newuser", password: "pass123", role: "EDITOR" }),
+      json: async () => ({ username: "newuser", password: "pass1234", role: "EDITOR" }),
     } as unknown as Request;
     const res = await POST(req as any);
     expect(res.status).toBe(409);
@@ -152,7 +283,7 @@ describe("User management API", () => {
     const req = {
       url: "http://localhost/api/users",
       headers: new Headers(),
-      json: async () => ({ username: "newuser", password: "pass123", role: "EDITOR" }),
+      json: async () => ({ username: "newuser", password: "pass1234", role: "EDITOR" }),
     } as unknown as Request;
     const res = await POST(req as any);
     expect(res.status).toBe(500);

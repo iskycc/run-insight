@@ -4,6 +4,7 @@ import { authenticateRequest, requireRole } from "@/lib/auth";
 import { validateRequired } from "@/lib/validations";
 import { internalError, jsonError } from "@/lib/api-helpers";
 import { writeAuditLog } from "@/lib/audit";
+import type { ProjectRole } from "@/generated/prisma/enums";
 import type { ProjectDTO, ProjectWithStats, ProjectsResponse } from "@/types";
 
 export async function GET(request: NextRequest) {
@@ -14,13 +15,27 @@ export async function GET(request: NextRequest) {
     const { searchParams } = request.nextUrl;
     const includeArchived = searchParams.get("includeArchived") === "true";
 
+    const user = await prisma.user.findUnique({
+      where: { id: authResult.userId },
+      select: { role: true },
+    });
+    if (!user) return jsonError("UNAUTHORIZED", "用户不存在", 401);
+
     const where: Record<string, unknown> = {};
     if (!includeArchived) where.archived = false;
+    if (user.role !== "ADMIN") {
+      where.members = { some: { userId: authResult.userId } };
+    }
 
     const projects = await prisma.project.findMany({
       where,
       orderBy: { createdAt: "desc" },
       include: {
+        members: {
+          where: { userId: authResult.userId },
+          select: { role: true },
+          take: 1,
+        },
         _count: {
           select: { stages: true, cases: true },
         },
@@ -43,7 +58,10 @@ export async function GET(request: NextRequest) {
     const passMap = new Map(passCounts.map((r) => [r.projectId, r._count._all]));
     const failMap = new Map(failCounts.map((r) => [r.projectId, r._count._all]));
 
-    const projectsWithStats: ProjectWithStats[] = projects.map((p) => ({
+    const projectsWithStats: ProjectWithStats[] = projects.map((p) => {
+      const projectRole = (p.members?.[0]?.role ?? null) as ProjectRole | null;
+      const systemAdmin = user.role === "ADMIN";
+      return {
       id: p.id,
       name: p.name,
       createdAt: p.createdAt.toISOString(),
@@ -53,7 +71,12 @@ export async function GET(request: NextRequest) {
       caseCount: p._count.cases,
       passCount: passMap.get(p.id) ?? 0,
       failCount: failMap.get(p.id) ?? 0,
-    }));
+      projectRole,
+      canView: systemAdmin || projectRole !== null,
+      canEdit: systemAdmin || projectRole === "ADMIN" || projectRole === "EDITOR",
+      canAdmin: systemAdmin || projectRole === "ADMIN",
+      };
+    });
 
     return NextResponse.json<ProjectsResponse>({ projects: projectsWithStats });
   } catch {
@@ -78,7 +101,12 @@ export async function POST(request: NextRequest) {
     }
 
     const project = await prisma.project.create({
-      data: { name: name.trim() },
+      data: {
+        name: name.trim(),
+        members: {
+          create: { userId: authResult.userId, role: "ADMIN" },
+        },
+      },
     });
 
     const projectDTO: ProjectDTO = {
@@ -87,6 +115,10 @@ export async function POST(request: NextRequest) {
       createdAt: project.createdAt.toISOString(),
       updatedAt: project.updatedAt.toISOString(),
       archived: project.archived,
+      projectRole: "ADMIN",
+      canView: true,
+      canEdit: true,
+      canAdmin: true,
     };
 
     await writeAuditLog({

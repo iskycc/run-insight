@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useCallback, useEffect, type ReactNode } from 'react';
+import { useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
 import { useAuth } from '@/components/shared/AuthProvider';
 import ImportTypeSwitch from '@/components/import/ImportTypeSwitch';
 import FileDropZone from '@/components/import/FileDropZone';
 import FieldMapping from '@/components/import/FieldMapping';
+import MappingTemplates from '@/components/import/MappingTemplates';
 import ValidationReport from '@/components/import/ValidationReport';
 import { Button } from '@/components/shared/Button';
 import { fetchJson, ApiError } from '@/lib/fetch';
@@ -13,6 +14,8 @@ import type { ValidationError, ImportType } from '@/lib/validations';
 import { validateImportDataClient } from '@/lib/validations';
 import type {
   ImportResponse,
+  ImportPreviewResponse,
+  ImportValidationErrorResponse,
   ProjectDTO,
   TestStageDTO,
   BatchScopeDTO,
@@ -229,6 +232,7 @@ function InlineCreate({
 
 export default function ImportPage() {
   const { user } = useAuth();
+  const canCreateProject = user?.role === 'ADMIN' || user?.role === 'EDITOR';
   const [step, setStep] = useState<Step>('select-type');
   const [importType, setImportType] = useState<ImportType>('pre-analysis');
   const [fileName, setFileName] = useState('');
@@ -237,7 +241,7 @@ export default function ImportPage() {
   const [validatedRows, setValidatedRows] = useState<Record<string, unknown>[]>([]);
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [fileError, setFileError] = useState('');
-  const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
+  const [projects, setProjects] = useState<ProjectDTO[]>([]);
   const [stages, setStages] = useState<{ id: string; projectId: string; name: string }[]>([]);
   const [batches, setBatches] = useState<{ id: string; projectId: string; testStageId: string; name: string }[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState('');
@@ -255,24 +259,33 @@ export default function ImportPage() {
   const [errors, setErrors] = useState<ValidationError[]>([]);
   const [preValidationErrors, setPreValidationErrors] = useState<ValidationError[]>([]);
   const [imported, setImported] = useState(0);
+  const [preview, setPreview] = useState<ImportPreviewResponse | null>(null);
+  const [isPreviewing, setIsPreviewing] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [progress, setProgress] = useState<ImportProgress>(EMPTY_PROGRESS);
+  const previewInFlightRef = useRef(false);
+  const importInFlightRef = useRef(false);
+  const requestIdRef = useRef<string | null>(null);
+  const canImport = canCreateProject || projects.some((project) => project.canEdit);
 
   useEffect(() => {
+    if (!user) return;
+
     fetchJson<ProjectsResponse>('/api/projects')
       .then((data) => {
-        setProjects(data.projects.map((project: ProjectDTO) => ({ id: project.id, name: project.name })));
+        setProjects(data.projects.filter((project) => project.canEdit));
       })
       .catch((error) => {
         console.error(error);
       });
-  }, []);
+  }, [user]);
 
   const updateProgress = useCallback((patch: Partial<ImportProgress>) => {
     setProgress((current) => ({ ...current, ...patch }));
   }, []);
 
   const resetWorkflow = useCallback(() => {
+    requestIdRef.current = crypto.randomUUID();
     setStep('select-type');
     setFileName('');
     setHeaders([]);
@@ -282,11 +295,13 @@ export default function ImportPage() {
     setErrors([]);
     setPreValidationErrors([]);
     setImported(0);
+    setPreview(null);
     setFileError('');
     setProgress(EMPTY_PROGRESS);
   }, []);
 
   const handleFileAccepted = useCallback(async (file: File) => {
+    requestIdRef.current = crypto.randomUUID();
     const startedAt = performance.now();
     try {
       setFileError('');
@@ -312,6 +327,7 @@ export default function ImportPage() {
       setMapping(autoMapping);
       setPreValidationErrors([]);
       setErrors([]);
+      setPreview(null);
       setProgress({
         value: 35,
         label: '文件已解析',
@@ -383,6 +399,7 @@ export default function ImportPage() {
   }, []);
 
   const handleCreateProject = useCallback(async () => {
+    if (!canImport) return;
     const name = newProjectName.trim();
     if (!name) return;
     setProjectError('');
@@ -392,16 +409,17 @@ export default function ImportPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name }),
       });
-      setProjects((current) => [...current, { id: data.project.id, name: data.project.name }]);
+      setProjects((current) => [...current, data.project]);
       setCreatingProject(false);
       setNewProjectName('');
       handleProjectChange(data.project.id);
     } catch (error) {
       setProjectError(error instanceof ApiError ? error.message : '创建失败');
     }
-  }, [newProjectName, handleProjectChange]);
+  }, [canImport, newProjectName, handleProjectChange]);
 
   const handleCreateStage = useCallback(async () => {
+    if (!canImport) return;
     const name = newStageName.trim();
     if (!name || !selectedProjectId) return;
     setStageError('');
@@ -418,9 +436,10 @@ export default function ImportPage() {
     } catch (error) {
       setStageError(error instanceof ApiError ? error.message : '创建失败');
     }
-  }, [newStageName, selectedProjectId, handleStageChange]);
+  }, [canImport, newStageName, selectedProjectId, handleStageChange]);
 
   const handleCreateBatch = useCallback(async () => {
+    if (!canImport) return;
     const name = newBatchName.trim();
     if (!name || !selectedStageId) return;
     setBatchError('');
@@ -442,11 +461,12 @@ export default function ImportPage() {
     } catch (error) {
       setBatchError(error instanceof ApiError ? error.message : '创建失败');
     }
-  }, [newBatchName, selectedStageId]);
+  }, [canImport, newBatchName, selectedStageId]);
 
   const handlePreValidate = useCallback(async () => {
     const startedAt = performance.now();
     setErrors([]);
+    setPreview(null);
     setProgress({
       value: 45,
       label: '校验数据',
@@ -471,7 +491,100 @@ export default function ImportPage() {
     setStep('validate');
   }, [rows, mapping, importType]);
 
+  const handlePreview = useCallback(async () => {
+    if (!canImport || previewInFlightRef.current) return;
+    previewInFlightRef.current = true;
+    const startedAt = performance.now();
+    setIsPreviewing(true);
+    setErrors([]);
+    setPreview(null);
+    setProgress({
+      value: 70,
+      label: '生成差异预览',
+      detail: `${rows.length} 条数据`,
+      status: 'active',
+      startedAt,
+      finishedMs: null,
+    });
+    await waitForPaint();
+
+    const rowsToImport = validatedRows.length === rows.length ? validatedRows : mapRows(rows, mapping);
+    let hasRowErrors = false;
+    try {
+      const response = await fetch('/api/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rows: rowsToImport,
+          importType,
+          projectId: selectedProjectId,
+          testStageId: selectedStageId,
+          batchScopeId: selectedBatchScopeId,
+          fileName,
+          preview: true,
+        }),
+      });
+      const data = await response.json() as
+        | ImportPreviewResponse
+        | ImportResponse
+        | ImportValidationErrorResponse
+        | { error?: string; message?: string };
+      if (!response.ok) {
+        if ('details' in data && Array.isArray(data.details)) {
+          hasRowErrors = true;
+          setErrors(data.details);
+          throw new ApiError(response.status, 'VALIDATION_ERROR', `${data.details.length} 个错误需要处理`);
+        }
+        throw new ApiError(
+          response.status,
+          'error' in data ? data.error ?? 'PREVIEW_FAILED' : 'PREVIEW_FAILED',
+          'message' in data ? data.message ?? '预览失败' : '预览失败'
+        );
+      }
+      if (!('preview' in data) || data.preview !== true) {
+        throw new ApiError(response.status, 'PREVIEW_FAILED', '预览响应格式不正确');
+      }
+      setPreview(data);
+      setProgress({
+        value: 82,
+        label: '差异预览已生成',
+        detail: `新增 ${data.created}，更新 ${data.updated}，不变 ${data.unchanged}`,
+        status: 'success',
+        startedAt,
+        finishedMs: performance.now() - startedAt,
+      });
+    } catch (error) {
+      const message = error instanceof ApiError ? error.message : '网络错误';
+      if (!hasRowErrors) {
+        setErrors([{ row: 0, field: '', message }]);
+      }
+      setProgress({
+        value: 70,
+        label: '预览失败',
+        detail: message,
+        status: 'error',
+        startedAt,
+        finishedMs: performance.now() - startedAt,
+      });
+    } finally {
+      previewInFlightRef.current = false;
+      setIsPreviewing(false);
+    }
+  }, [
+    canImport,
+    fileName,
+    importType,
+    mapping,
+    rows,
+    selectedBatchScopeId,
+    selectedProjectId,
+    selectedStageId,
+    validatedRows,
+  ]);
+
   const handleImport = useCallback(async () => {
+    if (!canImport || !preview || importInFlightRef.current) return;
+    importInFlightRef.current = true;
     const startedAt = performance.now();
     setIsImporting(true);
     setErrors([]);
@@ -486,6 +599,8 @@ export default function ImportPage() {
     await waitForPaint();
 
     const rowsToImport = validatedRows.length === rows.length ? validatedRows : mapRows(rows, mapping);
+    const requestId = requestIdRef.current ?? crypto.randomUUID();
+    requestIdRef.current = requestId;
 
     try {
       updateProgress({
@@ -502,16 +617,21 @@ export default function ImportPage() {
           projectId: selectedProjectId,
           testStageId: selectedStageId,
           batchScopeId: selectedBatchScopeId,
+          fileName,
+          requestId,
         }),
       });
-      const data = await response.json() as ImportResponse | { error?: string; message?: string };
+      const data = await response.json() as
+        | ImportResponse
+        | ImportValidationErrorResponse
+        | { error?: string; message?: string };
       if (!response.ok) {
-        if ('errors' in data && Array.isArray(data.errors)) {
-          setErrors(data.errors);
+        if ('details' in data && Array.isArray(data.details)) {
+          setErrors(data.details);
           setProgress({
             value: 78,
             label: '导入失败',
-            detail: `${data.errors.length} 个错误需要处理`,
+            detail: `${data.details.length} 个错误需要处理`,
             status: 'error',
             startedAt,
             finishedMs: performance.now() - startedAt,
@@ -538,6 +658,7 @@ export default function ImportPage() {
         finishedMs: performance.now() - startedAt,
       });
       setStep('done');
+      requestIdRef.current = crypto.randomUUID();
     } catch (error) {
       const message = error instanceof ApiError ? error.message : '网络错误';
       setErrors([{ row: 0, field: '', message }]);
@@ -551,10 +672,12 @@ export default function ImportPage() {
       });
       setStep('validate');
     } finally {
+      importInFlightRef.current = false;
       setIsImporting(false);
     }
   }, [
     rows,
+    fileName,
     mapping,
     validatedRows,
     importType,
@@ -562,12 +685,29 @@ export default function ImportPage() {
     selectedStageId,
     selectedBatchScopeId,
     updateProgress,
+    canImport,
+    preview,
   ]);
 
   if (!user) {
     return (
       <div className="flex items-center justify-center p-xl">
         <p className="text-sm text-[var(--color-text-secondary)]">请先登录以使用导入功能</p>
+      </div>
+    );
+  }
+
+  if (!canImport) {
+    return (
+      <div className="page-shell">
+        <div className="mx-auto max-w-6xl">
+          <section className="panel flex flex-col items-center justify-center gap-2 px-6 py-16 text-center">
+            <h1 className="text-lg font-semibold text-text-primary">导入功能不可用</h1>
+            <p className="text-sm text-text-secondary">
+              当前账号为只读角色，如需导入用例数据，请联系管理员调整权限。
+            </p>
+          </section>
+        </div>
       </div>
     );
   }
@@ -744,6 +884,13 @@ export default function ImportPage() {
 
                 {rows.length > 0 && (
                   <Panel title="字段映射">
+                    <MappingTemplates
+                      key={importType}
+                      importType={importType}
+                      headers={headers}
+                      mapping={mapping}
+                      onApply={setMapping}
+                    />
                     <FieldMapping
                       headers={headers}
                       mapping={mapping}
@@ -768,21 +915,59 @@ export default function ImportPage() {
             {step === 'validate' && (
               <div className="space-y-5">
                 <ValidationReport errors={preValidationErrors.length > 0 ? preValidationErrors : errors} totalRows={rows.length} />
+                {preview && (
+                  <Panel title="导入差异预览">
+                    <div className="grid gap-4 sm:grid-cols-4">
+                      <Metric label="总行数" value={preview.total} />
+                      <Metric label="将新增" value={preview.created} />
+                      <Metric label="将更新" value={preview.updated} />
+                      <Metric label="无变化" value={preview.unchanged} />
+                    </div>
+                    <div className="mt-5 grid gap-4 border-t border-border pt-4 md:grid-cols-3">
+                      {([
+                        ['新增样例', preview.samples.created],
+                        ['更新样例', preview.samples.updated],
+                        ['无变化样例', preview.samples.unchanged],
+                      ] as const).map(([label, samples]) => (
+                        <div key={label}>
+                          <p className="text-xs font-medium text-[var(--color-text-secondary)]">{label}</p>
+                          <ul className="mt-2 space-y-1 text-xs text-[var(--color-text-primary)]">
+                            {samples.length === 0 && <li>—</li>}
+                            {samples.map((sample) => (
+                              <li key={sample.caseNo} className="truncate" title={`${sample.caseNo} · ${sample.name}`}>
+                                {sample.caseNo} · {sample.name}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="mt-4 text-xs text-[var(--color-text-secondary)]">
+                      预览不会写入数据库。确认后才会执行正式导入。
+                    </p>
+                  </Panel>
+                )}
                 <div className="flex justify-between">
                   <Button
                     variant="secondary"
                     onClick={() => {
                       setPreValidationErrors([]);
                       setErrors([]);
+                      setPreview(null);
                       setStep('mapping');
                     }}
-                    disabled={isImporting}
+                    disabled={isImporting || isPreviewing}
                   >
                     上一步
                   </Button>
-                  {preValidationErrors.length === 0 && errors.length === 0 && (
+                  {preValidationErrors.length === 0 && errors.length === 0 && !preview && (
+                    <Button onClick={handlePreview} disabled={isPreviewing}>
+                      {isPreviewing ? '预览中' : '预览导入差异'}
+                    </Button>
+                  )}
+                  {preValidationErrors.length === 0 && errors.length === 0 && preview && (
                     <Button onClick={handleImport} disabled={isImporting}>
-                      {isImporting ? '导入中' : '开始导入'}
+                      {isImporting ? '导入中' : '确认并导入'}
                     </Button>
                   )}
                 </div>

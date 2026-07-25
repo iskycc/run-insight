@@ -56,6 +56,7 @@ export default function ProjectsPage() {
   }, [user, showArchived, showToast, reloadKey]);
 
   const loading = loadState === 'idle' || loadState === 'loading';
+  const canEdit = user?.role === 'ADMIN' || user?.role === 'EDITOR';
 
   const handleCreate = useCallback(async () => {
     const name = newProjectName.trim();
@@ -123,7 +124,7 @@ export default function ProjectsPage() {
       title="项目管理"
       subtitle="创建、归档和管理项目"
       actions={
-        <Button onClick={() => setCreateModalOpen(true)}>新建项目</Button>
+        canEdit ? <Button onClick={() => setCreateModalOpen(true)}>新建项目</Button> : undefined
       }
     >
       <div className="space-y-4">
@@ -147,9 +148,9 @@ export default function ProjectsPage() {
           ) : projects.length === 0 ? (
             <EmptyState
               title="暂无项目"
-              description="点击右上角按钮创建第一个项目"
-              actionLabel="新建项目"
-              onAction={() => setCreateModalOpen(true)}
+              description={canEdit ? '点击右上角按钮创建第一个项目' : '当前还没有可查看的项目'}
+              actionLabel={canEdit ? '新建项目' : undefined}
+              onAction={canEdit ? () => setCreateModalOpen(true) : undefined}
             />
           ) : (
             <div className="overflow-x-auto">
@@ -189,20 +190,24 @@ export default function ProjectsPage() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => handleArchive(project)}
-                          >
-                            {project.archived ? '取消归档' : '归档'}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="danger"
-                            onClick={() => handleDelete(project)}
-                          >
-                            删除
-                          </Button>
+                          {project.canEdit && (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => handleArchive(project)}
+                            >
+                              {project.archived ? '取消归档' : '归档'}
+                            </Button>
+                          )}
+                          {project.canAdmin && (
+                            <Button
+                              size="sm"
+                              variant="danger"
+                              onClick={() => handleDelete(project)}
+                            >
+                              删除
+                            </Button>
+                          )}
                         </div>
                       </td>
                     </tr>

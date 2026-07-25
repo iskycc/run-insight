@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { authenticateRequest, requireRole } from "@/lib/auth";
+import { authenticateRequest } from "@/lib/auth";
 import { validateRequired } from "@/lib/validations";
 import { internalError, jsonError } from "@/lib/api-helpers";
 import { writeAuditLog } from "@/lib/audit";
+import { getProjectAccess } from "@/lib/project-access";
 import type { TestStageDTO, TestStageWithStats, StagesResponse } from "@/types";
 
 export async function GET(
@@ -20,6 +21,8 @@ export async function GET(
     if (!project) {
       return jsonError("NOT_FOUND", "项目不存在", 404);
     }
+    const access = await getProjectAccess(prisma, authResult.userId, id);
+    if (!access?.canView) return jsonError("FORBIDDEN", "无权访问该项目", 403);
 
     const { searchParams } = request.nextUrl;
     const includeArchived = searchParams.get("includeArchived") === "true";
@@ -57,6 +60,7 @@ export async function GET(
       id: s.id,
       projectId: s.projectId,
       name: s.name,
+      archived: s.archived,
       createdAt: s.createdAt.toISOString(),
       updatedAt: s.updatedAt.toISOString(),
       batchCount: s._count.batches,
@@ -78,9 +82,6 @@ export async function POST(
   const authResult = authenticateRequest(request);
   if (authResult instanceof NextResponse) return authResult;
 
-  const roleCheck = await requireRole(authResult.userId, ["ADMIN", "EDITOR"], prisma);
-  if (roleCheck) return roleCheck;
-
   try {
     const { id } = await params;
 
@@ -88,6 +89,8 @@ export async function POST(
     if (!project) {
       return jsonError("NOT_FOUND", "项目不存在", 404);
     }
+    const access = await getProjectAccess(prisma, authResult.userId, id);
+    if (!access?.canEdit) return jsonError("FORBIDDEN", "无权编辑该项目", 403);
 
     const body = await request.json();
     const { name } = body;
@@ -108,6 +111,7 @@ export async function POST(
       id: stage.id,
       projectId: stage.projectId,
       name: stage.name,
+      archived: stage.archived,
       createdAt: stage.createdAt.toISOString(),
       updatedAt: stage.updatedAt.toISOString(),
     };

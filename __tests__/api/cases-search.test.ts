@@ -5,6 +5,8 @@ import { generateToken } from "@/lib/auth";
 
 jest.mock("@/lib/prisma", () => ({
   prisma: {
+    user: { findUnique: jest.fn().mockResolvedValue({ role: "ADMIN" }) },
+    projectMember: { findUnique: jest.fn() },
     caseResult: {
       findMany: jest.fn(),
       count: jest.fn(),
@@ -60,5 +62,15 @@ describe("GET /api/cases search", () => {
     expect(findManyCall.where.projectId).toBe("p1");
     expect(findManyCall.where.OR).toBeDefined();
     expect(findManyCall.where.OR).toHaveLength(2);
+  });
+
+  it("should filter by assignee and root-cause keywords", async () => {
+    const req = createRequest("/api/cases?assignee=alice&rootCause=timeout");
+    req.headers.set("cookie", authCookie());
+    await GET(req);
+
+    const findManyCall = (mockPrisma.caseResult.findMany as jest.Mock).mock.calls[0][0];
+    expect(findManyCall.where.assignee).toEqual({ contains: "alice" });
+    expect(findManyCall.where.rootCause).toEqual({ contains: "timeout" });
   });
 });

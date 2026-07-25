@@ -1,31 +1,17 @@
 'use client';
 
-import { Badge } from '@/components/shared/Badge';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { getProgressBadgeKey, getProgressLabel } from '@/lib/progress';
+import type { AssetDTO } from '@/types';
 
-export type AssetItem = {
-  id: string;
-  caseNo: string;
-  name: string;
-  resultSummary: string;
-  logUrl: string | null;
-  projectId: string;
-  testStageId: string;
-  batchScopeId: string;
-  assignee: string | null;
-  progressCategory: string | null;
-  rootCause: string | null;
-  mrOrTicket: string | null;
-  assetSaved: boolean;
-  createdAt: string;
-  updatedAt: string;
-  project: { id: string; name: string };
-  stage: { id: string; name: string };
-  batchScope: { id: string; name: string };
-};
+export type AssetItem = AssetDTO;
 
-type AssetListProps = {
+const STATUS_LABELS = {
+  DRAFT: '草稿',
+  PUBLISHED: '已发布',
+  ARCHIVED: '已归档',
+} as const;
+
+type Props = {
   assets: AssetItem[];
   total: number;
   page: number;
@@ -34,112 +20,93 @@ type AssetListProps = {
   onSelect: (id: string) => void;
 };
 
-export function AssetList({ assets, total, page, pageSize, onPageChange, onSelect }: AssetListProps) {
+export function AssetList({
+  assets,
+  total,
+  page,
+  pageSize,
+  onPageChange,
+  onSelect,
+}: Props) {
   const totalPages = Math.ceil(total / pageSize);
-
-  if (assets.length === 0) {
+  if (!assets.length) {
     return (
       <EmptyState
-        title="暂无资产数据"
-        description="保存分析后的用例即可在资产库中查看"
+        title="暂无知识资产"
+        description="将分析完成的用例保存为资产后，即可在这里持续维护和复用。"
       />
     );
   }
 
   return (
     <div>
-      {/* 桌面端表格 */}
-      <div className="panel hidden overflow-hidden md:block">
-        <table className="w-full">
+      <div className="panel overflow-x-auto">
+        <table className="w-full min-w-[760px]">
           <thead>
-            <tr className="border-b border-border bg-bg/70 text-left">
-              <th className="px-md py-sm text-xs font-medium text-text-secondary">编号</th>
-              <th className="px-md py-sm text-xs font-medium text-text-secondary">名称</th>
-              <th className="px-md py-sm text-xs font-medium text-text-secondary">项目</th>
-              <th className="px-md py-sm text-xs font-medium text-text-secondary">阶段</th>
-              <th className="px-md py-sm text-xs font-medium text-text-secondary">进展</th>
-              <th className="px-md py-sm text-xs font-medium text-text-secondary">根因</th>
-              <th className="px-md py-sm text-xs font-medium text-text-secondary">责任人</th>
+            <tr className="border-b border-border bg-bg/70 text-left text-xs text-text-secondary">
+              <th className="px-md py-sm font-medium">资产</th>
+              <th className="px-md py-sm font-medium">项目</th>
+              <th className="px-md py-sm font-medium">根因分类</th>
+              <th className="px-md py-sm font-medium">标签</th>
+              <th className="px-md py-sm font-medium">状态</th>
+              <th className="px-md py-sm font-medium">版本 / 使用</th>
             </tr>
           </thead>
           <tbody>
-            {assets.map((asset) => {
-              const progressKey = getProgressBadgeKey(asset.progressCategory) ?? undefined;
-              const progressLabel = getProgressLabel(asset.progressCategory) ?? asset.progressCategory;
-              return (
-                <tr
-                  key={asset.id}
-                  onClick={() => onSelect(asset.id)}
-                  className="cursor-pointer border-b border-border transition-colors last:border-0 hover:bg-bg/70"
-                >
-                  <td className="px-md py-sm font-mono text-xs font-medium text-accent">{asset.caseNo}</td>
-                  <td className="px-md py-sm text-sm font-medium text-text-primary">{asset.name}</td>
-                  <td className="px-md py-sm text-sm text-text-secondary">{asset.project.name}</td>
-                  <td className="px-md py-sm text-sm text-text-secondary">{asset.stage.name}</td>
-                  <td className="px-md py-sm">
-                    {progressKey && progressLabel ? (
-                      <Badge progress={progressKey}>{progressLabel}</Badge>
-                    ) : (
-                      <span className="text-text-secondary">—</span>
-                    )}
-                  </td>
-                  <td className="px-md py-sm text-sm text-text-primary max-w-[200px] truncate">
-                    {asset.rootCause ?? <span className="text-text-secondary">—</span>}
-                  </td>
-                  <td className="px-md py-sm text-sm text-text-secondary">{asset.assignee ?? '—'}</td>
-                </tr>
-              );
-            })}
+            {assets.map((asset) => (
+              <tr
+                key={asset.id}
+                onClick={() => onSelect(asset.id)}
+                className="cursor-pointer border-b border-border last:border-0 hover:bg-bg/70"
+              >
+                <td className="max-w-[320px] px-md py-sm">
+                  <p className="truncate text-sm font-medium text-text-primary">{asset.title}</p>
+                  <p className="mt-1 truncate text-xs text-text-secondary">
+                    {asset.sourceCase?.caseNo ?? '独立资产'} · {asset.summary}
+                  </p>
+                </td>
+                <td className="px-md py-sm text-sm text-text-secondary">{asset.project.name}</td>
+                <td className="px-md py-sm text-sm text-text-secondary">
+                  {asset.rootCauseCategory?.name ?? '未分类'}
+                </td>
+                <td className="px-md py-sm">
+                  <div className="flex max-w-[220px] flex-wrap gap-1">
+                    {asset.tags.length
+                      ? asset.tags.slice(0, 3).map((tag) => (
+                          <span key={tag} className="rounded bg-bg px-2 py-0.5 text-xs text-text-secondary">
+                            {tag}
+                          </span>
+                        ))
+                      : <span className="text-xs text-text-secondary">—</span>}
+                  </div>
+                </td>
+                <td className="px-md py-sm">
+                  <span className="rounded-md bg-accent/10 px-2 py-1 text-xs text-accent">
+                    {STATUS_LABELS[asset.status]}
+                  </span>
+                </td>
+                <td className="px-md py-sm text-xs text-text-secondary">
+                  v{asset.version} · 浏览 {asset.viewCount} · 复用 {asset.reuseCount}
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
-
-      {/* 移动端卡片 */}
-      <div className="md:hidden space-y-sm">
-        {assets.map((asset) => {
-          const progressKey = getProgressBadgeKey(asset.progressCategory) ?? undefined;
-          const progressLabel = getProgressLabel(asset.progressCategory) ?? asset.progressCategory;
-          return (
-            <div
-              key={asset.id}
-              onClick={() => onSelect(asset.id)}
-              className="panel cursor-pointer p-md transition hover:shadow-md"
-            >
-              <div className="flex items-center justify-between mb-xs">
-                <span className="font-mono text-xs text-text-secondary">{asset.caseNo}</span>
-                {progressKey && progressLabel ? (
-                  <Badge progress={progressKey}>{progressLabel}</Badge>
-                ) : null}
-              </div>
-              <div className="text-sm font-medium text-text-primary mb-xs">{asset.name}</div>
-              <div className="text-xs text-text-secondary">
-                {asset.project.name} · {asset.stage.name} · {asset.assignee ?? '未分配'}
-              </div>
-              {asset.rootCause && (
-                <div className="text-xs text-text-secondary mt-xs">根因：{asset.rootCause}</div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* 分页 */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-sm mt-lg">
+        <div className="mt-lg flex items-center justify-center gap-sm">
           <button
             onClick={() => onPageChange(page - 1)}
             disabled={page <= 1}
-            className="rounded-md border border-border bg-surface-solid px-3 py-1.5 text-sm text-text-secondary transition-colors hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-md border border-border px-3 py-1.5 text-sm disabled:opacity-50"
           >
             上一页
           </button>
-          <span className="text-sm text-text-secondary">
-            {page} / {totalPages}
-          </span>
+          <span className="text-sm text-text-secondary">{page} / {totalPages}</span>
           <button
             onClick={() => onPageChange(page + 1)}
             disabled={page >= totalPages}
-            className="rounded-md border border-border bg-surface-solid px-3 py-1.5 text-sm text-text-secondary transition-colors hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-md border border-border px-3 py-1.5 text-sm disabled:opacity-50"
           >
             下一页
           </button>

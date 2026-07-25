@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { authenticateRequest } from "@/lib/auth";
-import { internalError } from "@/lib/api-helpers";
+import { internalError, jsonError } from "@/lib/api-helpers";
 import type { AssigneeStat, AssigneeStatsResponse } from "@/types";
+import { getProjectAccess } from "@/lib/project-access";
 
 /**
  * GET /api/stats/assignee
@@ -24,8 +25,47 @@ export async function GET(request: NextRequest) {
     const testStageId = searchParams.get("testStageId") || undefined;
     const batchScopeId = searchParams.get("batchScopeId") || undefined;
 
+    const user = await prisma.user.findUnique({
+      where: { id: authResult.userId },
+      select: { role: true },
+    });
+    if (!user) return jsonError("UNAUTHORIZED", "用户不存在", 401);
+    let resolvedProjectId = projectId;
+    if (testStageId) {
+      const stage = await prisma.testStage.findUnique({
+        where: { id: testStageId },
+        select: { projectId: true },
+      });
+      if (!stage) return jsonError("NOT_FOUND", "阶段不存在", 404);
+      if (resolvedProjectId && resolvedProjectId !== stage.projectId) {
+        return jsonError("VALIDATION_ERROR", "阶段与项目不匹配");
+      }
+      resolvedProjectId = stage.projectId;
+    }
+    if (batchScopeId) {
+      const batch = await prisma.batchScope.findUnique({
+        where: { id: batchScopeId },
+        select: { projectId: true, testStageId: true },
+      });
+      if (!batch) return jsonError("NOT_FOUND", "批跑不存在", 404);
+      if (
+        (resolvedProjectId && resolvedProjectId !== batch.projectId) ||
+        (testStageId && testStageId !== batch.testStageId)
+      ) {
+        return jsonError("VALIDATION_ERROR", "批跑与项目或阶段不匹配");
+      }
+      resolvedProjectId = batch.projectId;
+    }
+    if (resolvedProjectId) {
+      const access = await getProjectAccess(prisma, authResult.userId, resolvedProjectId);
+      if (!access?.canView) return jsonError("FORBIDDEN", "无权查看该项目报告", 403);
+    }
+
     const baseWhere: Record<string, unknown> = {};
     if (projectId) baseWhere.projectId = projectId;
+    if (!resolvedProjectId && user.role !== "ADMIN") {
+      baseWhere.project = { members: { some: { userId: authResult.userId } } };
+    }
     if (testStageId) baseWhere.testStageId = testStageId;
     if (batchScopeId) baseWhere.batchScopeId = batchScopeId;
 

@@ -5,15 +5,25 @@ import { NextRequest, NextResponse } from "next/server";
 import type { ApiError } from "@/types";
 import type { Role } from "@/generated/prisma/enums";
 
-const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) {
+const DEVELOPMENT_SECRET = "run-insight-jwt-secret-change-in-production-2026";
+let hasWarnedAboutDevelopmentSecret = false;
+
+function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET;
+  if (secret) return secret;
+
   if (process.env.NODE_ENV === "production") {
-    console.error("❌ JWT_SECRET 环境变量未设置，无法在生产环境启动。");
-    process.exit(1);
+    throw new Error("JWT_SECRET environment variable is required in production");
   }
-  console.warn("⚠️ JWT_SECRET 环境变量未设置，使用不安全的默认值。生产环境请务必设置！");
+
+  if (!hasWarnedAboutDevelopmentSecret) {
+    console.warn("⚠️ JWT_SECRET 环境变量未设置，使用不安全的默认值。生产环境请务必设置！");
+    hasWarnedAboutDevelopmentSecret = true;
+  }
+
+  return DEVELOPMENT_SECRET;
 }
-const SECRET = JWT_SECRET || "run-insight-jwt-secret-change-in-production-2026";
+
 const JWT_EXPIRES_IN = "7d";
 const COOKIE_NAME = "run_insight_token";
 
@@ -59,11 +69,11 @@ export async function verifyPassword(
 }
 
 export function generateToken(payload: TokenPayload): string {
-  return jwt.sign(payload, SECRET, { expiresIn: JWT_EXPIRES_IN });
+  return jwt.sign(payload, getJwtSecret(), { expiresIn: JWT_EXPIRES_IN });
 }
 
 export function verifyToken(token: string): TokenPayload {
-  return jwt.verify(token, SECRET) as TokenPayload;
+  return jwt.verify(token, getJwtSecret()) as TokenPayload;
 }
 
 export function getCookieName(): string {

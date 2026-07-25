@@ -9,16 +9,24 @@ export class ApiError extends Error {
   }
 }
 
+export type FetchJsonOptions = RequestInit & {
+  /**
+   * 业务接口也可能使用 401 表示凭据校验失败。此时调用方可关闭自动刷新，
+   * 并在当前界面展示服务端返回的具体错误。
+   */
+  reloadOnUnauthorized?: boolean;
+};
+
 export async function fetchJson<T = unknown>(
   input: string | URL | Request,
-  init?: RequestInit
+  init?: FetchJsonOptions
 ): Promise<T> {
-  const res = await fetch(input, init);
+  const { reloadOnUnauthorized = true, ...requestInit } = init ?? {};
+  const res = await fetch(input, init ? requestInit : undefined);
 
-  if (res.status === 401) {
+  if (res.status === 401 && reloadOnUnauthorized) {
     // 未登录，刷新页面触发 middleware 重定向
     window.location.reload();
-    throw new ApiError(401, "UNAUTHORIZED", "未登录");
   }
 
   if (!res.ok) {

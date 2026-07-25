@@ -5,6 +5,8 @@ import { NextRequest, NextResponse } from "next/server";
 
 jest.mock("@/lib/prisma", () => ({
   prisma: {
+    user: { findUnique: jest.fn().mockResolvedValue({ role: "ADMIN" }) },
+    projectMember: { findUnique: jest.fn() },
     importRecord: { findUnique: jest.fn() },
   },
 }));
@@ -36,6 +38,8 @@ describe("GET /api/import-history/[id]", () => {
       errorCount: 2,
       errors: [{ row: 2, field: "caseNo", message: "编号为空" }],
       userId: "u1",
+      project: { name: "项目一" },
+      user: { username: "admin" },
       createdAt: new Date("2026-07-01"),
     };
     (mockPrisma.importRecord.findUnique as jest.Mock).mockResolvedValue(record);
@@ -47,6 +51,8 @@ describe("GET /api/import-history/[id]", () => {
     expect(res.status).toBe(200);
     expect(body.id).toBe("r1");
     expect(body.fileName).toBe("test.csv");
+    expect(body.projectName).toBe("项目一");
+    expect(body.username).toBe("admin");
     expect(body.errors).toHaveLength(1);
     expect(body.createdAt).toBe("2026-07-01T00:00:00.000Z");
   });

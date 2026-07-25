@@ -2,13 +2,33 @@
 
 import Link from 'next/link';
 import { useAuth } from '@/components/shared/AuthProvider';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { LoginPrompt } from '@/components/shared/LoginPrompt';
+import { ChangePasswordModal } from '@/components/shared/ChangePasswordModal';
 
 export function Header() {
   const { user, login, logout } = useAuth();
   const [showLogin, setShowLogin] = useState(false);
   const [loginError, setLoginError] = useState('');
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const closeMenu = (event: MouseEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) setMenuOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', closeMenu);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('mousedown', closeMenu);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [menuOpen]);
 
   const handleLogin = async (username: string, password: string) => {
     try {
@@ -47,17 +67,58 @@ export function Header() {
 
           <div className="flex items-center gap-2">
             {user ? (
-              <>
-                <span className="hidden text-sm font-medium text-text-secondary sm:inline">
-                  {user.username}
-                </span>
+              <div className="relative" ref={menuRef}>
                 <button
-                  onClick={() => logout()}
-                  className="rounded-md px-3 py-1.5 text-sm font-medium text-text-secondary transition-colors hover:bg-danger/10 hover:text-danger"
+                  type="button"
+                  onClick={() => setMenuOpen((open) => !open)}
+                  className="flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium text-text-secondary transition-colors hover:bg-bg hover:text-text-primary"
+                  aria-haspopup="menu"
+                  aria-expanded={menuOpen}
                 >
-                  退出
+                  <span>{user.username}</span>
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 12 12"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    aria-hidden="true"
+                  >
+                    <path d="m3 4.5 3 3 3-3" />
+                  </svg>
                 </button>
-              </>
+                {menuOpen && (
+                  <div
+                    className="absolute right-0 top-full mt-2 w-40 overflow-hidden rounded-md border border-border bg-surface-solid py-1 shadow-lg"
+                    role="menu"
+                    aria-label="用户菜单"
+                  >
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="block w-full px-3 py-2 text-left text-sm text-text-secondary transition-colors hover:bg-bg hover:text-text-primary"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        setChangePasswordOpen(true);
+                      }}
+                    >
+                      修改密码
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="block w-full px-3 py-2 text-left text-sm text-danger transition-colors hover:bg-danger/10"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        void logout();
+                      }}
+                    >
+                      退出
+                    </button>
+                  </div>
+                )}
+              </div>
             ) : (
               <button
                 onClick={() => setShowLogin(true)}
@@ -78,6 +139,11 @@ export function Header() {
         }}
         onLogin={handleLogin}
         loginError={loginError}
+      />
+      <ChangePasswordModal
+        open={changePasswordOpen}
+        onClose={() => setChangePasswordOpen(false)}
+        onLogout={logout}
       />
     </>
   );

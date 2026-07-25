@@ -78,6 +78,7 @@ describe('ProjectSettingsPage', () => {
           caseCount: 12,
           passCount: 8,
           failCount: 2,
+          canAdmin: true,
         },
       ],
     };
@@ -106,7 +107,7 @@ describe('ProjectSettingsPage', () => {
     });
 
     expect(screen.getByText('API Key')).toBeInTheDocument();
-    expect(screen.getByText('CI key')).toBeInTheDocument();
+    expect(await screen.findByText('CI key')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '创建 API Key' })).toBeInTheDocument();
   });
 
@@ -129,6 +130,7 @@ describe('ProjectSettingsPage', () => {
           caseCount: 0,
           passCount: 0,
           failCount: 0,
+          canAdmin: false,
         },
       ],
     };

@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell,
@@ -24,6 +25,12 @@ interface FilterOptions {
   projects: { value: string; label: string }[];
   stages: { value: string; label: string }[];
   batches: { value: string; label: string }[];
+}
+
+function csvCell(value: string | number): string {
+  let text = String(value);
+  if (/^[=+\-@]/.test(text)) text = `'${text}`;
+  return `"${text.replaceAll('"', '""')}"`;
 }
 
 export default function AssigneeReportPage() {
@@ -171,6 +178,28 @@ export default function AssigneeReportPage() {
     return sortOrder === 'asc' ? ' ▲' : ' ▼';
   }, [sortField, sortOrder]);
 
+  const workspaceHref = useCallback((assigneeName: string) => {
+    const params = new URLSearchParams({ assignee: assigneeName });
+    if (projectId) params.set('projectId', projectId);
+    if (stageId) params.set('testStageId', stageId);
+    if (batchScopeId) params.set('batchScopeId', batchScopeId);
+    return `/workspace?${params.toString()}`;
+  }, [projectId, stageId, batchScopeId]);
+
+  const csvHref = useMemo(() => {
+    const header = ['责任人', '总用例数', '失败数', '修复数', '已保存资产', '修复率'];
+    const rows = sortedStats.map((row) => [
+      row.assignee,
+      row.totalCases,
+      row.failCount,
+      row.fixCount,
+      row.savedAssetCount,
+      `${(row.fixRate * 100).toFixed(0)}%`,
+    ]);
+    const csv = `\uFEFF${[header, ...rows].map((row) => row.map(csvCell).join(',')).join('\r\n')}`;
+    return `data:text/csv;charset=utf-8,${encodeURIComponent(csv)}`;
+  }, [sortedStats]);
+
   if (!user) {
     return (
       <PageContainer title="责任人报告" subtitle="按责任人统计用例分布与修复率">
@@ -262,8 +291,25 @@ export default function AssigneeReportPage() {
 
         {/* Table */}
         <div className="panel overflow-hidden">
-          <div className="border-b border-border bg-bg/60 px-4 py-3 text-xs font-semibold text-text-secondary">
-            责任人统计（{stats.length} 人）
+          <div className="flex items-center justify-between gap-3 border-b border-border bg-bg/60 px-4 py-3">
+            <span className="text-xs font-semibold text-text-secondary">
+              责任人统计（{stats.length} 人）
+            </span>
+            <a
+              href={csvHref}
+              download="assignee-stats.csv"
+              aria-disabled={sortedStats.length === 0}
+              onClick={(event) => {
+                if (sortedStats.length === 0) event.preventDefault();
+              }}
+              className={`rounded-md border border-border px-3 py-1.5 text-xs font-medium transition-colors ${
+                sortedStats.length === 0
+                  ? 'cursor-not-allowed opacity-50'
+                  : 'hover:border-accent/30 hover:bg-surface-solid'
+              }`}
+            >
+              导出 CSV
+            </a>
           </div>
           {loading ? (
             <div className="flex items-center justify-center p-10 text-sm text-text-secondary">
@@ -338,7 +384,15 @@ export default function AssigneeReportPage() {
                 <tbody className="divide-y divide-border">
                   {sortedStats.map((row) => (
                     <tr key={row.assignee} className="hover:bg-bg/40">
-                      <td className="px-4 py-3 font-medium text-text-primary">{row.assignee}</td>
+                      <td className="px-4 py-3 font-medium">
+                        <Link
+                          href={workspaceHref(row.assignee)}
+                          className="text-accent hover:underline"
+                          aria-label={`查看 ${row.assignee} 的用例`}
+                        >
+                          {row.assignee}
+                        </Link>
+                      </td>
                       <td className="px-4 py-3 text-text-secondary">{row.totalCases}</td>
                       <td className="px-4 py-3 text-danger">{row.failCount}</td>
                       <td className="px-4 py-3 text-success">{row.fixCount}</td>

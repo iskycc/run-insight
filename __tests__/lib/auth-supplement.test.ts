@@ -9,7 +9,10 @@ import {
 import { NextRequest } from "next/server";
 
 function createRequest(url: string, options?: Record<string, unknown>): NextRequest {
-  return new NextRequest(new URL(url, "http://localhost:3000"), options as RequestInit);
+  return new NextRequest(
+    new URL(url, "http://localhost:3000"),
+    options as ConstructorParameters<typeof NextRequest>[1],
+  );
 }
 
 function authCookie(): string {
@@ -123,29 +126,29 @@ describe("cookie secure flag", () => {
   const originalEnv = process.env.NODE_ENV;
 
   afterEach(() => {
-    process.env.NODE_ENV = originalEnv;
+    Object.assign(process.env, { NODE_ENV: originalEnv });
   });
 
   it("createTokenCookie includes Secure in production", () => {
-    process.env.NODE_ENV = "production";
+    Object.assign(process.env, { NODE_ENV: "production" });
     const cookie = createTokenCookie("test-token");
     expect(cookie).toContain("Secure");
   });
 
   it("createTokenCookie does not include Secure in development", () => {
-    process.env.NODE_ENV = "development";
+    Object.assign(process.env, { NODE_ENV: "development" });
     const cookie = createTokenCookie("test-token");
     expect(cookie).not.toContain("Secure");
   });
 
   it("createLogoutCookie includes Secure in production", () => {
-    process.env.NODE_ENV = "production";
+    Object.assign(process.env, { NODE_ENV: "production" });
     const cookie = createLogoutCookie();
     expect(cookie).toContain("Secure");
   });
 
   it("createLogoutCookie does not include Secure in development", () => {
-    process.env.NODE_ENV = "development";
+    Object.assign(process.env, { NODE_ENV: "development" });
     const cookie = createLogoutCookie();
     expect(cookie).not.toContain("Secure");
   });

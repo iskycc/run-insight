@@ -4,7 +4,6 @@ import { useState } from "react";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { Button } from "@/components/shared/Button";
 import { Select } from "@/components/shared/Select";
-import { Input } from "@/components/shared/Input";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { useToast } from "@/contexts/ToastContext";
 import CompareView from "@/components/compare/CompareView";
@@ -25,7 +24,7 @@ export default function ComparePage() {
   const [stageId, setStageId] = useState("");
   const [batchA, setBatchA] = useState("");
   const [batchB, setBatchB] = useState("");
-  const [batchIds, setBatchIds] = useState("");
+  const [batchIds, setBatchIds] = useState<string[]>([]);
   const [compareData, setCompareData] = useState<CompareResponse | null>(null);
   const [matrixData, setMatrixData] = useState<MatrixResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -54,6 +53,9 @@ export default function ComparePage() {
     setStageId("");
     setBatchA("");
     setBatchB("");
+    setBatchIds([]);
+    setCompareData(null);
+    setMatrixData(null);
     setBatches([]);
     if (!pid) {
       setStages([]);
@@ -77,6 +79,9 @@ export default function ComparePage() {
     setStageId(sid);
     setBatchA("");
     setBatchB("");
+    setBatchIds([]);
+    setCompareData(null);
+    setMatrixData(null);
     if (!sid) {
       setBatches([]);
       return;
@@ -96,7 +101,7 @@ export default function ComparePage() {
   }
 
   async function handleCompare() {
-    if (!batchA || !batchB) return;
+    if (!batchA || !batchB || batchA === batchB) return;
     setLoading(true);
     setCompareData(null);
     try {
@@ -114,11 +119,16 @@ export default function ComparePage() {
   }
 
   async function handleMatrix() {
-    if (!projectId || !stageId || !batchIds) return;
+    if (!projectId || !stageId || batchIds.length < 2) return;
     setLoading(true);
     setMatrixData(null);
     try {
-      const res = await fetch(`/api/stats/matrix?projectId=${projectId}&stageId=${stageId}&batchIds=${batchIds}`);
+      const params = new URLSearchParams({
+        projectId,
+        stageId,
+        batchIds: batchIds.join(","),
+      });
+      const res = await fetch(`/api/stats/matrix?${params.toString()}`);
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.message || "矩阵查询失败");
@@ -181,7 +191,10 @@ export default function ComparePage() {
                   placeholder="选择批跑 A"
                   options={batches.length > 0 ? batches : emptyBatchOptions}
                   value={batchA}
-                  onChange={(e) => setBatchA(e.target.value)}
+                  onChange={(e) => {
+                    setBatchA(e.target.value);
+                    setCompareData(null);
+                  }}
                   disabled={!stageId}
                 />
               </div>
@@ -191,21 +204,27 @@ export default function ComparePage() {
                   placeholder="选择批跑 B"
                   options={batches.length > 0 ? batches : emptyBatchOptions}
                   value={batchB}
-                  onChange={(e) => setBatchB(e.target.value)}
+                  onChange={(e) => {
+                    setBatchB(e.target.value);
+                    setCompareData(null);
+                  }}
                   disabled={!stageId}
                 />
               </div>
               <Button
                 onClick={handleCompare}
-                disabled={!batchA || !batchB || loading}
+                disabled={!batchA || !batchB || batchA === batchB || loading}
                 className="w-full sm:w-auto"
               >
                 {loading ? "对比中..." : "对比"}
               </Button>
             </div>
+            {batchA && batchA === batchB && (
+              <p className="text-sm text-danger" role="alert">批跑 A 和批跑 B 不能相同。</p>
+            )}
 
             {compareData ? (
-              <CompareView data={compareData} />
+              <CompareView data={compareData} projectId={projectId} stageId={stageId} />
             ) : (
               <EmptyState
                 title="请选择批跑进行对比"
@@ -236,17 +255,37 @@ export default function ComparePage() {
                   disabled={!projectId}
                 />
               </div>
-              <div className="min-w-[200px] flex-[2] sm:flex-none">
-                <Input
-                  label="批跑 ID"
-                  placeholder="批跑 ID（逗号分隔，至少 2 个）"
+              <div className="min-w-[240px] flex-[2] sm:flex-none">
+                <label
+                  htmlFor="matrix-batches"
+                  className="mb-1.5 block text-xs font-semibold text-text-secondary"
+                >
+                  批跑（至少选择 2 个）
+                </label>
+                <select
+                  id="matrix-batches"
+                  aria-describedby="matrix-batches-help"
+                  multiple
+                  size={Math.min(Math.max(batches.length, 2), 6)}
+                  className="field-control min-h-20 w-full px-3 py-2 text-sm"
+                  disabled={!stageId}
                   value={batchIds}
-                  onChange={(e) => setBatchIds(e.target.value)}
-                />
+                  onChange={(event) => {
+                    setBatchIds(Array.from(event.currentTarget.selectedOptions, (option) => option.value));
+                    setMatrixData(null);
+                  }}
+                >
+                  {batches.map((batch) => (
+                    <option key={batch.value} value={batch.value}>{batch.label}</option>
+                  ))}
+                </select>
+                <p id="matrix-batches-help" className="mt-1 text-xs text-text-secondary">
+                  按住 Ctrl/Command 可选择多个批跑，已选择 {batchIds.length} 个。
+                </p>
               </div>
               <Button
                 onClick={handleMatrix}
-                disabled={!projectId || !stageId || !batchIds || loading}
+                disabled={!projectId || !stageId || batchIds.length < 2 || loading}
                 className="w-full sm:w-auto"
               >
                 {loading ? "查询中..." : "查询"}
@@ -254,11 +293,11 @@ export default function ComparePage() {
             </div>
 
             {matrixData ? (
-              <MatrixView data={matrixData} />
+              <MatrixView data={matrixData} projectId={projectId} stageId={stageId} />
             ) : (
               <EmptyState
                 title="请选择批跑查看矩阵"
-                description="选择项目、阶段并输入至少两个批跑 ID 后，点击查询按钮查看趋势矩阵。"
+                description="选择项目、阶段及至少两个批跑后，点击查询按钮查看趋势矩阵。"
               />
             )}
           </div>

@@ -7,8 +7,19 @@ import {
   validateLogUrl,
   validateImportData,
   validateResultSummary,
+  isValidRole,
   validateImportDataClient,
 } from "@/lib/validations";
+
+describe("isValidRole", () => {
+  it.each(["ADMIN", "EDITOR", "VIEWER"])("accepts %s", (role) => {
+    expect(isValidRole(role)).toBe(true);
+  });
+
+  it.each(["OWNER", "", null, undefined, 1])("rejects %p", (role) => {
+    expect(isValidRole(role)).toBe(false);
+  });
+});
 
 describe("validateRequired", () => {
   it("should return error for null", () => {

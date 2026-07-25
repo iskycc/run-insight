@@ -3,7 +3,7 @@
  */
 
 import '@testing-library/jest-dom';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useRouter } from 'next/navigation';
 import { ToastProvider } from '@/contexts/ToastContext';
 import { AuthProvider } from '@/components/shared/AuthProvider';
@@ -64,30 +64,23 @@ describe('ImportHistoryPage', () => {
       importedCount: 95,
       errorCount: 5,
       userId: 'u-1',
+      projectName: 'Demo',
+      username: 'admin',
+      status: 'partial',
       createdAt: '2026-07-20T08:30:00.000Z',
     };
 
     const user = { id: 'u-1', username: 'admin', createdAt: '2026-01-01T00:00:00.000Z' };
-    const projects = {
-      projects: [
-        {
-          id: 'proj-1',
-          name: 'Demo',
-          createdAt: '2026-01-01T00:00:00.000Z',
-          updatedAt: '2026-01-01T00:00:00.000Z',
-          archived: false,
-          stageCount: 0,
-          caseCount: 0,
-          passCount: 0,
-          failCount: 0,
-        },
-      ],
+    const history = {
+      records: [record],
+      projects: [{ id: 'proj-1', name: 'Demo' }],
+      total: 1,
+      page: 1,
+      pageSize: 20,
     };
-    const history = { records: [record], total: 1, page: 1, pageSize: 20 };
 
     (globalThis.fetch as jest.Mock).mockImplementation((url: string) => {
       if (url.includes('/api/auth/me')) return mockJsonResponse({ user });
-      if (url.includes('/api/projects')) return mockJsonResponse(projects);
       if (url.includes('/api/import-history')) return mockJsonResponse(history);
       return mockJsonResponse({}, false, 404);
     });
@@ -101,5 +94,29 @@ describe('ImportHistoryPage', () => {
     expect(screen.getByText('100')).toBeInTheDocument(); // totalRows
     expect(screen.getByText('95')).toBeInTheDocument();  // importedCount
     expect(screen.getByText('5')).toBeInTheDocument();   // errorCount
+    expect(screen.getAllByText('Demo')).toHaveLength(2);
+    expect(screen.getByText('admin')).toBeInTheDocument();
+    expect(screen.getAllByText('部分成功')).toHaveLength(2);
+    expect(
+      (globalThis.fetch as jest.Mock).mock.calls.some(([url]) =>
+        String(url).includes('/api/projects')
+      )
+    ).toBe(false);
+
+    fireEvent.change(screen.getByLabelText('项目筛选'), {
+      target: { value: 'proj-1' },
+    });
+    fireEvent.change(screen.getByLabelText('状态筛选'), {
+      target: { value: 'failed' },
+    });
+
+    await waitFor(() => {
+      expect(
+        (globalThis.fetch as jest.Mock).mock.calls.some(([url]) => {
+          const requestUrl = String(url);
+          return requestUrl.includes('projectId=proj-1') && requestUrl.includes('status=failed');
+        })
+      ).toBe(true);
+    });
   });
 });

@@ -114,6 +114,16 @@ describe('AssigneeReportPage', () => {
     expect(screen.getByText('bob')).toBeInTheDocument();
     expect(screen.getByText('Top 10 失败用例数')).toBeInTheDocument();
     expect(screen.getByText(/责任人统计/)).toBeInTheDocument();
+
+    expect(screen.getByRole('link', { name: '查看 alice 的用例' }))
+      .toHaveAttribute('href', '/workspace?assignee=alice');
+
+    const exportLink = screen.getByRole('link', { name: '导出 CSV' });
+    expect(exportLink).toHaveAttribute('download', 'assignee-stats.csv');
+    const csvHref = exportLink.getAttribute('href') ?? '';
+    const csv = decodeURIComponent(csvHref.split(',')[1] ?? '');
+    expect(csv).toContain('"责任人","总用例数","失败数","修复数","已保存资产","修复率"');
+    expect(csv).toContain('"alice","10","4","3","2","75%"');
   });
 
   it('shows empty state when there are no assignees', async () => {
@@ -135,5 +145,6 @@ describe('AssigneeReportPage', () => {
       expect(screen.getByRole('heading', { level: 3, name: '暂无数据' })).toBeInTheDocument();
     });
     expect(screen.getByText(/调整项目\/阶段\/批跑范围筛选/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '导出 CSV' })).toHaveAttribute('aria-disabled', 'true');
   });
 });

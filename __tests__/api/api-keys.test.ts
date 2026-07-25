@@ -2,7 +2,7 @@ import { GET, POST } from "@/app/api/projects/[id]/api-keys/route";
 import { DELETE } from "@/app/api/projects/[id]/api-keys/[keyId]/route";
 import { prisma } from "@/lib/prisma";
 import { authenticateRequest } from "@/lib/auth";
-import { NextResponse } from "next/server";
+import { writeAuditLog } from "@/lib/audit";
 import { NextResponse } from "next/server";
 
 jest.mock("@/lib/prisma", () => ({
@@ -16,6 +16,7 @@ jest.mock("@/lib/auth", () => ({
   authenticateRequest: jest.fn(),
   requireRole: jest.requireActual("@/lib/auth").requireRole,
 }));
+jest.mock("@/lib/audit", () => ({ writeAuditLog: jest.fn() }));
 
 describe("API Key management", () => {
   beforeEach(() => {
@@ -39,6 +40,16 @@ describe("API Key management", () => {
     expect(body.key).toBeDefined();
     expect(body.key).toHaveLength(64);
     expect(body.description).toBe("CI key");
+    expect(writeAuditLog).toHaveBeenCalledWith({
+      userId: "u1",
+      action: "CREATE",
+      entityType: "apiKey",
+      entityId: "k1",
+      changes: { projectId: "p1", description: "CI key" },
+    });
+    expect(writeAuditLog).not.toHaveBeenCalledWith(
+      expect.objectContaining({ changes: expect.objectContaining({ key: expect.anything() }) })
+    );
   });
 
   it("should list keys without raw key", async () => {
@@ -55,12 +66,22 @@ describe("API Key management", () => {
   });
 
   it("should delete API key", async () => {
-    (prisma.apiKey.findFirst as jest.Mock).mockResolvedValue({ id: "k1" });
+    (prisma.apiKey.findFirst as jest.Mock).mockResolvedValue({
+      id: "k1",
+      description: "CI key",
+    });
     (prisma.apiKey.delete as jest.Mock).mockResolvedValue({});
 
     const req = { url: "http://localhost/api/projects/p1/api-keys/k1", headers: new Headers() } as unknown as Request;
     const res = await DELETE(req as any, { params: Promise.resolve({ id: "p1", keyId: "k1" }) });
     expect(res.status).toBe(200);
+    expect(writeAuditLog).toHaveBeenCalledWith({
+      userId: "u1",
+      action: "DELETE",
+      entityType: "apiKey",
+      entityId: "k1",
+      changes: { projectId: "p1", description: "CI key" },
+    });
   });
 
   it("should return 403 for non-admin users", async () => {

@@ -30,6 +30,12 @@ const defaultProps = {
   selectedBatchScopeId: '',
   selectedProgressCategory: '',
   selectedAssetSaved: '',
+  search: '',
+  resultSummary: '',
+  assignee: '',
+  rootCause: '',
+  dateFrom: '',
+  dateTo: '',
   onFilterChange: jest.fn(),
 };
 
@@ -38,7 +44,7 @@ describe('FilterBar', () => {
     jest.clearAllMocks();
   });
 
-  test('renders project/stage/batch/progress/asset selects', () => {
+  test('renders scope and advanced filters', () => {
     render(<FilterBar {...defaultProps} />);
 
     expect(screen.getByLabelText('项目')).toBeInTheDocument();
@@ -46,6 +52,12 @@ describe('FilterBar', () => {
     expect(screen.getByLabelText('批跑范围')).toBeInTheDocument();
     expect(screen.getByLabelText('进展')).toBeInTheDocument();
     expect(screen.getByLabelText('资产状态')).toBeInTheDocument();
+    expect(screen.getByLabelText('搜索用例')).toBeInTheDocument();
+    expect(screen.getByLabelText('结果概要')).toBeInTheDocument();
+    expect(screen.getByLabelText('责任人')).toBeInTheDocument();
+    expect(screen.getByLabelText('根因')).toBeInTheDocument();
+    expect(screen.getByLabelText('创建日期从')).toBeInTheDocument();
+    expect(screen.getByLabelText('创建日期至')).toBeInTheDocument();
   });
 
   test('cascading: changing project calls onFilterChange', async () => {
@@ -60,6 +72,12 @@ describe('FilterBar', () => {
       batchScopeId: '',
       progressCategory: '',
       assetSaved: '',
+      search: '',
+      resultSummary: '',
+      assignee: '',
+      rootCause: '',
+      dateFrom: '',
+      dateTo: '',
     });
   });
 
@@ -85,6 +103,12 @@ describe('FilterBar', () => {
       batchScopeId: '',
       progressCategory: 'FIXED',
       assetSaved: '',
+      search: '',
+      resultSummary: '',
+      assignee: '',
+      rootCause: '',
+      dateFrom: '',
+      dateTo: '',
     });
   });
 
@@ -100,6 +124,69 @@ describe('FilterBar', () => {
       batchScopeId: '',
       progressCategory: '',
       assetSaved: 'true',
+      search: '',
+      resultSummary: '',
+      assignee: '',
+      rootCause: '',
+      dateFrom: '',
+      dateTo: '',
+    });
+  });
+
+  test('emits advanced text, result and date filters', async () => {
+    const onFilterChange = jest.fn();
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <FilterBar {...defaultProps} onFilterChange={onFilterChange} />,
+    );
+
+    await user.type(screen.getByLabelText('搜索用例'), 'TC-1');
+    expect(onFilterChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ search: '1' }),
+    );
+
+    rerender(
+      <FilterBar
+        {...defaultProps}
+        search="TC-1"
+        onFilterChange={onFilterChange}
+      />,
+    );
+    await user.selectOptions(screen.getByLabelText('结果概要'), 'FAIL');
+    expect(onFilterChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ search: 'TC-1', resultSummary: 'FAIL' }),
+    );
+
+    await user.type(screen.getByLabelText('创建日期从'), '2026-07-01');
+    expect(onFilterChange).toHaveBeenCalled();
+  });
+
+  test('clears all filters', async () => {
+    const onFilterChange = jest.fn();
+    render(
+      <FilterBar
+        {...defaultProps}
+        search="支付"
+        resultSummary="FAIL"
+        assignee="alice"
+        onFilterChange={onFilterChange}
+      />,
+    );
+
+    await userEvent.setup().click(screen.getByRole('button', { name: '清除筛选' }));
+
+    expect(onFilterChange).toHaveBeenLastCalledWith({
+      projectId: '',
+      stageId: '',
+      batchScopeId: '',
+      progressCategory: '',
+      assetSaved: '',
+      search: '',
+      resultSummary: '',
+      assignee: '',
+      rootCause: '',
+      dateFrom: '',
+      dateTo: '',
     });
   });
 });

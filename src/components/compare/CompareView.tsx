@@ -1,30 +1,47 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import type { CompareResponse } from "@/types";
 
 interface Props {
   data: CompareResponse;
+  projectId?: string;
+  stageId?: string;
 }
 
-export default function CompareView({ data }: Props) {
-  const [activeTab, setActiveTab] = useState<"passToFail" | "failToPass" | "newInB" | "removedFromB">("passToFail");
+type DiffTab = "passToFail" | "failToPass" | "otherChanges" | "newInB" | "removedFromB";
+
+export default function CompareView({ data, projectId, stageId }: Props) {
+  const [activeTab, setActiveTab] = useState<DiffTab>("passToFail");
 
   const tabs = [
     { key: "passToFail" as const, label: `PASS→FAIL (${data.diff.passToFail.length})` },
     { key: "failToPass" as const, label: `FAIL→PASS (${data.diff.failToPass.length})` },
+    { key: "otherChanges" as const, label: `其他变更 (${data.diff.otherChanges.length})` },
     { key: "newInB" as const, label: `新增 (${data.diff.newInB.length})` },
     { key: "removedFromB" as const, label: `移除 (${data.diff.removedFromB.length})` },
   ];
 
   const items = data.diff[activeTab];
+  const targetBatchId = activeTab === "removedFromB" ? data.batchA.id : data.batchB.id;
+
+  function workspaceHref(caseNo: string) {
+    const params = new URLSearchParams({ search: caseNo, batchScopeId: targetBatchId });
+    if (projectId) params.set("projectId", projectId);
+    if (stageId) params.set("testStageId", stageId);
+    return `/workspace?${params.toString()}`;
+  }
 
   return (
     <div>
-      <div className="flex gap-2 mb-4">
+      <div className="mb-4 flex flex-wrap gap-2" role="tablist" aria-label="变更分类">
         {tabs.map((tab) => (
           <button
             key={tab.key}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab.key}
             onClick={() => setActiveTab(tab.key)}
             className={`px-3 py-1 rounded text-sm ${activeTab === tab.key ? "bg-blue-600 text-white" : "bg-gray-100"}`}
           >
@@ -49,8 +66,16 @@ export default function CompareView({ data }: Props) {
           </thead>
           <tbody>
             {items.map((item, i) => (
-              <tr key={i} className="border-b">
-                <td className="py-2 font-mono text-xs">{item.caseNo}</td>
+              <tr key={`${item.caseNo}-${i}`} className="border-b">
+                <td className="py-2 font-mono text-xs">
+                  <Link
+                    href={workspaceHref(item.caseNo)}
+                    className="text-accent hover:underline"
+                    aria-label={`在工作台查看用例 ${item.caseNo}`}
+                  >
+                    {item.caseNo}
+                  </Link>
+                </td>
                 <td className="py-2">{item.name}</td>
                 <td className="py-2">{item.resultA}</td>
                 <td className="py-2">{item.resultB}</td>

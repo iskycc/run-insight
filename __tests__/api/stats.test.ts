@@ -18,7 +18,10 @@ jest.mock("@/lib/prisma", () => ({
 const mockPrisma = prisma as jest.Mocked<typeof prisma>;
 
 function createRequest(url: string, options?: Record<string, unknown>): NextRequest {
-  return new NextRequest(new URL(url, "http://localhost:3000"), options as RequestInit);
+  return new NextRequest(
+    new URL(url, "http://localhost:3000"),
+    options as ConstructorParameters<typeof NextRequest>[1],
+  );
 }
 
 function mockDashboardCaseCounts({

@@ -5,6 +5,15 @@ import { generateToken } from "@/lib/auth";
 
 jest.mock("@/lib/prisma", () => ({
   prisma: {
+    user: { findUnique: jest.fn().mockResolvedValue({ role: "ADMIN" }) },
+    projectMember: { findUnique: jest.fn() },
+    testStage: { findUnique: jest.fn().mockResolvedValue({ projectId: "p1" }) },
+    batchScope: {
+      findUnique: jest.fn().mockResolvedValue({
+        projectId: "p1",
+        testStageId: "s1",
+      }),
+    },
     caseResult: { groupBy: jest.fn() },
   },
 }));

@@ -1,6 +1,6 @@
 'use client';
 
-import { type ReactNode, useEffect } from 'react';
+import { type ReactNode, useEffect, useId } from 'react';
 
 type ModalProps = {
   open: boolean;
@@ -11,6 +11,8 @@ type ModalProps = {
 };
 
 export function Modal({ open, onClose, title, children, footer }: ModalProps) {
+  const titleId = useId();
+
   // ESC to close
   useEffect(() => {
     if (!open) return;
@@ -44,9 +46,16 @@ export function Modal({ open, onClose, title, children, footer }: ModalProps) {
         onClick={onClose}
       />
 
-      <div className="panel relative z-10 mx-md w-full max-w-lg overflow-hidden shadow-lg">
+      <div
+        className="panel relative z-10 mx-md w-full max-w-lg overflow-hidden shadow-lg"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+      >
         <div className="flex items-center justify-between border-b border-border px-lg py-md">
-          <h2 className="text-lg font-semibold text-text-primary">{title}</h2>
+          <h2 id={titleId} className="text-lg font-semibold text-text-primary">
+            {title}
+          </h2>
           <button
             onClick={onClose}
             className="rounded-md p-xs text-text-secondary transition-colors hover:bg-bg hover:text-text-primary"

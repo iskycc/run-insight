@@ -1,6 +1,7 @@
 'use client';
 
 import type { ValidationError } from '@/lib/validations';
+import { Button } from '@/components/shared/Button';
 
 interface ValidationReportProps {
   errors: ValidationError[];
@@ -8,6 +9,23 @@ interface ValidationReportProps {
 }
 
 export default function ValidationReport({ errors, totalRows }: ValidationReportProps) {
+  const downloadErrors = () => {
+    const escapeCell = (value: string | number) => {
+      const text = String(value);
+      return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+    };
+    const csv = [
+      ['row', 'field', 'message'],
+      ...errors.map((error) => [error.row, error.field, error.message]),
+    ].map((row) => row.map(escapeCell).join(',')).join('\r\n');
+    const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'import-validation-errors.csv';
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   if (errors.length === 0) {
     return (
       <div className="panel border-[var(--color-success)]/25 p-5">
@@ -26,11 +44,16 @@ export default function ValidationReport({ errors, totalRows }: ValidationReport
 
   return (
     <div className="panel border-[var(--color-danger)]/25 p-5">
-      <div className="flex items-center gap-2">
-        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--color-danger)] text-xs font-semibold text-white">!</span>
-        <span className="text-sm font-medium text-[var(--color-danger)]">
-          校验失败，发现 {errors.length} 个错误
-        </span>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--color-danger)] text-xs font-semibold text-white">!</span>
+          <span className="text-sm font-medium text-[var(--color-danger)]">
+            校验失败，发现 {errors.length} 个错误
+          </span>
+        </div>
+        <Button type="button" size="sm" variant="secondary" onClick={downloadErrors}>
+          下载错误 CSV
+        </Button>
       </div>
       <p className="mt-2 text-sm text-[var(--color-text-secondary)]">
         共 {totalRows} 条数据，{errors.length} 条校验未通过

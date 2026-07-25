@@ -47,23 +47,12 @@ describe("JWT_SECRET production guard", () => {
     }
   });
 
-  it("exits the process in production when JWT_SECRET is missing", () => {
+  it("throws when JWT operations run in production without JWT_SECRET", () => {
     delete process.env.JWT_SECRET;
     Object.assign(process.env, { NODE_ENV: "production" });
 
-    const exitSpy = jest.spyOn(process, "exit").mockImplementation((code) => {
-      throw new Error(`process.exit(${code})`);
-    });
-    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
-
-    expect(() => {
-      jest.isolateModules(() => {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        require("@/lib/auth");
-      });
-    }).toThrow("process.exit(1)");
-
-    exitSpy.mockRestore();
-    errorSpy.mockRestore();
+    expect(() =>
+      generateToken({ userId: "user_123", username: "admin" })
+    ).toThrow("JWT_SECRET environment variable is required in production");
   });
 });

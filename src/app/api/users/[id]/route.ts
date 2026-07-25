@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { authenticateRequest, requireRole } from "@/lib/auth";
 import { internalError, jsonError } from "@/lib/api-helpers";
-import type { UpdateUserRequest, UserWithRole } from "@/types";
+import { writeAuditLog } from "@/lib/audit";
+import { isValidRole } from "@/lib/validations";
+import type { UserWithRole } from "@/types";
 
 export async function PATCH(
   request: NextRequest,
@@ -16,22 +18,54 @@ export async function PATCH(
 
   try {
     const { id } = await params;
-    const body: UpdateUserRequest = await request.json();
-    const { role } = body;
+    const body: unknown = await request.json();
+    const role = body && typeof body === "object"
+      ? (body as Record<string, unknown>).role
+      : undefined;
 
-    if (!role || !["ADMIN", "EDITOR", "VIEWER"].includes(role)) {
+    if (!isValidRole(role)) {
       return jsonError("VALIDATION_ERROR", "角色不合法");
     }
 
-    const existing = await prisma.user.findUnique({ where: { id } });
-    if (!existing) {
-      return jsonError("NOT_FOUND", "用户不存在", 404);
+    if (id === authResult.userId) {
+      return jsonError("FORBIDDEN", "不能修改自己的角色", 403);
     }
 
-    const updated = await prisma.user.update({
-      where: { id },
-      data: { role },
-      select: { id: true, username: true, role: true, createdAt: true, updatedAt: true },
+    const result = await prisma.$transaction(async (tx) => {
+      const existing = await tx.user.findUnique({ where: { id } });
+      if (!existing) {
+        return { status: "not-found" as const };
+      }
+
+      if (existing.role === "ADMIN" && role !== "ADMIN") {
+        const adminCount = await tx.user.count({ where: { role: "ADMIN" } });
+        if (adminCount <= 1) {
+          return { status: "last-admin" as const };
+        }
+      }
+
+      const user = await tx.user.update({
+        where: { id },
+        data: { role },
+        select: { id: true, username: true, role: true, createdAt: true, updatedAt: true },
+      });
+      return { status: "updated" as const, user };
+    }, { isolationLevel: "Serializable" });
+
+    if (result.status === "not-found") {
+      return jsonError("NOT_FOUND", "用户不存在", 404);
+    }
+    if (result.status === "last-admin") {
+      return jsonError("FORBIDDEN", "系统至少需要保留一个管理员", 403);
+    }
+
+    const { user: updated } = result;
+    await writeAuditLog({
+      userId: authResult.userId,
+      action: "UPDATE",
+      entityType: "user",
+      entityId: id,
+      changes: { role: updated.role },
     });
 
     return NextResponse.json<UserWithRole>({

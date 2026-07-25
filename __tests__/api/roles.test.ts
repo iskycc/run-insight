@@ -7,6 +7,9 @@ jest.mock("@/lib/prisma", () => ({
   prisma: {
     user: { findUnique: jest.fn() },
     caseResult: { updateMany: jest.fn(), findMany: jest.fn(), count: jest.fn() },
+    projectMember: { findUnique: jest.fn() },
+    caseActivity: { create: jest.fn() },
+    auditLog: { create: jest.fn() },
     project: { delete: jest.fn(), findUnique: jest.fn() },
   },
 }));
@@ -24,7 +27,12 @@ describe("Role-based access control", () => {
     (authenticateRequest as jest.Mock).mockReturnValue({ userId: "u1", username: "viewer" });
     (prisma.user.findUnique as jest.Mock).mockResolvedValue({ role: "VIEWER" });
 
-    const req = { url: "http://localhost/api/cases", headers: new Headers(), json: async () => ({ caseIds: ["c1"], updates: { assignee: "test" } }) } as unknown as Request;
+    (prisma.projectMember.findUnique as jest.Mock).mockResolvedValue({ role: "VIEWER" });
+    (prisma.caseResult.findMany as jest.Mock).mockResolvedValue([
+      { id: "claaaaaaaaaaaaaaaaaaaaaa1", projectId: "p1" },
+    ]);
+
+    const req = { url: "http://localhost/api/cases", headers: new Headers(), json: async () => ({ caseIds: ["claaaaaaaaaaaaaaaaaaaaaa1"], updates: { assignee: "test" } }) } as unknown as Request;
     const res = await patchCases(req as any);
     expect(res.status).toBe(403);
   });
@@ -32,6 +40,14 @@ describe("Role-based access control", () => {
   it("should allow EDITOR to PATCH cases", async () => {
     (authenticateRequest as jest.Mock).mockReturnValue({ userId: "u1", username: "editor" });
     (prisma.user.findUnique as jest.Mock).mockResolvedValue({ role: "EDITOR" });
+    (prisma.projectMember.findUnique as jest.Mock).mockResolvedValue({ role: "EDITOR" });
+    (prisma.caseResult.findMany as jest.Mock).mockResolvedValue([
+      {
+        id: "claaaaaaaaaaaaaaaaaaaaaa1",
+        projectId: "p1",
+        assignee: null,
+      },
+    ]);
     (prisma.caseResult.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
 
     const req = { url: "http://localhost/api/cases", headers: new Headers(), json: async () => ({ caseIds: ["claaaaaaaaaaaaaaaaaaaaaa1"], updates: { assignee: "test" } }) } as unknown as Request;

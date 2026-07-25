@@ -1,5 +1,52 @@
 import { PROGRESS_CATEGORIES, RESULT_SUMMARIES } from "@/types";
-import type { ProgressCategory, ResultSummary } from "@/types";
+import type { ProgressCategory, ResultSummary, Role } from "@/types";
+
+const ROLES: readonly Role[] = ["ADMIN", "EDITOR", "VIEWER"];
+const PROJECT_ROLES = ["ADMIN", "EDITOR", "VIEWER"] as const;
+const CASE_PRIORITIES = ["HIGH", "MEDIUM", "LOW"] as const;
+const ASSET_STATUSES = ["DRAFT", "PUBLISHED", "ARCHIVED"] as const;
+
+export function isValidRole(value: unknown): value is Role {
+  return typeof value === "string" && ROLES.some((role) => role === value);
+}
+
+export function isValidProjectRole(
+  value: unknown
+): value is (typeof PROJECT_ROLES)[number] {
+  return typeof value === "string" && PROJECT_ROLES.some((role) => role === value);
+}
+
+export function isValidCasePriority(
+  value: unknown
+): value is (typeof CASE_PRIORITIES)[number] {
+  return typeof value === "string" && CASE_PRIORITIES.some((priority) => priority === value);
+}
+
+export function isValidAssetStatus(
+  value: unknown
+): value is (typeof ASSET_STATUSES)[number] {
+  return typeof value === "string" && ASSET_STATUSES.some((status) => status === value);
+}
+
+export function validateTags(value: unknown): string[] | null {
+  if (!Array.isArray(value) || value.length > 20) return null;
+  const tags: string[] = [];
+  for (const item of value) {
+    if (typeof item !== "string") return null;
+    const tag = item.trim();
+    if (!tag || tag.length > 30) return null;
+    if (!tags.includes(tag)) tags.push(tag);
+  }
+  return tags;
+}
+
+export function validateOptionalDate(value: unknown, fieldName: string): string | null {
+  if (value === undefined || value === null || value === "") return null;
+  if (typeof value !== "string" || Number.isNaN(Date.parse(value))) {
+    return `${fieldName}格式不正确`;
+  }
+  return null;
+}
 
 export function validateRequired(value: unknown, fieldName: string): string | null {
   if (value === undefined || value === null || value === "") {
@@ -91,6 +138,15 @@ export function validateImportData(
     const summaryError = validateRequired(row.resultSummary, "结果概要");
     if (summaryError) {
       errors.push({ row: rowNum, field: "resultSummary", message: summaryError });
+    } else {
+      const resultSummaryError = validateResultSummary(String(row.resultSummary));
+      if (resultSummaryError) {
+        errors.push({
+          row: rowNum,
+          field: "resultSummary",
+          message: resultSummaryError,
+        });
+      }
     }
 
     // logUrl validation (optional)

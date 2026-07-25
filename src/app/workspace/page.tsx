@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
-import { useRouter } from 'next/navigation';
-import FilterBar from '@/components/workspace/FilterBar';
+import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import FilterBar, { type WorkspaceFilters } from '@/components/workspace/FilterBar';
 import MetricCards from '@/components/workspace/MetricCards';
 import ProgressDistribution from '@/components/dashboard/ProgressDistribution';
 import CaseTable, {
@@ -34,27 +34,76 @@ import type {
   BatchUpdateResponse,
 } from '@/types';
 
-export default function WorkspacePage() {
+const SORT_FIELDS: SortField[] = [
+  'caseNo',
+  'name',
+  'resultSummary',
+  'assignee',
+  'progressCategory',
+  'assetSaved',
+  'createdAt',
+  'updatedAt',
+];
+
+function WorkspaceContent() {
   const { user } = useAuth();
   const router = useRouter();
+  const initialSearchParams = useSearchParams();
   const { showToast } = useToast();
 
   // Filter state
-  const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
+  const [projects, setProjects] = useState<ProjectDTO[]>([]);
   const [stages, setStages] = useState<{ id: string; projectId: string; name: string }[]>([]);
   const [batches, setBatches] = useState<{ id: string; projectId: string; testStageId: string; name: string }[]>([]);
-  const [selectedProjectId, setSelectedProjectId] = useState('');
-  const [selectedStageId, setSelectedStageId] = useState('');
-  const [selectedBatchScopeId, setSelectedBatchScopeId] = useState('');
-  const [selectedProgressCategory, setSelectedProgressCategory] = useState('');
-  const [selectedAssetSaved, setSelectedAssetSaved] = useState('');
+  const [selectedProjectId, setSelectedProjectId] = useState(
+    () => initialSearchParams.get('projectId') ?? '',
+  );
+  const [selectedStageId, setSelectedStageId] = useState(
+    () => initialSearchParams.get('testStageId') ?? '',
+  );
+  const [selectedBatchScopeId, setSelectedBatchScopeId] = useState(
+    () => initialSearchParams.get('batchScopeId') ?? '',
+  );
+  const canEdit =
+    projects.find((project) => project.id === selectedProjectId)?.canEdit ?? false;
+  const [selectedProgressCategory, setSelectedProgressCategory] = useState(
+    () => initialSearchParams.get('progressCategory') ?? '',
+  );
+  const [selectedAssetSaved, setSelectedAssetSaved] = useState(
+    () => initialSearchParams.get('assetSaved') ?? '',
+  );
+  const [search, setSearch] = useState(() => initialSearchParams.get('search') ?? '');
+  const [resultSummary, setResultSummary] = useState(
+    () => initialSearchParams.get('resultSummary') ?? '',
+  );
+  const [assignee, setAssignee] = useState(
+    () => initialSearchParams.get('assignee') ?? '',
+  );
+  const [rootCause, setRootCause] = useState(
+    () => initialSearchParams.get('rootCause') ?? '',
+  );
+  const [dateFrom, setDateFrom] = useState(
+    () => initialSearchParams.get('dateFrom') ?? '',
+  );
+  const [dateTo, setDateTo] = useState(
+    () => initialSearchParams.get('dateTo') ?? '',
+  );
 
   // Cases state
   const [cases, setCases] = useState<CaseResultDTO[]>([]);
   const [totalCount, setTotalCount] = useState(0);
-  const [page, setPage] = useState(1);
-  const [sortField, setSortField] = useState<SortField>('createdAt');
-  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const [page, setPage] = useState(
+    () => Math.max(1, Number(initialSearchParams.get('page')) || 1),
+  );
+  const [sortField, setSortField] = useState<SortField>(() => {
+    const requested = initialSearchParams.get('sortField');
+    return requested && SORT_FIELDS.includes(requested as SortField)
+      ? requested as SortField
+      : 'createdAt';
+  });
+  const [sortOrder, setSortOrder] = useState<SortOrder>(
+    () => initialSearchParams.get('sortOrder') === 'asc' ? 'asc' : 'desc',
+  );
   const pageSize = 20;
 
   // Selection state
@@ -74,12 +123,54 @@ export default function WorkspacePage() {
   const [exportingFormat, setExportingFormat] = useState<'csv' | 'xlsx' | null>(null);
   const exportAnchorRef = useRef<HTMLAnchorElement | null>(null);
 
+  // Keep filters, paging and sorting in the URL so the current view can be
+  // refreshed or shared. replaceState avoids adding a history entry per keypress.
+  useEffect(() => {
+    const params = new URLSearchParams();
+    const values: Record<string, string> = {
+      projectId: selectedProjectId,
+      testStageId: selectedStageId,
+      batchScopeId: selectedBatchScopeId,
+      progressCategory: selectedProgressCategory,
+      assetSaved: selectedAssetSaved,
+      search,
+      resultSummary,
+      assignee,
+      rootCause,
+      dateFrom,
+      dateTo,
+    };
+    for (const [key, value] of Object.entries(values)) {
+      if (value) params.set(key, value);
+    }
+    if (page > 1) params.set('page', String(page));
+    if (sortField !== 'createdAt') params.set('sortField', sortField);
+    if (sortOrder !== 'desc') params.set('sortOrder', sortOrder);
+    const query = params.toString();
+    window.history.replaceState(null, '', query ? `/workspace?${query}` : '/workspace');
+  }, [
+    selectedProjectId,
+    selectedStageId,
+    selectedBatchScopeId,
+    selectedProgressCategory,
+    selectedAssetSaved,
+    search,
+    resultSummary,
+    assignee,
+    rootCause,
+    dateFrom,
+    dateTo,
+    page,
+    sortField,
+    sortOrder,
+  ]);
+
   // Fetch projects on mount
   useEffect(() => {
     async function fetchFilterData() {
       try {
         const data = await fetchJson<ProjectsResponse>('/api/projects');
-        setProjects(data.projects.map((p: ProjectDTO) => ({ id: p.id, name: p.name })));
+        setProjects(data.projects);
       } catch (error) {
         console.error(error);
       }
@@ -138,6 +229,12 @@ export default function WorkspacePage() {
     if (selectedBatchScopeId) params.set('batchScopeId', selectedBatchScopeId);
     if (selectedProgressCategory) params.set('progressCategory', selectedProgressCategory);
     if (selectedAssetSaved) params.set('assetSaved', selectedAssetSaved);
+    if (search) params.set('search', search);
+    if (resultSummary) params.set('resultSummary', resultSummary);
+    if (assignee) params.set('assignee', assignee);
+    if (rootCause) params.set('rootCause', rootCause);
+    if (dateFrom) params.set('dateFrom', dateFrom);
+    if (dateTo) params.set('dateTo', dateTo);
     params.set('sortField', sortField);
     params.set('sortOrder', sortOrder);
     params.set('page', String(page));
@@ -156,6 +253,12 @@ export default function WorkspacePage() {
     selectedBatchScopeId,
     selectedProgressCategory,
     selectedAssetSaved,
+    search,
+    resultSummary,
+    assignee,
+    rootCause,
+    dateFrom,
+    dateTo,
     sortField,
     sortOrder,
     page,
@@ -198,18 +301,18 @@ export default function WorkspacePage() {
   // Filter change handler — also clears the current selection since selected
   // case ids may no longer match the visible list.
   const handleFilterChange = useCallback(
-    (filters: {
-      projectId: string;
-      stageId: string;
-      batchScopeId: string;
-      progressCategory: string;
-      assetSaved: string;
-    }) => {
+    (filters: WorkspaceFilters) => {
       setSelectedProjectId(filters.projectId);
       setSelectedStageId(filters.stageId);
       setSelectedBatchScopeId(filters.batchScopeId);
       setSelectedProgressCategory(filters.progressCategory);
       setSelectedAssetSaved(filters.assetSaved);
+      setSearch(filters.search);
+      setResultSummary(filters.resultSummary);
+      setAssignee(filters.assignee);
+      setRootCause(filters.rootCause);
+      setDateFrom(filters.dateFrom);
+      setDateTo(filters.dateTo);
       setPage(1);
       setSelectedIds([]);
     },
@@ -218,14 +321,16 @@ export default function WorkspacePage() {
 
   // Save asset handlers
   const handleSaveAsset = useCallback((caseId: string) => {
+    if (!canEdit) return;
     const c = cases.find((item) => item.id === caseId);
     if (c) {
       setSelectedCase(c);
       setSaveModalOpen(true);
     }
-  }, [cases]);
+  }, [canEdit, cases]);
 
   const handleSaveAssetConfirm = useCallback(async (caseId: string) => {
+    if (!canEdit) return;
     try {
       await fetchJson<SaveAssetResponse>(`/api/cases/${caseId}/save-asset`, { method: 'PATCH' });
       setSaveModalOpen(false);
@@ -237,7 +342,7 @@ export default function WorkspacePage() {
         error instanceof ApiError ? error.message : '保存资产失败';
       showToast({ message, type: 'error' });
     }
-  }, [fetchCases, showToast]);
+  }, [canEdit, fetchCases, showToast]);
 
   // View detail handler — navigate to case detail page
   const handleViewDetail = useCallback((id: string) => {
@@ -256,8 +361,9 @@ export default function WorkspacePage() {
 
   // Selection handlers
   const handleSelectionChange = useCallback((ids: string[]) => {
+    if (!canEdit) return;
     setSelectedIds(ids);
-  }, []);
+  }, [canEdit]);
 
   const handleClearSelection = useCallback(() => {
     setSelectedIds([]);
@@ -265,12 +371,13 @@ export default function WorkspacePage() {
 
   // Batch action trigger — opens the modal
   const handleBatchAction = useCallback((action: BatchActionType) => {
-    if (selectedIds.length === 0) return;
+    if (!canEdit || selectedIds.length === 0) return;
     setBatchAction(action);
-  }, [selectedIds.length]);
+  }, [canEdit, selectedIds.length]);
 
   // Batch action confirmation — calls PATCH /api/cases
   const handleBatchConfirm = useCallback(async (updates: BatchUpdates) => {
+    if (!canEdit) return;
     try {
       const res = await fetchJson<BatchUpdateResponse>('/api/cases', {
         method: 'PATCH',
@@ -293,12 +400,9 @@ export default function WorkspacePage() {
       showToast({ message, type: 'error' });
       throw error;
     }
-  }, [selectedIds, fetchCases, showToast]);
+  }, [canEdit, selectedIds, fetchCases, showToast]);
 
-  // Export current filtered cases via the export API. The API uses the same
-  // filter params (projectId / testStageId / batchScopeId) — we don't need
-  // to also pass resultSummary / assetSaved / progressCategory since the
-  // export is meant to capture "everything under the current scope".
+  // Export exactly the same filtered data currently shown in the workspace.
   const handleExport = useCallback(async (format: 'csv' | 'xlsx') => {
     if (exportingFormat) return;
     setExportingFormat(format);
@@ -307,6 +411,14 @@ export default function WorkspacePage() {
       if (selectedProjectId) params.set('projectId', selectedProjectId);
       if (selectedStageId) params.set('testStageId', selectedStageId);
       if (selectedBatchScopeId) params.set('batchScopeId', selectedBatchScopeId);
+      if (selectedProgressCategory) params.set('progressCategory', selectedProgressCategory);
+      if (selectedAssetSaved) params.set('assetSaved', selectedAssetSaved);
+      if (search) params.set('search', search);
+      if (resultSummary) params.set('resultSummary', resultSummary);
+      if (assignee) params.set('assignee', assignee);
+      if (rootCause) params.set('rootCause', rootCause);
+      if (dateFrom) params.set('dateFrom', dateFrom);
+      if (dateTo) params.set('dateTo', dateTo);
 
       const res = await fetch(`/api/export?${params.toString()}`);
       if (!res.ok) {
@@ -339,7 +451,21 @@ export default function WorkspacePage() {
     } finally {
       setExportingFormat(null);
     }
-  }, [exportingFormat, selectedProjectId, selectedStageId, selectedBatchScopeId, showToast]);
+  }, [
+    exportingFormat,
+    selectedProjectId,
+    selectedStageId,
+    selectedBatchScopeId,
+    selectedProgressCategory,
+    selectedAssetSaved,
+    search,
+    resultSummary,
+    assignee,
+    rootCause,
+    dateFrom,
+    dateTo,
+    showToast,
+  ]);
 
   if (!user) {
     return (
@@ -402,6 +528,12 @@ export default function WorkspacePage() {
         selectedBatchScopeId={selectedBatchScopeId}
         selectedProgressCategory={selectedProgressCategory}
         selectedAssetSaved={selectedAssetSaved}
+        search={search}
+        resultSummary={resultSummary}
+        assignee={assignee}
+        rootCause={rootCause}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
         onFilterChange={handleFilterChange}
       />
 
@@ -423,6 +555,7 @@ export default function WorkspacePage() {
 
       {/* Case table */}
       <CaseTable
+        canEdit={canEdit}
         cases={caseRows}
         totalCount={totalCount}
         page={page}
@@ -440,7 +573,7 @@ export default function WorkspacePage() {
       />
 
       {/* Save asset modal */}
-      {selectedCase && (
+      {canEdit && selectedCase && (
         <SaveAssetModal
           open={saveModalOpen}
           onClose={() => {
@@ -453,7 +586,7 @@ export default function WorkspacePage() {
       )}
 
       {/* Batch action modal */}
-      {batchAction && (
+      {canEdit && batchAction && (
         <BatchActionModal
           key={batchAction}
           open={batchAction !== null}
@@ -465,5 +598,21 @@ export default function WorkspacePage() {
       )}
       </div>
     </PageContainer>
+  );
+}
+
+export default function WorkspacePage() {
+  return (
+    <Suspense
+      fallback={
+        <PageContainer title="工作台" subtitle="按项目、阶段和批跑筛选用例，推进分析闭环">
+          <div className="panel flex items-center justify-center p-10">
+            <p className="text-sm text-text-secondary">加载中…</p>
+          </div>
+        </PageContainer>
+      }
+    >
+      <WorkspaceContent />
+    </Suspense>
   );
 }

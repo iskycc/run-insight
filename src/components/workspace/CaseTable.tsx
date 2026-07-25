@@ -34,6 +34,7 @@ export type SortField =
 export type SortOrder = 'asc' | 'desc';
 
 interface CaseTableProps {
+  canEdit: boolean;
   cases: CaseRow[];
   totalCount: number;
   page: number;
@@ -51,6 +52,7 @@ interface CaseTableProps {
 }
 
 export default function CaseTable({
+  canEdit,
   cases,
   totalCount,
   page,
@@ -136,7 +138,7 @@ export default function CaseTable({
 
   return (
     <div className="panel overflow-hidden">
-      {selectedIds.length > 0 && (
+      {canEdit && selectedIds.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-accent/5 px-4 py-2 text-xs">
           <span className="font-medium text-text-primary">
             已选中 <span className="text-accent">{selectedIds.length}</span> 个用例
@@ -178,18 +180,20 @@ export default function CaseTable({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-bg/70 text-left text-xs text-text-secondary">
-              <th className="w-10 px-3 py-3">
-                <input
-                  type="checkbox"
-                  aria-label="全选当前页"
-                  checked={allOnPageSelected}
-                  ref={(el) => {
-                    if (el) el.indeterminate = someOnPageSelected;
-                  }}
-                  onChange={handleHeaderCheckbox}
-                  className="h-4 w-4 cursor-pointer rounded border-border text-accent focus:ring-accent/30"
-                />
-              </th>
+              {canEdit && (
+                <th className="w-10 px-3 py-3">
+                  <input
+                    type="checkbox"
+                    aria-label="全选当前页"
+                    checked={allOnPageSelected}
+                    ref={(el) => {
+                      if (el) el.indeterminate = someOnPageSelected;
+                    }}
+                    onChange={handleHeaderCheckbox}
+                    className="h-4 w-4 cursor-pointer rounded border-border text-accent focus:ring-accent/30"
+                  />
+                </th>
+              )}
               <th aria-sort={ariaSortFor('caseNo')} className="px-4 py-3 font-medium">{sortableHeader('caseNo', '编号')}</th>
               <th aria-sort={ariaSortFor('name')} className="px-4 py-3 font-medium">{sortableHeader('name', '名称')}</th>
               <th aria-sort={ariaSortFor('resultSummary')} className="px-4 py-3 font-medium">{sortableHeader('resultSummary', '结果概要')}</th>
@@ -209,15 +213,17 @@ export default function CaseTable({
                     checked ? 'bg-accent/5' : ''
                   }`}
                 >
-                  <td className="w-10 px-3 py-3 align-middle">
-                    <input
-                      type="checkbox"
-                      aria-label={`选择用例 ${c.caseNo}`}
-                      checked={checked}
-                      onChange={(e) => handleRowCheckbox(c.id, e.target.checked)}
-                      className="h-4 w-4 cursor-pointer rounded border-border text-accent focus:ring-accent/30"
-                    />
-                  </td>
+                  {canEdit && (
+                    <td className="w-10 px-3 py-3 align-middle">
+                      <input
+                        type="checkbox"
+                        aria-label={`选择用例 ${c.caseNo}`}
+                        checked={checked}
+                        onChange={(e) => handleRowCheckbox(c.id, e.target.checked)}
+                        className="h-4 w-4 cursor-pointer rounded border-border text-accent focus:ring-accent/30"
+                      />
+                    </td>
+                  )}
                   <td className="px-4 py-3 font-mono text-xs font-medium text-accent">
                     {c.caseNo}
                   </td>
@@ -251,7 +257,7 @@ export default function CaseTable({
                       >
                         详情
                       </button>
-                      {c.progressCategory && !c.assetSaved && (
+                      {canEdit && c.progressCategory && !c.assetSaved && (
                         <button
                           aria-label="保存资产"
                           onClick={() => onSaveAsset(c.id)}

@@ -9,7 +9,11 @@ import { EmptyState } from '@/components/shared/EmptyState';
 import { useAuth } from '@/components/shared/AuthProvider';
 import { useToast } from '@/contexts/ToastContext';
 import { fetchJson, ApiError } from '@/lib/fetch';
-import type { ImportHistoryResponse, ImportRecordDTO, ProjectsResponse } from '@/types';
+import type {
+  ImportHistoryResponse,
+  ImportRecordDTO,
+  ImportRecordStatus,
+} from '@/types';
 
 function formatDateTime(iso: string) {
   return new Date(iso).toLocaleString('zh-CN');
@@ -21,13 +25,24 @@ function importTypeLabel(t: string) {
   return t;
 }
 
+const statusConfig: Record<
+  ImportRecordStatus,
+  { label: string; progress: 'fixed' | 'analyzing' | 'blocked' }
+> = {
+  success: { label: '成功', progress: 'fixed' },
+  partial: { label: '部分成功', progress: 'analyzing' },
+  failed: { label: '失败', progress: 'blocked' },
+};
+
 export default function ImportHistoryPage() {
   const { user } = useAuth();
   const { showToast } = useToast();
   const router = useRouter();
 
   const [records, setRecords] = useState<ImportRecordDTO[]>([]);
-  const [projectNames, setProjectNames] = useState<Record<string, string>>({});
+  const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
+  const [projectId, setProjectId] = useState('');
+  const [status, setStatus] = useState<ImportRecordStatus | ''>('');
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [loadState, setLoadState] = useState<'idle' | 'ready' | 'error'>('idle');
@@ -35,36 +50,24 @@ export default function ImportHistoryPage() {
 
   const pageSize = 20;
 
-  // Load project name lookup (for display)
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const data = await fetchJson<ProjectsResponse>('/api/projects?includeArchived=true');
-        if (cancelled) return;
-        const map: Record<string, string> = {};
-        for (const p of data.projects) map[p.id] = p.name;
-        setProjectNames(map);
-      } catch {
-        // ignore — project names are decorative
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   useEffect(() => {
     if (!user) return;
     const controller = new AbortController();
     (async () => {
       try {
+        const params = new URLSearchParams({
+          page: String(page),
+          pageSize: String(pageSize),
+        });
+        if (projectId) params.set('projectId', projectId);
+        if (status) params.set('status', status);
         const data = await fetchJson<ImportHistoryResponse>(
-          `/api/import-history?page=${page}&pageSize=${pageSize}`,
+          `/api/import-history?${params.toString()}`,
           { signal: controller.signal }
         );
         if (controller.signal.aborted) return;
         setRecords(data.records);
+        setProjects(data.projects);
         setTotal(data.total);
         setLoadState('ready');
       } catch (error) {
@@ -75,7 +78,7 @@ export default function ImportHistoryPage() {
       }
     })();
     return () => controller.abort();
-  }, [user, page, reloadKey, showToast]);
+  }, [user, page, projectId, status, reloadKey, showToast]);
 
   const handleRefresh = useCallback(() => {
     setReloadKey((k) => k + 1);
@@ -105,6 +108,45 @@ export default function ImportHistoryPage() {
       }
     >
       <div className="space-y-4">
+        <div className="panel grid gap-3 p-4 sm:grid-cols-2">
+          <label className="block">
+            <span className="text-xs font-semibold text-text-secondary">项目</span>
+            <select
+              aria-label="项目筛选"
+              value={projectId}
+              onChange={(event) => {
+                setProjectId(event.target.value);
+                setPage(1);
+              }}
+              className="field-control mt-1.5 h-10 w-full px-3 text-sm"
+            >
+              <option value="">全部项目</option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="text-xs font-semibold text-text-secondary">状态</span>
+            <select
+              aria-label="状态筛选"
+              value={status}
+              onChange={(event) => {
+                setStatus(event.target.value as ImportRecordStatus | '');
+                setPage(1);
+              }}
+              className="field-control mt-1.5 h-10 w-full px-3 text-sm"
+            >
+              <option value="">全部状态</option>
+              <option value="success">成功</option>
+              <option value="partial">部分成功</option>
+              <option value="failed">失败</option>
+            </select>
+          </label>
+        </div>
+
         <div className="panel overflow-hidden">
           {loading ? (
             <div className="flex items-center justify-center p-10">
@@ -120,7 +162,9 @@ export default function ImportHistoryPage() {
                     <th className="px-4 py-3">时间</th>
                     <th className="px-4 py-3">文件名</th>
                     <th className="px-4 py-3">项目</th>
+                    <th className="px-4 py-3">导入人</th>
                     <th className="px-4 py-3">导入类型</th>
+                    <th className="px-4 py-3">状态</th>
                     <th className="px-4 py-3 text-right">总行数</th>
                     <th className="px-4 py-3 text-right">成功</th>
                     <th className="px-4 py-3 text-right">错误数</th>
@@ -136,10 +180,16 @@ export default function ImportHistoryPage() {
                       <td className="px-4 py-3 text-text-secondary">{formatDateTime(r.createdAt)}</td>
                       <td className="px-4 py-3 font-medium text-text-primary">{r.fileName}</td>
                       <td className="px-4 py-3 text-text-secondary">
-                        {projectNames[r.projectId] ?? r.projectId.slice(0, 8)}
+                        {r.projectName}
                       </td>
+                      <td className="px-4 py-3 text-text-secondary">{r.username}</td>
                       <td className="px-4 py-3">
                         <Badge progress="analyzing">{importTypeLabel(r.importType)}</Badge>
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge progress={statusConfig[r.status].progress}>
+                          {statusConfig[r.status].label}
+                        </Badge>
                       </td>
                       <td className="px-4 py-3 text-right text-text-secondary">{r.totalRows}</td>
                       <td className="px-4 py-3 text-right">

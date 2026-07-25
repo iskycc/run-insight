@@ -32,6 +32,7 @@ export default function ProjectSettingsPage() {
   const [projectName, setProjectName] = useState<string>('');
   const [archived, setArchived] = useState<boolean>(false);
   const [stageCount, setStageCount] = useState<number>(0);
+  const [canAdmin, setCanAdmin] = useState(false);
   const [projectLoading, setProjectLoading] = useState(true);
 
   const [keys, setKeys] = useState<ApiKeyResponse[]>([]);
@@ -63,10 +64,12 @@ export default function ProjectSettingsPage() {
           setProjectName('');
           setArchived(false);
           setStageCount(0);
+          setCanAdmin(false);
         } else {
           setProjectName(project.name);
           setArchived(project.archived);
           setStageCount(project.stageCount);
+          setCanAdmin(project.canAdmin);
         }
       } catch (error) {
         if (controller.signal.aborted) return;
@@ -81,7 +84,7 @@ export default function ProjectSettingsPage() {
 
   // Load API keys (admin only — API enforces role).
   useEffect(() => {
-    if (!user || user.role !== 'ADMIN') return;
+    if (!user || !canAdmin) return;
     const controller = new AbortController();
     void (async () => {
       try {
@@ -100,7 +103,7 @@ export default function ProjectSettingsPage() {
       }
     })();
     return () => controller.abort();
-  }, [user, id, showToast, reloadKey]);
+  }, [user, canAdmin, id, showToast, reloadKey]);
 
   const openCreate = useCallback(() => {
     setNewLabel('');
@@ -243,12 +246,12 @@ export default function ProjectSettingsPage() {
                 用于外部系统调用本项目相关接口，密钥仅在创建时显示一次。
               </p>
             </div>
-            {user.role === 'ADMIN' && (
+            {canAdmin && (
               <Button onClick={openCreate}>创建 API Key</Button>
             )}
           </div>
 
-          {user.role !== 'ADMIN' ? (
+          {!canAdmin ? (
             <div className="mt-md panel flex items-center justify-center p-md text-sm text-text-secondary">
               API Key 管理仅对管理员开放
             </div>

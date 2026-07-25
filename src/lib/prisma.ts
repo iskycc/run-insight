@@ -26,8 +26,20 @@ function createPrismaClient() {
   return new PrismaClient({ adapter });
 }
 
-export const prisma = globalForPrisma.prisma ?? createPrismaClient();
+function getPrismaClient(): PrismaClient {
+  if (!globalForPrisma.prisma) {
+    globalForPrisma.prisma = createPrismaClient();
+  }
 
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
+  return globalForPrisma.prisma;
 }
+
+// Next.js evaluates route modules while collecting build metadata. Defer
+// runtime-only environment validation and connection setup until a query runs.
+export const prisma = new Proxy({} as PrismaClient, {
+  get(_target, property) {
+    const client = getPrismaClient();
+    const value = Reflect.get(client, property, client);
+    return typeof value === "function" ? value.bind(client) : value;
+  },
+});

@@ -1,4 +1,4 @@
-import { type InputHTMLAttributes, forwardRef } from 'react';
+import { type InputHTMLAttributes, forwardRef, useId } from 'react';
 
 type InputProps = InputHTMLAttributes<HTMLInputElement> & {
   label?: string;
@@ -6,13 +6,31 @@ type InputProps = InputHTMLAttributes<HTMLInputElement> & {
 };
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, className = '', type = 'text', ...props }, ref) => {
+  (
+    {
+      label,
+      error,
+      className = '',
+      type = 'text',
+      id,
+      'aria-describedby': describedBy,
+      ...props
+    },
+    ref,
+  ) => {
     const isSearch = type === 'search';
+    const generatedId = useId();
+    const inputId = id ?? generatedId;
+    const errorId = error ? `${inputId}-error` : undefined;
+    const descriptionIds = [describedBy, errorId].filter(Boolean).join(' ') || undefined;
 
     return (
       <div className="flex flex-col gap-1.5">
         {label && (
-          <label className="text-xs font-semibold text-text-secondary">
+          <label
+            htmlFor={inputId}
+            className="text-xs font-semibold text-text-secondary"
+          >
             {label}
           </label>
         )}
@@ -33,7 +51,10 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           )}
           <input
             ref={ref}
+            id={inputId}
             type={type}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={descriptionIds}
             className={`field-control h-10 w-full text-sm placeholder:text-text-secondary/50
               ${
                 error
@@ -46,7 +67,9 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           />
         </div>
         {error && (
-          <p className="text-xs text-danger">{error}</p>
+          <p id={errorId} className="text-xs text-danger">
+            {error}
+          </p>
         )}
       </div>
     );

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { internalError } from "@/lib/api-helpers";
 import type { DashboardStatsResponse } from "@/types";
-import { PROGRESS_LABELS } from "@/types";
+import { PROGRESS_LABELS, RESULT_SUMMARIES } from "@/types";
 import type { ProgressCategory } from "@/types";
 
 function percentage(part: number, total: number) {
@@ -16,20 +16,39 @@ export async function GET(request: NextRequest) {
     const projectId = searchParams.get("projectId") || undefined;
     const testStageId = searchParams.get("testStageId") || undefined;
     const batchScopeId = searchParams.get("batchScopeId") || undefined;
-    const startDate = searchParams.get("startDate") || undefined;
-    const endDate = searchParams.get("endDate") || undefined;
+    const progressCategory = searchParams.get("progressCategory") || undefined;
+    const assetSaved = searchParams.get("assetSaved") || undefined;
+    const search = searchParams.get("search") || undefined;
+    const resultSummary = searchParams.get("resultSummary") || undefined;
+    const assignee = searchParams.get("assignee") || undefined;
+    const rootCause = searchParams.get("rootCause") || undefined;
+    const startDate =
+      searchParams.get("dateFrom") || searchParams.get("startDate") || undefined;
+    const endDate =
+      searchParams.get("dateTo") || searchParams.get("endDate") || undefined;
 
     const where: Record<string, unknown> = {};
     if (projectId) where.projectId = projectId;
     if (testStageId) where.testStageId = testStageId;
     if (batchScopeId) where.batchScopeId = batchScopeId;
+    if (progressCategory) where.progressCategory = progressCategory;
+    if (assetSaved !== undefined) where.assetSaved = assetSaved === "true";
+    if (resultSummary && RESULT_SUMMARIES.includes(resultSummary as (typeof RESULT_SUMMARIES)[number])) {
+      where.resultSummary = resultSummary;
+    }
+    if (assignee) where.assignee = { contains: assignee };
+    if (rootCause) where.rootCause = { contains: rootCause };
+    if (search) {
+      where.OR = [
+        { caseNo: { contains: search } },
+        { name: { contains: search } },
+      ];
+    }
 
     const dateFilter: Record<string, Date> = {};
-    if (startDate) dateFilter.gte = new Date(startDate);
+    if (startDate) dateFilter.gte = new Date(`${startDate}T00:00:00.000Z`);
     if (endDate) {
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
-      dateFilter.lte = end;
+      dateFilter.lte = new Date(`${endDate}T23:59:59.999Z`);
     }
     if (Object.keys(dateFilter).length > 0) {
       where.createdAt = dateFilter;
@@ -55,6 +74,11 @@ export async function GET(request: NextRequest) {
           ? await prisma.batchScope.count({ where: { projectId } })
           : await prisma.batchScope.count();
 
+    const withConstraint = (field: string, value: unknown) => {
+      if (!(field in where)) return { ...where, [field]: value };
+      return { ...where, AND: [{ [field]: value }] };
+    };
+
     const [
       totalCaseCount,
       passedCaseCount,
@@ -66,21 +90,20 @@ export async function GET(request: NextRequest) {
       progressGrouped,
     ] = await Promise.all([
       prisma.caseResult.count({ where }),
-      prisma.caseResult.count({ where: { ...where, resultSummary: "PASS" } }),
-      prisma.caseResult.count({ where: { ...where, resultSummary: "FAIL" } }),
-      prisma.caseResult.count({ where: { ...where, resultSummary: "BLOCK" } }),
-      prisma.caseResult.count({ where: { ...where, resultSummary: "SKIP" } }),
+      prisma.caseResult.count({ where: withConstraint("resultSummary", "PASS") }),
+      prisma.caseResult.count({ where: withConstraint("resultSummary", "FAIL") }),
+      prisma.caseResult.count({ where: withConstraint("resultSummary", "BLOCK") }),
+      prisma.caseResult.count({ where: withConstraint("resultSummary", "SKIP") }),
       prisma.caseResult.count({
-        where: {
-          ...where,
-          progressCategory: { in: ["LOCATED", "FIXED", "NOT_ISSUE"] },
-        },
+        where: withConstraint("progressCategory", {
+          in: ["LOCATED", "FIXED", "NOT_ISSUE"],
+        }),
       }),
-      prisma.caseResult.count({ where: { ...where, assetSaved: true } }),
+      prisma.caseResult.count({ where: withConstraint("assetSaved", true) }),
       prisma.caseResult.groupBy({
         by: ["progressCategory"],
         _count: { _all: true },
-        where: { ...where, progressCategory: { not: null } },
+        where: withConstraint("progressCategory", { not: null }),
       }),
     ]);
 

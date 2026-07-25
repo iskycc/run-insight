@@ -6,6 +6,7 @@ import { generateToken } from "@/lib/auth";
 jest.mock("@/lib/prisma", () => ({
   prisma: {
     user: { findUnique: jest.fn().mockResolvedValue({ role: "ADMIN" }) },
+    projectMember: { findUnique: jest.fn() },
     testStage: {
       findUnique: jest.fn(),
       update: jest.fn(),
@@ -18,7 +19,10 @@ jest.mock("@/lib/prisma", () => ({
 const mockPrisma = prisma as jest.Mocked<typeof prisma>;
 
 function createRequest(url: string, options?: Record<string, unknown>): NextRequest {
-  return new NextRequest(new URL(url, "http://localhost:3000"), options as RequestInit);
+  return new NextRequest(
+    new URL(url, "http://localhost:3000"),
+    options as ConstructorParameters<typeof NextRequest>[1],
+  );
 }
 
 function authCookie(): string {
@@ -100,6 +104,11 @@ describe("DELETE /api/stages/[id]", () => {
 
   it("returns 403 when role is insufficient", async () => {
     (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue({ role: "VIEWER" });
+    (mockPrisma.testStage.findUnique as jest.Mock).mockResolvedValue({
+      id: "s1",
+      projectId: "p1",
+    });
+    (mockPrisma.projectMember.findUnique as jest.Mock).mockResolvedValue(null);
     const req = createRequest("/api/stages/s1", {
       method: "DELETE",
       headers: { cookie: authCookie() },

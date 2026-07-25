@@ -1,122 +1,223 @@
 'use client';
 
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/shared/Button';
-import { Badge } from '@/components/shared/Badge';
-import { isSafeHttpUrl } from '@/lib/url';
-import { getProgressBadgeKey, getProgressLabel } from '@/lib/progress';
-import type { AssetItem } from './AssetList';
+import { Input } from '@/components/shared/Input';
+import { Modal } from '@/components/shared/Modal';
+import { Select } from '@/components/shared/Select';
+import { ApiError, fetchJson } from '@/lib/fetch';
+import type {
+  AssetDTO,
+  AssetStatus,
+  RootCauseCategoriesResponse,
+  RootCauseCategoryDTO,
+} from '@/types';
 
-type AssetDetailProps = {
-  asset: AssetItem;
-  onClose: () => void;
+const STATUS_LABELS: Record<AssetStatus, string> = {
+  DRAFT: '草稿',
+  PUBLISHED: '已发布',
+  ARCHIVED: '已归档',
 };
 
-function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex flex-col gap-xs">
-      <span className="text-xs font-semibold text-text-secondary">{label}</span>
-      <div className="text-sm text-text-primary">{children}</div>
-    </div>
-  );
-}
+type Props = {
+  asset: AssetDTO;
+  onClose: () => void;
+  onUpdated: (asset: AssetDTO) => void;
+};
 
-export function AssetDetail({ asset, onClose }: AssetDetailProps) {
-  const progressKey = getProgressBadgeKey(asset.progressCategory) ?? undefined;
-  const progressLabel = getProgressLabel(asset.progressCategory) ?? asset.progressCategory;
+export function AssetDetail({ asset, onClose, onUpdated }: Props) {
+  const [editOpen, setEditOpen] = useState(false);
+  const [title, setTitle] = useState(asset.title);
+  const [summary, setSummary] = useState(asset.summary);
+  const [solution, setSolution] = useState(asset.solution);
+  const [rootCauseText, setRootCauseText] = useState(asset.rootCauseText ?? '');
+  const [rootCauseCategoryId, setRootCauseCategoryId] = useState(
+    asset.rootCauseCategoryId ?? ''
+  );
+  const [tags, setTags] = useState(asset.tags.join(', '));
+  const [categories, setCategories] = useState<RootCauseCategoryDTO[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    void fetchJson<RootCauseCategoriesResponse>(
+      `/api/root-cause-categories?projectId=${encodeURIComponent(asset.projectId)}`
+    ).then((data) => setCategories(data.categories)).catch(() => undefined);
+  }, [asset.projectId]);
+
+  const update = async (body: Record<string, unknown>) => {
+    const data = await fetchJson<{ asset: AssetDTO }>(`/api/assets/${asset.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    onUpdated(data.asset);
+  };
+
+  const save = async () => {
+    setSaving(true);
+    setError('');
+    try {
+      await update({
+        title,
+        summary,
+        solution,
+        rootCauseText: rootCauseText || null,
+        rootCauseCategoryId: rootCauseCategoryId || null,
+        tags: tags.split(',').map((tag) => tag.trim()).filter(Boolean),
+      });
+      setEditOpen(false);
+    } catch (caught) {
+      setError(caught instanceof ApiError ? caught.message : '保存资产失败');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const setStatus = async (status: AssetStatus) => {
+    try {
+      await update({ status });
+    } catch (caught) {
+      setError(caught instanceof ApiError ? caught.message : '更新资产状态失败');
+    }
+  };
+
+  const markReused = async () => {
+    const data = await fetchJson<{ reuseCount: number }>(
+      `/api/assets/${asset.id}/reuse`,
+      { method: 'POST' }
+    );
+    onUpdated({ ...asset, reuseCount: data.reuseCount });
+  };
 
   return (
     <div className="panel space-y-lg p-lg">
-      {/* 顶部关闭 */}
-      <div className="flex items-center justify-between flex-wrap gap-sm">
-        <div className="flex items-center gap-sm">
-          <span className="font-mono text-sm text-text-secondary">{asset.caseNo}</span>
-          <h2 className="text-lg font-semibold text-text-primary">{asset.name}</h2>
-        </div>
-        <Button variant="secondary" size="sm" onClick={onClose}>
-          关闭
-        </Button>
-      </div>
-
-      {/* 完整分析链路 */}
-      <div className="panel-muted p-md">
-        <h3 className="mb-md text-xs font-semibold text-text-secondary">
-          分析链路
-        </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-md">
-          <DetailRow label="结果概要">
-            <span className={`inline-flex items-center px-sm py-xs text-xs font-medium rounded-md ${
-              asset.resultSummary === 'PASS' ? 'bg-success/15 text-success'
-                : asset.resultSummary === 'FAIL' ? 'bg-danger/15 text-danger'
-                : 'bg-bg text-text-secondary'
-            }`}>
-              {asset.resultSummary}
+      <div className="flex flex-wrap items-start justify-between gap-sm">
+        <div>
+          <div className="mb-1 flex items-center gap-2">
+            <span className="rounded bg-accent/10 px-2 py-1 text-xs text-accent">
+              {STATUS_LABELS[asset.status]}
             </span>
-          </DetailRow>
-
-          <DetailRow label="进展分类">
-            {progressKey && progressLabel ? (
-              <Badge progress={progressKey}>{progressLabel}</Badge>
-            ) : (
-              <span className="text-text-secondary">—</span>
-            )}
-          </DetailRow>
-
-          <DetailRow label="分析责任人">
-            {asset.assignee ?? <span className="text-text-secondary">—</span>}
-          </DetailRow>
-
-          <DetailRow label="问题根因">
-            {asset.rootCause ?? <span className="text-text-secondary">—</span>}
-          </DetailRow>
-
-          <DetailRow label="MR 链接 / 单号">
-            {asset.mrOrTicket ? (
-              isSafeHttpUrl(asset.mrOrTicket) ? (
-                <a
-                  href={asset.mrOrTicket}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="break-all text-accent underline hover:text-accent-hover"
-                >
-                  {asset.mrOrTicket}
-                </a>
-              ) : (
-                <span>{asset.mrOrTicket}</span>
-              )
-            ) : (
-              <span className="text-text-secondary">—</span>
-            )}
-          </DetailRow>
-
-          <DetailRow label="执行日志">
-            {asset.logUrl && isSafeHttpUrl(asset.logUrl) ? (
-              <a
-                href={asset.logUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-accent underline hover:text-accent-hover"
-              >
-                查看执行日志
-              </a>
-            ) : (
-              <span className="text-text-secondary">无</span>
-            )}
-          </DetailRow>
+            <span className="text-xs text-text-secondary">v{asset.version}</span>
+          </div>
+          <h2 className="text-xl font-semibold text-text-primary">{asset.title}</h2>
+          <p className="mt-1 text-xs text-text-secondary">{asset.project.name}</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="secondary" onClick={() => void markReused()}>
+            标记已复用
+          </Button>
+          {asset.canEdit && (
+            <>
+              <Button size="sm" variant="secondary" onClick={() => setEditOpen(true)}>
+                编辑
+              </Button>
+              {asset.status !== 'PUBLISHED' && (
+                <Button size="sm" onClick={() => void setStatus('PUBLISHED')}>发布</Button>
+              )}
+              {asset.status !== 'ARCHIVED' && (
+                <Button size="sm" variant="secondary" onClick={() => void setStatus('ARCHIVED')}>
+                  归档
+                </Button>
+              )}
+            </>
+          )}
+          <Button size="sm" variant="secondary" onClick={onClose}>关闭</Button>
         </div>
       </div>
 
-      {/* 所属维度 */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-md">
-        <DetailRow label="项目">{asset.project.name}</DetailRow>
-        <DetailRow label="测试阶段">{asset.stage.name}</DetailRow>
-        <DetailRow label="批跑范围">{asset.batchScope.name}</DetailRow>
-      </div>
+      {error && <p className="rounded bg-danger/10 p-3 text-sm text-danger">{error}</p>}
 
-      {/* 时间 */}
-      <div className="flex flex-wrap gap-md text-xs text-text-secondary">
-        <span>创建于 {new Date(asset.createdAt).toLocaleString('zh-CN')}</span>
+      <section className="grid gap-md sm:grid-cols-2">
+        <div>
+          <h3 className="text-xs font-semibold text-text-secondary">摘要</h3>
+          <p className="mt-2 whitespace-pre-wrap text-sm text-text-primary">{asset.summary}</p>
+        </div>
+        <div>
+          <h3 className="text-xs font-semibold text-text-secondary">解决方案</h3>
+          <p className="mt-2 whitespace-pre-wrap text-sm text-text-primary">{asset.solution}</p>
+        </div>
+        <div>
+          <h3 className="text-xs font-semibold text-text-secondary">根因</h3>
+          <p className="mt-2 text-sm text-text-primary">
+            {asset.rootCauseCategory?.name ?? '未分类'}
+            {asset.rootCauseText ? ` · ${asset.rootCauseText}` : ''}
+          </p>
+        </div>
+        <div>
+          <h3 className="text-xs font-semibold text-text-secondary">标签</h3>
+          <div className="mt-2 flex flex-wrap gap-1">
+            {asset.tags.length ? asset.tags.map((tag) => (
+              <span key={tag} className="rounded bg-bg px-2 py-1 text-xs">{tag}</span>
+            )) : <span className="text-sm text-text-secondary">—</span>}
+          </div>
+        </div>
+      </section>
+
+      <div className="flex flex-wrap gap-md border-t border-border pt-md text-xs text-text-secondary">
+        {asset.sourceCase && (
+          <Link href={`/case/${asset.sourceCase.id}`} className="text-accent">
+            来源用例 {asset.sourceCase.caseNo}
+          </Link>
+        )}
+        <span>浏览 {asset.viewCount}</span>
+        <span>复用 {asset.reuseCount}</span>
         <span>更新于 {new Date(asset.updatedAt).toLocaleString('zh-CN')}</span>
       </div>
+
+      <Modal
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        title="编辑知识资产"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setEditOpen(false)}>取消</Button>
+            <Button onClick={() => void save()} disabled={saving}>
+              {saving ? '保存中…' : '保存'}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-md">
+          <Input label="标题" value={title} onChange={(event) => setTitle(event.target.value)} />
+          <Select
+            label="根因分类"
+            value={rootCauseCategoryId}
+            onChange={(event) => setRootCauseCategoryId(event.target.value)}
+            placeholder="未分类"
+            options={categories.map((category) => ({
+              value: category.id,
+              label: `${category.projectId ? '' : '全局 · '}${category.name}`,
+            }))}
+          />
+          <Input
+            label="根因补充"
+            value={rootCauseText}
+            onChange={(event) => setRootCauseText(event.target.value)}
+          />
+          <Input
+            label="标签（逗号分隔）"
+            value={tags}
+            onChange={(event) => setTags(event.target.value)}
+          />
+          {[
+            ['摘要', summary, setSummary, 6],
+            ['解决方案', solution, setSolution, 8],
+          ].map(([label, value, setter, rows]) => (
+            <label key={String(label)} className="block text-sm font-medium">
+              {String(label)}
+              <textarea
+                value={String(value)}
+                rows={Number(rows)}
+                onChange={(event) => (setter as (value: string) => void)(event.target.value)}
+                className="field-control mt-1 w-full resize-y px-3 py-2 text-sm"
+              />
+            </label>
+          ))}
+          {error && <p className="text-sm text-danger">{error}</p>}
+        </div>
+      </Modal>
     </div>
   );
 }

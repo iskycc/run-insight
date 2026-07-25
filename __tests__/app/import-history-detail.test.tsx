@@ -69,6 +69,9 @@ describe('ImportHistoryDetailPage', () => {
         { row: 7, field: 'name', message: '名称必填' },
       ],
       userId: 'u-1',
+      projectName: 'Demo',
+      username: 'admin',
+      status: 'partial',
       createdAt: '2026-07-20T08:30:00.000Z',
     };
 
@@ -90,5 +93,7 @@ describe('ImportHistoryDetailPage', () => {
     expect(screen.getByText(/用例编号不能为空/)).toBeInTheDocument();
     expect(screen.getByText(/名称必填/)).toBeInTheDocument();
     expect(screen.getByText('返回列表')).toBeInTheDocument();
+    expect(screen.getByText('Demo')).toBeInTheDocument();
+    expect(screen.getByText('admin')).toBeInTheDocument();
   });
 });

@@ -25,6 +25,9 @@ export const PROGRESS_LABELS: Record<ProgressCategory, string> = {
 export const RESULT_SUMMARIES = ["PASS", "FAIL", "BLOCK", "SKIP"] as const;
 
 export type ResultSummary = (typeof RESULT_SUMMARIES)[number];
+export type ProjectRole = "ADMIN" | "EDITOR" | "VIEWER";
+export type CasePriority = "HIGH" | "MEDIUM" | "LOW";
+export type AssetStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
 
 // ============ 数据模型类型（与 Prisma 生成的类型对齐） ============
 
@@ -41,12 +44,17 @@ export interface ProjectDTO {
   createdAt: string;
   updatedAt: string;
   archived: boolean;
+  projectRole: ProjectRole | null;
+  canView: boolean;
+  canEdit: boolean;
+  canAdmin: boolean;
 }
 
 export interface TestStageDTO {
   id: string;
   projectId: string;
   name: string;
+  archived: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -56,6 +64,7 @@ export interface BatchScopeDTO {
   projectId: string;
   testStageId: string;
   name: string;
+  archived: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -70,8 +79,14 @@ export interface CaseResultDTO {
   testStageId: string;
   batchScopeId: string;
   assignee: string | null;
+  assigneeId?: string | null;
+  assigneeUsername?: string | null;
+  priority?: CasePriority | null;
+  dueDate?: string | null;
   progressCategory: string | null;
   rootCause: string | null;
+  rootCauseCategoryId?: string | null;
+  rootCauseCategory?: { id: string; name: string } | null;
   mrOrTicket: string | null;
   notes: string | null;
   assetSaved: boolean;
@@ -161,11 +176,39 @@ export interface BatchesResponse {
 // --- 用例 ---
 export interface UpdateCaseRequest {
   assignee?: string;
+  assigneeId?: string | null;
+  priority?: CasePriority | null;
+  dueDate?: string | null;
   progressCategory?: ProgressCategory;
   rootCause?: string;
+  rootCauseCategoryId?: string | null;
   mrOrTicket?: string;
   notes?: string;
   assetSaved?: boolean;
+}
+
+export interface ProjectMemberDTO {
+  id: string;
+  projectId: string;
+  userId: string;
+  username: string;
+  systemRole: Role;
+  role: ProjectRole;
+  createdAt: string;
+}
+
+export interface ProjectMembersResponse {
+  members: ProjectMemberDTO[];
+  canManage: boolean;
+}
+
+export interface CaseActivityDTO {
+  id: string;
+  type: "CREATED" | "UPDATED" | "COMMENT";
+  changes: Record<string, { from: unknown; to: unknown }> | null;
+  comment: string | null;
+  user: { id: string; username: string };
+  createdAt: string;
 }
 
 export interface CasesQueryParams {
@@ -174,6 +217,14 @@ export interface CasesQueryParams {
   batchScopeId?: string;
   progressCategory?: ProgressCategory;
   assetSaved?: string;
+  search?: string;
+  resultSummary?: ResultSummary;
+  assignee?: string;
+  rootCause?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  sortField?: string;
+  sortOrder?: "asc" | "desc";
   page?: string;
   pageSize?: string;
 }
@@ -186,7 +237,9 @@ export interface CasesResponse {
 }
 
 export interface CaseDetailResponse {
-  case: CaseResultDTO;
+  case: CaseResultDTO & {
+    updatedByUsername: string | null;
+  };
 }
 
 export interface BatchUpdateCaseRequest {
@@ -200,6 +253,7 @@ export interface BatchUpdateResponse {
 
 export interface SaveAssetResponse {
   case: CaseResultDTO;
+  asset: AssetDTO;
 }
 
 export interface BatchSaveAssetRequest {
@@ -208,6 +262,70 @@ export interface BatchSaveAssetRequest {
 
 export interface BatchSaveAssetResponse {
   updated: number;
+}
+
+export interface RootCauseCategoryDTO {
+  id: string;
+  projectId: string | null;
+  name: string;
+  description: string | null;
+  archived: boolean;
+  createdAt: string;
+  updatedAt: string;
+  usageCount?: number;
+}
+
+export interface RootCauseCategoriesResponse {
+  categories: RootCauseCategoryDTO[];
+  canManage: boolean;
+}
+
+export interface AssetDTO {
+  id: string;
+  sourceCaseId: string | null;
+  projectId: string;
+  rootCauseCategoryId: string | null;
+  title: string;
+  summary: string;
+  solution: string;
+  rootCauseText: string | null;
+  tags: string[];
+  status: AssetStatus;
+  version: number;
+  createdBy: string | null;
+  updatedBy: string | null;
+  viewCount: number;
+  reuseCount: number;
+  createdAt: string;
+  updatedAt: string;
+  canEdit: boolean;
+  project: { id: string; name: string };
+  rootCauseCategory: { id: string; name: string } | null;
+  sourceCase: {
+    id: string;
+    caseNo: string;
+    name: string;
+    resultSummary: string;
+  } | null;
+  creator?: { username: string } | null;
+  updater?: { username: string } | null;
+}
+
+export interface AssetsResponse {
+  assets: AssetDTO[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface UpdateAssetRequest {
+  title?: string;
+  summary?: string;
+  solution?: string;
+  rootCauseCategoryId?: string | null;
+  rootCauseText?: string | null;
+  tags?: string[];
+  status?: AssetStatus;
 }
 
 // --- 大盘统计 ---
@@ -254,6 +372,32 @@ export interface ValidationError {
 
 export interface ImportResponse {
   imported: number;
+  created: number;
+  updated: number;
+  unchanged: number;
+  errors: ValidationError[];
+}
+
+export interface ImportValidationErrorResponse extends ApiError {
+  details: ValidationError[];
+}
+
+export interface ImportPreviewSample {
+  caseNo: string;
+  name: string;
+}
+
+export interface ImportPreviewResponse {
+  preview: true;
+  total: number;
+  created: number;
+  updated: number;
+  unchanged: number;
+  samples: {
+    created: ImportPreviewSample[];
+    updated: ImportPreviewSample[];
+    unchanged: ImportPreviewSample[];
+  };
   errors: ValidationError[];
 }
 
@@ -276,6 +420,7 @@ export interface BatchDiff {
   unchanged: number;
   passToFail: DiffItem[];
   failToPass: DiffItem[];
+  otherChanges: DiffItem[];
   newInB: DiffItem[];
   removedFromB: DiffItem[];
 }
@@ -306,21 +451,30 @@ export type ExportFormat = "csv" | "json";
 export interface ImportRecordDTO {
   id: string;
   projectId: string;
+  projectName: string;
   importType: string;
   fileName: string;
   totalRows: number;
   importedCount: number;
   errorCount: number;
   userId: string;
+  username: string;
+  status: ImportRecordStatus;
+  rolledBackAt: string | null;
   createdAt: string;
 }
 
+export type ImportRecordStatus = "success" | "partial" | "failed";
+
 export interface ImportRecordDetail extends ImportRecordDTO {
   errors: ValidationError[] | null;
+  rolledBackBy: string | null;
+  canRollback: boolean;
 }
 
 export interface ImportHistoryResponse {
   records: ImportRecordDTO[];
+  projects: { id: string; name: string }[];
   total: number;
   page: number;
   pageSize: number;
@@ -340,6 +494,7 @@ export interface UserWithRole extends UserDTO {
 export interface AuditLogDTO {
   id: string;
   userId: string;
+  username: string;
   action: string;
   entityType: string;
   entityId: string;

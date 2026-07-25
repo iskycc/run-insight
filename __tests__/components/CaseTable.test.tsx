@@ -19,8 +19,8 @@ const mockCases = [
     batchScopeId: 'b1',
     assignee: 'alice',
     progressCategory: 'FIXED',
-    rootCause: null,
-    mrOrTicket: null,
+    rootCause: undefined,
+    mrOrTicket: undefined,
     assetSaved: false,
     createdAt: '2024-01-01',
     updatedAt: '2024-01-01',
@@ -36,8 +36,8 @@ const mockCases = [
     batchScopeId: 'b1',
     assignee: undefined,
     progressCategory: undefined,
-    rootCause: null,
-    mrOrTicket: null,
+    rootCause: undefined,
+    mrOrTicket: undefined,
     assetSaved: true,
     createdAt: '2024-01-01',
     updatedAt: '2024-01-01',
@@ -45,6 +45,7 @@ const mockCases = [
 ];
 
 const defaultProps = {
+  canEdit: true,
   cases: mockCases,
   totalCount: 25,
   page: 1,
@@ -232,5 +233,23 @@ describe('CaseTable', () => {
 
     await userEvent.setup().click(screen.getByText('清除选择'));
     expect(onClearSelection).toHaveBeenCalled();
+  });
+
+  test('hides selection and write actions in read-only mode', () => {
+    render(
+      <CaseTable
+        {...defaultProps}
+        canEdit={false}
+        selectedIds={['1']}
+      />,
+    );
+
+    expect(screen.queryByLabelText('全选当前页')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('选择用例 C001')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('保存资产')).not.toBeInTheDocument();
+    expect(screen.queryByText('批量更新进展')).not.toBeInTheDocument();
+    expect(screen.queryByText('批量指派责任人')).not.toBeInTheDocument();
+    expect(screen.queryByText('批量保存资产')).not.toBeInTheDocument();
+    expect(screen.getAllByLabelText('查看详情')).toHaveLength(2);
   });
 });

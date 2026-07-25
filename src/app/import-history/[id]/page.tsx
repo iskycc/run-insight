@@ -38,6 +38,7 @@ export default function ImportHistoryDetailPage() {
 
   const [record, setRecord] = useState<ImportRecordDetail | null>(null);
   const [loadState, setLoadState] = useState<'idle' | 'ready' | 'not-found' | 'error'>('idle');
+  const [isRollingBack, setIsRollingBack] = useState(false);
 
   useEffect(() => {
     if (!user || !id) return;
@@ -68,6 +69,32 @@ export default function ImportHistoryDetailPage() {
     router.push('/import-history');
   }, [router]);
 
+  const handleRollback = useCallback(async () => {
+    if (!record?.canRollback || isRollingBack) return;
+    if (!window.confirm('确定回滚本次导入吗？导入后已修改的用例会阻止整个回滚。')) return;
+    setIsRollingBack(true);
+    try {
+      const result = await fetchJson<{ rolledBackAt: string }>(
+        `/api/import-history/${record.id}/rollback`,
+        { method: 'POST' }
+      );
+      setRecord((current) => current ? {
+        ...current,
+        rolledBackAt: result.rolledBackAt,
+        rolledBackBy: user?.id ?? null,
+        canRollback: false,
+      } : current);
+      showToast({ message: '导入已回滚', type: 'success' });
+    } catch (error) {
+      showToast({
+        message: error instanceof ApiError ? error.message : '回滚导入失败',
+        type: 'error',
+      });
+    } finally {
+      setIsRollingBack(false);
+    }
+  }, [isRollingBack, record, showToast, user?.id]);
+
   const loading = loadState === 'idle';
   const notFound = loadState === 'not-found';
 
@@ -86,9 +113,21 @@ export default function ImportHistoryDetailPage() {
       title="导入记录详情"
       subtitle={record ? `${record.fileName} · ${formatDateTime(record.createdAt)}` : '查看导入记录的详细信息'}
       actions={
-        <Button variant="secondary" size="sm" onClick={handleBack}>
-          返回列表
-        </Button>
+        <div className="flex gap-2">
+          {record?.canRollback && (
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={handleRollback}
+              disabled={isRollingBack}
+            >
+              {isRollingBack ? '回滚中...' : '回滚本次导入'}
+            </Button>
+          )}
+          <Button variant="secondary" size="sm" onClick={handleBack}>
+            返回列表
+          </Button>
+        </div>
       }
     >
       {loading ? (
@@ -112,8 +151,8 @@ export default function ImportHistoryDetailPage() {
                 <dd className="mt-1 text-sm text-text-primary break-all">{record.id}</dd>
               </div>
               <div>
-                <dt className="text-xs text-text-secondary">项目 ID</dt>
-                <dd className="mt-1 text-sm text-text-primary break-all">{record.projectId}</dd>
+                <dt className="text-xs text-text-secondary">项目</dt>
+                <dd className="mt-1 text-sm text-text-primary">{record.projectName}</dd>
               </div>
               <div>
                 <dt className="text-xs text-text-secondary">文件名</dt>
@@ -121,11 +160,19 @@ export default function ImportHistoryDetailPage() {
               </div>
               <div>
                 <dt className="text-xs text-text-secondary">导入人</dt>
-                <dd className="mt-1 text-sm text-text-primary break-all">{record.userId}</dd>
+                <dd className="mt-1 text-sm text-text-primary">{record.username}</dd>
               </div>
               <div>
                 <dt className="text-xs text-text-secondary">导入时间</dt>
                 <dd className="mt-1 text-sm text-text-primary">{formatDateTime(record.createdAt)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-text-secondary">回滚状态</dt>
+                <dd className="mt-1 text-sm text-text-primary">
+                  {record.rolledBackAt
+                    ? `已于 ${formatDateTime(record.rolledBackAt)} 回滚`
+                    : '未回滚'}
+                </dd>
               </div>
             </dl>
           </section>

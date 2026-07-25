@@ -4,19 +4,35 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/components/shared/AuthProvider';
 
-const NAV_ITEMS = [
+type NavRole = 'ADMIN' | 'EDITOR' | 'VIEWER';
+
+const NAV_ITEMS: ReadonlyArray<{
+  href: string;
+  label: string;
+  public?: boolean;
+  roles?: readonly NavRole[];
+}> = [
   { href: '/', label: '大盘', public: true },
-  { href: '/workspace', label: '工作台', public: false },
-  { href: '/compare', label: '对比', public: false },
-  { href: '/import', label: '导入', public: false },
-  { href: '/assets', label: '资产库', public: false },
+  { href: '/workspace', label: '工作台' },
+  { href: '/my-tasks', label: '我的待办' },
+  { href: '/projects', label: '项目' },
+  { href: '/compare', label: '对比' },
+  { href: '/assets', label: '资产库' },
+  { href: '/reports/assignee', label: '责任人报告' },
+  { href: '/import', label: '导入', roles: ['ADMIN', 'EDITOR'] },
+  { href: '/import-history', label: '导入历史' },
+  { href: '/admin/users', label: '系统管理', roles: ['ADMIN'] },
 ] as const;
 
 export function Nav() {
   const pathname = usePathname();
   const { user } = useAuth();
 
-  const visibleItems = NAV_ITEMS.filter((item) => item.public || !!user);
+  const visibleItems = NAV_ITEMS.filter((item) => {
+    if (item.public) return true;
+    if (!user) return false;
+    return !item.roles || (!!user.role && item.roles.includes(user.role));
+  });
 
   return (
     <nav className="border-b border-border bg-surface/70 backdrop-blur-xl">

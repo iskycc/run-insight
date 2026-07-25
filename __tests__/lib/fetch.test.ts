@@ -49,6 +49,24 @@ describe('fetchJson', () => {
     expect(mockReload).toHaveBeenCalled();
   });
 
+  it('can handle a business 401 without reloading the page', async () => {
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: () => Promise.resolve({ error: 'AUTH_FAILED', message: '当前密码错误' }),
+    });
+
+    await expect(
+      fetchJson('/api/auth/change-password', { reloadOnUnauthorized: false }),
+    ).rejects.toMatchObject({
+      status: 401,
+      code: 'AUTH_FAILED',
+      message: '当前密码错误',
+    });
+    expect(mockReload).not.toHaveBeenCalled();
+    expect(mockFetch).toHaveBeenCalledWith('/api/auth/change-password', {});
+  });
+
   it('throws ApiError on non-OK response', async () => {
     mockFetch.mockResolvedValue({
       ok: false,

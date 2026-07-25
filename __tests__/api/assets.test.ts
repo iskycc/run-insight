@@ -1,190 +1,637 @@
 import { GET } from "@/app/api/assets/route";
+import {
+  GET as getAsset,
+  PATCH as updateAsset,
+} from "@/app/api/assets/[id]/route";
+import { POST as reuseAsset } from "@/app/api/assets/[id]/reuse/route";
+import { generateToken } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { NextRequest } from "next/server";
-import { generateToken } from "@/lib/auth";
 
-jest.mock("@/lib/prisma", () => ({
-  prisma: {
-    caseResult: {
+jest.mock("@/lib/prisma", () => {
+  const client = {
+    user: { findUnique: jest.fn() },
+    projectMember: { findUnique: jest.fn() },
+    asset: {
       findMany: jest.fn(),
       count: jest.fn(),
+      findUnique: jest.fn(),
+      update: jest.fn(),
     },
-  },
-}));
+    rootCauseCategory: { findUnique: jest.fn() },
+  };
+  return { prisma: client };
+});
 
 const mockPrisma = prisma as jest.Mocked<typeof prisma>;
-
-function createRequest(url: string, options?: Record<string, unknown>): NextRequest {
-  return new NextRequest(new URL(url, "http://localhost:3000"), options as RequestInit);
-}
-
-function authCookie(): string {
-  const token = generateToken({ userId: "user_1", username: "admin" });
-  return `run_insight_token=${token}`;
-}
-
-const sampleAsset = {
-  id: "clxxxxxxxxxxxxxxxxxxxxxx1",
-  caseNo: "TC-001",
-  name: "测试用例1",
-  resultSummary: "FAIL",
-  logUrl: null,
-  projectId: "p1",
-  testStageId: "s1",
-  batchScopeId: "b1",
-  assignee: "张三",
-  progressCategory: "LOCATED",
-  rootCause: "代码缺陷",
-  mrOrTicket: null,
-  assetSaved: true,
-  createdAt: new Date("2026-01-01"),
-  updatedAt: new Date("2026-01-01"),
-  project: { id: "p1", name: "项目1" },
-  stage: { id: "s1", name: "阶段1" },
-  batchScope: { id: "b1", name: "批跑1" },
+const assetId = "asset_1";
+const now = new Date("2026-07-25T00:00:00.000Z");
+const asset = {
+  id: assetId,
+  sourceCaseId: "clxxxxxxxxxxxxxxxxxxxxxx1",
+  projectId: "project_1",
+  rootCauseCategoryId: "root_1",
+  title: "登录失败分析",
+  summary: "登录接口返回 500",
+  solution: "修复空值处理",
+  rootCauseText: "空指针",
+  tags: ["登录", "回归"],
+  status: "DRAFT" as const,
+  version: 1,
+  createdBy: "user_1",
+  updatedBy: "user_1",
+  viewCount: 0,
+  reuseCount: 0,
+  createdAt: now,
+  updatedAt: now,
+  project: { id: "project_1", name: "项目一", members: [] },
+  rootCauseCategory: { id: "root_1", name: "代码缺陷" },
+  sourceCase: {
+    id: "clxxxxxxxxxxxxxxxxxxxxxx1",
+    caseNo: "TC-1",
+    name: "登录",
+    resultSummary: "FAIL",
+  },
+  creator: { username: "admin" },
+  updater: { username: "admin" },
 };
 
-describe("GET /api/assets", () => {
+function request(
+  path: string,
+  init?: ConstructorParameters<typeof NextRequest>[1]
+) {
+  const req = new NextRequest(new URL(path, "http://localhost"), init);
+  req.headers.set(
+    "cookie",
+    `run_insight_token=${generateToken({ userId: "user_1", username: "admin" })}`
+  );
+  return req;
+}
+
+function patchRequest(body: unknown) {
+  return request(`/api/assets/${assetId}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+const params = { params: Promise.resolve({ id: assetId }) };
+
+describe("asset APIs", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue({ role: "ADMIN" });
   });
 
-  it("should return 401 without auth", async () => {
-    const req = createRequest("/api/assets");
-    const res = await GET(req);
-    expect(res.status).toBe(401);
+  it("lists independent assets with filters", async () => {
+    (mockPrisma.asset.findMany as jest.Mock).mockResolvedValue([asset]);
+    (mockPrisma.asset.count as jest.Mock).mockResolvedValue(1);
+
+    const response = await GET(
+      request("/api/assets?status=DRAFT&tag=登录&rootCauseCategoryId=root_1&search=登录")
+    );
+    expect(response.status).toBe(200);
+    expect((await response.json()).assets[0]).toMatchObject({
+      id: assetId,
+      tags: ["登录", "回归"],
+      canEdit: true,
+    });
+    expect((mockPrisma.asset.findMany as jest.Mock).mock.calls[0][0].where).toMatchObject({
+      status: "DRAFT",
+      tags: { array_contains: "登录" },
+      rootCauseCategoryId: "root_1",
+    });
   });
 
-  it("should return assets with pagination", async () => {
-    (mockPrisma.caseResult.findMany as jest.Mock).mockResolvedValue([sampleAsset]);
-    (mockPrisma.caseResult.count as jest.Mock).mockResolvedValue(1);
+  it("normalizes pagination and applies root-cause filters", async () => {
+    (mockPrisma.asset.findMany as jest.Mock).mockResolvedValue([]);
+    (mockPrisma.asset.count as jest.Mock).mockResolvedValue(0);
 
-    const req = createRequest("/api/assets");
-    req.headers.set("cookie", authCookie());
-    const res = await GET(req);
-    expect(res.status).toBe(200);
+    const response = await GET(
+      request("/api/assets?page=invalid&pageSize=999&rootCause=空指针")
+    );
 
-    const body = await res.json();
-    expect(body.assets).toHaveLength(1);
-    expect(body.total).toBe(1);
-    expect(body.page).toBe(1);
-    expect(body.pageSize).toBe(20);
+    expect(response.status).toBe(200);
+    expect(mockPrisma.asset.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          rootCauseText: { contains: "空指针" },
+        }),
+        skip: 0,
+        take: 100,
+      })
+    );
   });
 
-  it("should filter by projectId", async () => {
-    (mockPrisma.caseResult.findMany as jest.Mock).mockResolvedValue([]);
-    (mockPrisma.caseResult.count as jest.Mock).mockResolvedValue(0);
-
-    const req = createRequest("/api/assets?projectId=p1");
-    req.headers.set("cookie", authCookie());
-    await GET(req);
-
-    const findManyCall = (mockPrisma.caseResult.findMany as jest.Mock).mock.calls[0][0];
-    expect(findManyCall.where.projectId).toBe("p1");
+  it("rejects an invalid status", async () => {
+    const response = await GET(request("/api/assets?status=UNKNOWN"));
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toBe("VALIDATION_ERROR");
   });
 
-  it("should filter by progressCategory", async () => {
-    (mockPrisma.caseResult.findMany as jest.Mock).mockResolvedValue([]);
-    (mockPrisma.caseResult.count as jest.Mock).mockResolvedValue(0);
-
-    const req = createRequest("/api/assets?progressCategory=LOCATED");
-    req.headers.set("cookie", authCookie());
-    await GET(req);
-
-    const findManyCall = (mockPrisma.caseResult.findMany as jest.Mock).mock.calls[0][0];
-    expect(findManyCall.where.progressCategory).toBe("LOCATED");
+  it("returns 401 when the authenticated user no longer exists", async () => {
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue(null);
+    const response = await GET(request("/api/assets"));
+    expect(response.status).toBe(401);
   });
 
-  it("should filter by assignee", async () => {
-    (mockPrisma.caseResult.findMany as jest.Mock).mockResolvedValue([]);
-    (mockPrisma.caseResult.count as jest.Mock).mockResolvedValue(0);
-
-    const req = createRequest("/api/assets?assignee=张三");
-    req.headers.set("cookie", authCookie());
-    await GET(req);
-
-    const findManyCall = (mockPrisma.caseResult.findMany as jest.Mock).mock.calls[0][0];
-    expect(findManyCall.where.assignee).toBe("张三");
+  it("forbids users outside a requested project", async () => {
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue({ role: "VIEWER" });
+    (mockPrisma.projectMember.findUnique as jest.Mock).mockResolvedValue(null);
+    const response = await GET(request("/api/assets?projectId=project_1"));
+    expect(response.status).toBe(403);
   });
 
-  it("should always filter by assetSaved=true", async () => {
-    (mockPrisma.caseResult.findMany as jest.Mock).mockResolvedValue([]);
-    (mockPrisma.caseResult.count as jest.Mock).mockResolvedValue(0);
+  it("limits a project viewer to published assets", async () => {
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue({ role: "VIEWER" });
+    (mockPrisma.projectMember.findUnique as jest.Mock).mockResolvedValue({
+      role: "VIEWER",
+    });
+    (mockPrisma.asset.findMany as jest.Mock).mockResolvedValue([
+      {
+        ...asset,
+        status: "PUBLISHED",
+        project: {
+          id: "project_1",
+          name: "项目一",
+          members: [{ role: "VIEWER" }],
+        },
+      },
+    ]);
+    (mockPrisma.asset.count as jest.Mock).mockResolvedValue(1);
 
-    const req = createRequest("/api/assets");
-    req.headers.set("cookie", authCookie());
-    await GET(req);
+    const response = await GET(request("/api/assets?projectId=project_1"));
+    const body = await response.json();
 
-    const findManyCall = (mockPrisma.caseResult.findMany as jest.Mock).mock.calls[0][0];
-    expect(findManyCall.where.assetSaved).toBe(true);
+    expect(response.status).toBe(200);
+    expect(body.assets[0].canEdit).toBe(false);
+    expect(mockPrisma.asset.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { projectId: "project_1", status: "PUBLISHED" },
+      })
+    );
   });
 
-  it("should filter by testStageId", async () => {
-    (mockPrisma.caseResult.findMany as jest.Mock).mockResolvedValue([]);
-    (mockPrisma.caseResult.count as jest.Mock).mockResolvedValue(0);
+  it("allows project editors to list drafts and marks them editable", async () => {
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue({ role: "VIEWER" });
+    (mockPrisma.projectMember.findUnique as jest.Mock).mockResolvedValue({
+      role: "EDITOR",
+    });
+    (mockPrisma.asset.findMany as jest.Mock).mockResolvedValue([
+      {
+        ...asset,
+        project: {
+          id: "project_1",
+          name: "项目一",
+          members: [{ role: "EDITOR" }],
+        },
+      },
+    ]);
+    (mockPrisma.asset.count as jest.Mock).mockResolvedValue(1);
 
-    const req = createRequest("/api/assets?testStageId=s1");
-    req.headers.set("cookie", authCookie());
-    await GET(req);
-
-    const findManyCall = (mockPrisma.caseResult.findMany as jest.Mock).mock.calls[0][0];
-    expect(findManyCall.where.testStageId).toBe("s1");
+    const response = await GET(
+      request("/api/assets?projectId=project_1&status=DRAFT")
+    );
+    expect(response.status).toBe(200);
+    expect((await response.json()).assets[0].canEdit).toBe(true);
   });
 
-  it("should filter by rootCause with contains", async () => {
-    (mockPrisma.caseResult.findMany as jest.Mock).mockResolvedValue([]);
-    (mockPrisma.caseResult.count as jest.Mock).mockResolvedValue(0);
+  it("uses membership visibility rules for an unscoped viewer list", async () => {
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue({ role: "VIEWER" });
+    (mockPrisma.asset.findMany as jest.Mock).mockResolvedValue([
+      {
+        ...asset,
+        status: "PUBLISHED",
+        project: {
+          id: "project_1",
+          name: "项目一",
+          members: [{ role: "ADMIN" }],
+        },
+      },
+    ]);
+    (mockPrisma.asset.count as jest.Mock).mockResolvedValue(1);
 
-    const req = createRequest("/api/assets?rootCause=代码");
-    req.headers.set("cookie", authCookie());
-    await GET(req);
-
-    const findManyCall = (mockPrisma.caseResult.findMany as jest.Mock).mock.calls[0][0];
-    expect(findManyCall.where.rootCause).toEqual({ contains: "代码" });
+    const response = await GET(request("/api/assets"));
+    expect(response.status).toBe(200);
+    expect((await response.json()).assets[0].canEdit).toBe(true);
+    expect(
+      (mockPrisma.asset.findMany as jest.Mock).mock.calls[0][0].where.OR
+    ).toHaveLength(2);
   });
 
-  it("should return 500 on database error", async () => {
-    (mockPrisma.caseResult.findMany as jest.Mock).mockRejectedValue(new Error("DB error"));
-
-    const req = createRequest("/api/assets");
-    req.headers.set("cookie", authCookie());
-    const res = await GET(req);
-    expect(res.status).toBe(500);
+  it("returns an internal error when listing fails", async () => {
+    (mockPrisma.asset.findMany as jest.Mock).mockRejectedValue(new Error("db"));
+    (mockPrisma.asset.count as jest.Mock).mockResolvedValue(0);
+    const response = await GET(request("/api/assets"));
+    expect(response.status).toBe(500);
   });
 
-  it("should filter by testStageId", async () => {
-    (mockPrisma.caseResult.findMany as jest.Mock).mockResolvedValue([]);
-    (mockPrisma.caseResult.count as jest.Mock).mockResolvedValue(0);
-
-    const req = createRequest("/api/assets?testStageId=s1");
-    req.headers.set("cookie", authCookie());
-    await GET(req);
-
-    const findManyCall = (mockPrisma.caseResult.findMany as jest.Mock).mock.calls[0][0];
-    expect(findManyCall.where.testStageId).toBe("s1");
+  it("increments view count when opening an asset", async () => {
+    (mockPrisma.asset.findUnique as jest.Mock).mockResolvedValue(asset);
+    (mockPrisma.asset.update as jest.Mock).mockResolvedValue({
+      ...asset,
+      viewCount: 1,
+      project: { id: "project_1", name: "项目一" },
+    });
+    const response = await getAsset(request(`/api/assets/${assetId}`), {
+      params: Promise.resolve({ id: assetId }),
+    });
+    expect(response.status).toBe(200);
+    expect(mockPrisma.asset.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { viewCount: { increment: 1 } } })
+    );
   });
 
-  it("should filter by rootCause with contains", async () => {
-    (mockPrisma.caseResult.findMany as jest.Mock).mockResolvedValue([]);
-    (mockPrisma.caseResult.count as jest.Mock).mockResolvedValue(0);
+  it("lets a viewer open a published asset without edit permission", async () => {
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue({ role: "VIEWER" });
+    (mockPrisma.projectMember.findUnique as jest.Mock).mockResolvedValue({
+      role: "VIEWER",
+    });
+    (mockPrisma.asset.findUnique as jest.Mock).mockResolvedValue({
+      ...asset,
+      status: "PUBLISHED",
+    });
+    (mockPrisma.asset.update as jest.Mock).mockResolvedValue({
+      ...asset,
+      status: "PUBLISHED",
+      viewCount: 1,
+      project: { id: "project_1", name: "项目一" },
+    });
 
-    const req = createRequest("/api/assets?rootCause=代码");
-    req.headers.set("cookie", authCookie());
-    await GET(req);
-
-    const findManyCall = (mockPrisma.caseResult.findMany as jest.Mock).mock.calls[0][0];
-    expect(findManyCall.where.rootCause).toEqual({ contains: "代码" });
+    const response = await getAsset(request(`/api/assets/${assetId}`), params);
+    expect(response.status).toBe(200);
+    expect((await response.json()).asset.canEdit).toBe(false);
   });
 
-  it("should filter by batchScopeId", async () => {
-    (mockPrisma.caseResult.findMany as jest.Mock).mockResolvedValue([]);
-    (mockPrisma.caseResult.count as jest.Mock).mockResolvedValue(0);
+  it("handles missing, inaccessible, and failed asset detail lookups", async () => {
+    (mockPrisma.asset.findUnique as jest.Mock).mockResolvedValueOnce(null);
+    expect(
+      (await getAsset(request(`/api/assets/${assetId}`), params)).status
+    ).toBe(404);
 
-    const req = createRequest("/api/assets?batchScopeId=b1");
-    req.headers.set("cookie", authCookie());
-    await GET(req);
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue({ role: "VIEWER" });
+    (mockPrisma.projectMember.findUnique as jest.Mock).mockResolvedValue(null);
+    (mockPrisma.asset.findUnique as jest.Mock).mockResolvedValueOnce(asset);
+    expect(
+      (await getAsset(request(`/api/assets/${assetId}`), params)).status
+    ).toBe(403);
 
-    const findManyCall = (mockPrisma.caseResult.findMany as jest.Mock).mock.calls[0][0];
-    expect(findManyCall.where.batchScopeId).toBe("b1");
+    (mockPrisma.asset.findUnique as jest.Mock).mockRejectedValueOnce(
+      new Error("db")
+    );
+    expect(
+      (await getAsset(request(`/api/assets/${assetId}`), params)).status
+    ).toBe(500);
+  });
+
+  it("edits an asset and increments its version", async () => {
+    (mockPrisma.asset.findUnique as jest.Mock).mockResolvedValue(asset);
+    (mockPrisma.rootCauseCategory.findUnique as jest.Mock).mockResolvedValue({
+      id: "root_1",
+      projectId: null,
+      archived: false,
+    });
+    (mockPrisma.asset.update as jest.Mock).mockResolvedValue({
+      ...asset,
+      title: "新标题",
+      version: 2,
+      project: { id: "project_1", name: "项目一" },
+    });
+
+    const response = await updateAsset(
+      request(`/api/assets/${assetId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          title: "新标题",
+          tags: ["回归"],
+          status: "PUBLISHED",
+          rootCauseCategoryId: "root_1",
+        }),
+        headers: { "Content-Type": "application/json" },
+      }),
+      { params: Promise.resolve({ id: assetId }) }
+    );
+    expect(response.status).toBe(200);
+    expect(mockPrisma.asset.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ version: { increment: 1 } }),
+      })
+    );
+  });
+
+  it("updates all optional asset fields and disconnects a category", async () => {
+    (mockPrisma.asset.findUnique as jest.Mock).mockResolvedValue(asset);
+    (mockPrisma.asset.update as jest.Mock).mockResolvedValue({
+      ...asset,
+      summary: "新摘要",
+      solution: "新方案",
+      rootCauseText: null,
+      rootCauseCategoryId: null,
+      project: { id: "project_1", name: "项目一" },
+    });
+
+    const response = await updateAsset(
+      patchRequest({
+        summary: " 新摘要 ",
+        solution: " 新方案 ",
+        rootCauseText: " ",
+        rootCauseCategoryId: null,
+      }),
+      params
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockPrisma.asset.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          summary: "新摘要",
+          solution: "新方案",
+          rootCauseText: null,
+          rootCauseCategory: { disconnect: true },
+        }),
+      })
+    );
+  });
+
+  it("connects a valid project root-cause category", async () => {
+    (mockPrisma.asset.findUnique as jest.Mock).mockResolvedValue(asset);
+    (mockPrisma.rootCauseCategory.findUnique as jest.Mock).mockResolvedValue({
+      id: "root_project",
+      projectId: "project_1",
+      archived: false,
+    });
+    (mockPrisma.asset.update as jest.Mock).mockResolvedValue({
+      ...asset,
+      rootCauseCategoryId: "root_project",
+      project: { id: "project_1", name: "项目一" },
+    });
+
+    const response = await updateAsset(
+      patchRequest({ rootCauseCategoryId: "root_project" }),
+      params
+    );
+    expect(response.status).toBe(200);
+  });
+
+  it.each([
+    ["null", null],
+    ["array", []],
+    ["scalar", "bad"],
+  ])("rejects a %s PATCH body", async (_label, body) => {
+    (mockPrisma.asset.findUnique as jest.Mock).mockResolvedValue(asset);
+    const response = await updateAsset(patchRequest(body), params);
+    expect(response.status).toBe(400);
+  });
+
+  it.each([
+    ["title", 123, "资产标题不能为空"],
+    ["title", " ", "资产标题不能为空"],
+    ["title", "x".repeat(201), "资产标题长度不能超过200个字符"],
+    ["summary", false, "资产摘要不能为空"],
+    ["summary", "x".repeat(5001), "资产摘要长度不能超过5000个字符"],
+    ["solution", null, "解决方案不能为空"],
+    ["solution", "x".repeat(10001), "解决方案长度不能超过10000个字符"],
+  ])("rejects invalid %s values", async (field, value, message) => {
+    (mockPrisma.asset.findUnique as jest.Mock).mockResolvedValue(asset);
+    const response = await updateAsset(patchRequest({ [field]: value }), params);
+    expect(response.status).toBe(400);
+    expect((await response.json()).message).toBe(message);
+  });
+
+  it.each([
+    [{ rootCauseText: "x".repeat(2001) }],
+    [{ rootCauseCategoryId: 123 }],
+    [{ tags: "not-an-array" }],
+    [{ status: "UNKNOWN" }],
+    [{ ignored: true }],
+  ])("rejects invalid optional PATCH data %#", async (body) => {
+    (mockPrisma.asset.findUnique as jest.Mock).mockResolvedValue(asset);
+    const response = await updateAsset(patchRequest(body), params);
+    expect(response.status).toBe(400);
+    expect(mockPrisma.asset.update).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    null,
+    { id: "root_1", projectId: "project_1", archived: true },
+    { id: "root_1", projectId: "other_project", archived: false },
+  ])("rejects unavailable root-cause category %#", async (category) => {
+    (mockPrisma.asset.findUnique as jest.Mock).mockResolvedValue(asset);
+    (mockPrisma.rootCauseCategory.findUnique as jest.Mock).mockResolvedValue(
+      category
+    );
+    const response = await updateAsset(
+      patchRequest({ rootCauseCategoryId: "root_1" }),
+      params
+    );
+    expect(response.status).toBe(400);
+  });
+
+  it("handles PATCH not-found and database failures", async () => {
+    (mockPrisma.asset.findUnique as jest.Mock).mockResolvedValueOnce(null);
+    expect((await updateAsset(patchRequest({ title: "新标题" }), params)).status).toBe(
+      404
+    );
+
+    (mockPrisma.asset.findUnique as jest.Mock).mockResolvedValueOnce(asset);
+    (mockPrisma.asset.update as jest.Mock).mockRejectedValueOnce(new Error("db"));
+    expect((await updateAsset(patchRequest({ title: "新标题" }), params)).status).toBe(
+      500
+    );
+  });
+
+  it("allows viewers to reuse published assets but not edit", async () => {
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue({ role: "VIEWER" });
+    (mockPrisma.projectMember.findUnique as jest.Mock).mockResolvedValue({ role: "VIEWER" });
+    (mockPrisma.asset.findUnique as jest.Mock).mockResolvedValue(asset);
+
+    const denied = await updateAsset(
+      request(`/api/assets/${assetId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ title: "不能修改" }),
+      }),
+      { params: Promise.resolve({ id: assetId }) }
+    );
+    expect(denied.status).toBe(403);
+
+    (mockPrisma.asset.findUnique as jest.Mock).mockResolvedValue({
+      id: assetId,
+      projectId: "project_1",
+      status: "PUBLISHED",
+    });
+    (mockPrisma.asset.update as jest.Mock).mockResolvedValue({ reuseCount: 3 });
+    const reused = await reuseAsset(
+      request(`/api/assets/${assetId}/reuse`, { method: "POST" }),
+      { params: Promise.resolve({ id: assetId }) }
+    );
+    expect(reused.status).toBe(200);
+    expect((await reused.json()).reuseCount).toBe(3);
+  });
+
+  it("hides non-published assets from project viewers", async () => {
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue({ role: "VIEWER" });
+    (mockPrisma.projectMember.findUnique as jest.Mock).mockResolvedValue({
+      role: "VIEWER",
+    });
+
+    const response = await GET(
+      request("/api/assets?projectId=project_1&status=DRAFT")
+    );
+
+    expect(response.status).toBe(403);
+    expect(mockPrisma.asset.findMany).not.toHaveBeenCalled();
+  });
+
+  it("forbids viewers from opening draft asset details", async () => {
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue({ role: "VIEWER" });
+    (mockPrisma.projectMember.findUnique as jest.Mock).mockResolvedValue({
+      role: "VIEWER",
+    });
+    (mockPrisma.asset.findUnique as jest.Mock).mockResolvedValue(asset);
+
+    const response = await getAsset(request(`/api/assets/${assetId}`), {
+      params: Promise.resolve({ id: assetId }),
+    });
+
+    expect(response.status).toBe(403);
+    expect(mockPrisma.asset.update).not.toHaveBeenCalled();
+  });
+
+  it("rejects reuse of archived assets", async () => {
+    (mockPrisma.asset.findUnique as jest.Mock).mockResolvedValue({
+      id: assetId,
+      projectId: "project_1",
+      status: "ARCHIVED",
+    });
+
+    const response = await reuseAsset(
+      request(`/api/assets/${assetId}/reuse`, { method: "POST" }),
+      { params: Promise.resolve({ id: assetId }) }
+    );
+
+    expect(response.status).toBe(409);
+    expect(mockPrisma.asset.update).not.toHaveBeenCalled();
+  });
+
+  it("handles reuse not-found, access, draft, and database errors", async () => {
+    (mockPrisma.asset.findUnique as jest.Mock).mockResolvedValueOnce(null);
+    expect(
+      (
+        await reuseAsset(
+          request(`/api/assets/${assetId}/reuse`, { method: "POST" }),
+          params
+        )
+      ).status
+    ).toBe(404);
+
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue({ role: "VIEWER" });
+    (mockPrisma.projectMember.findUnique as jest.Mock).mockResolvedValue(null);
+    (mockPrisma.asset.findUnique as jest.Mock).mockResolvedValueOnce({
+      id: assetId,
+      projectId: "project_1",
+      status: "PUBLISHED",
+    });
+    expect(
+      (
+        await reuseAsset(
+          request(`/api/assets/${assetId}/reuse`, { method: "POST" }),
+          params
+        )
+      ).status
+    ).toBe(403);
+
+    (mockPrisma.projectMember.findUnique as jest.Mock).mockResolvedValue({
+      role: "VIEWER",
+    });
+    (mockPrisma.asset.findUnique as jest.Mock).mockResolvedValueOnce({
+      id: assetId,
+      projectId: "project_1",
+      status: "DRAFT",
+    });
+    expect(
+      (
+        await reuseAsset(
+          request(`/api/assets/${assetId}/reuse`, { method: "POST" }),
+          params
+        )
+      ).status
+    ).toBe(403);
+
+    (mockPrisma.asset.findUnique as jest.Mock).mockRejectedValueOnce(
+      new Error("db")
+    );
+    expect(
+      (
+        await reuseAsset(
+          request(`/api/assets/${assetId}/reuse`, { method: "POST" }),
+          params
+        )
+      ).status
+    ).toBe(500);
+  });
+
+  it("allows an editor to reuse a draft", async () => {
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue({ role: "EDITOR" });
+    (mockPrisma.projectMember.findUnique as jest.Mock).mockResolvedValue({
+      role: "EDITOR",
+    });
+    (mockPrisma.asset.findUnique as jest.Mock).mockResolvedValue({
+      id: assetId,
+      projectId: "project_1",
+      status: "DRAFT",
+    });
+    (mockPrisma.asset.update as jest.Mock).mockResolvedValue({ reuseCount: 1 });
+
+    const response = await reuseAsset(
+      request(`/api/assets/${assetId}/reuse`, { method: "POST" }),
+      params
+    );
+    expect(response.status).toBe(200);
+  });
+
+  it("rejects invalid runtime PATCH field types", async () => {
+    (mockPrisma.asset.findUnique as jest.Mock).mockResolvedValue(asset);
+    const response = await updateAsset(
+      request(`/api/assets/${assetId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ rootCauseText: 123 }),
+      }),
+      { params: Promise.resolve({ id: assetId }) }
+    );
+
+    expect(response.status).toBe(400);
+    expect(mockPrisma.asset.update).not.toHaveBeenCalled();
+  });
+
+  it("requires authentication", async () => {
+    const response = await GET(new NextRequest("http://localhost/api/assets"));
+    expect(response.status).toBe(401);
+
+    expect(
+      (
+        await getAsset(new NextRequest(`http://localhost/api/assets/${assetId}`), params)
+      ).status
+    ).toBe(401);
+    expect(
+      (
+        await updateAsset(
+          new NextRequest(`http://localhost/api/assets/${assetId}`, {
+            method: "PATCH",
+          }),
+          params
+        )
+      ).status
+    ).toBe(401);
+    expect(
+      (
+        await reuseAsset(
+          new NextRequest(`http://localhost/api/assets/${assetId}/reuse`, {
+            method: "POST",
+          }),
+          params
+        )
+      ).status
+    ).toBe(401);
   });
 });

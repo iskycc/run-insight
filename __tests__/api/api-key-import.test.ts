@@ -4,9 +4,10 @@ import { authenticateRequest } from "@/lib/auth";
 import crypto from "crypto";
 
 jest.mock("@/lib/prisma", () => {
-  const tx = {
-    caseResult: { upsert: jest.fn() },
-    importRecord: { create: jest.fn() },
+  const mockTx = {
+    caseResult: { findMany: jest.fn(), upsert: jest.fn() },
+    importRecord: { create: jest.fn(), update: jest.fn() },
+    importChange: { create: jest.fn() },
     auditLog: { create: jest.fn() },
   };
   return {
@@ -15,9 +16,12 @@ jest.mock("@/lib/prisma", () => {
       apiKey: { findFirst: jest.fn() },
       batchScope: { findUnique: jest.fn() },
       caseResult: { createMany: jest.fn(), upsert: jest.fn() },
-      importRecord: { create: jest.fn() },
+      importRecord: { create: jest.fn(), findUnique: jest.fn() },
       auditLog: { create: jest.fn() },
-      $transaction: jest.fn(async (callback: (tx: typeof tx) => Promise<unknown>) => callback(tx)),
+      $transaction: jest.fn(
+        async (callback: (transaction: typeof mockTx) => Promise<unknown>) =>
+          callback(mockTx)
+      ),
     },
   };
 });
@@ -30,21 +34,31 @@ jest.mock("@/lib/auth", () => ({
 const txMock = (prisma as unknown as { $transaction: jest.Mock }).$transaction;
 
 function mockTransaction() {
+  const txFindMany = jest.fn().mockResolvedValue([]);
   const txUpsert = jest.fn().mockResolvedValue({
-    createdAt: new Date(),
+    id: "case-1",
     updatedAt: new Date(),
-    assetSaved: false,
   });
-  const txImportCreate = jest.fn().mockResolvedValue({});
+  const txImportCreate = jest.fn().mockResolvedValue({ id: "import-1" });
+  const txImportUpdate = jest.fn().mockResolvedValue({});
+  const txImportChangeCreate = jest.fn().mockResolvedValue({});
   const txAuditCreate = jest.fn().mockResolvedValue({});
   txMock.mockImplementation(async (callback: (tx: unknown) => Promise<unknown>) =>
     callback({
-      caseResult: { upsert: txUpsert },
-      importRecord: { create: txImportCreate },
+      caseResult: { findMany: txFindMany, upsert: txUpsert },
+      importRecord: { create: txImportCreate, update: txImportUpdate },
+      importChange: { create: txImportChangeCreate },
       auditLog: { create: txAuditCreate },
     })
   );
-  return { txUpsert, txImportCreate, txAuditCreate };
+  return {
+    txFindMany,
+    txUpsert,
+    txImportCreate,
+    txImportUpdate,
+    txImportChangeCreate,
+    txAuditCreate,
+  };
 }
 
 describe("Import with API Key", () => {
@@ -105,5 +119,66 @@ describe("Import with API Key", () => {
     const res = await POST(req as any);
     expect(res.status).toBe(201);
     expect(authenticateRequest).toHaveBeenCalled();
+  });
+
+  it("should reject an invalid API key without falling back to JWT", async () => {
+    (prisma.apiKey.findFirst as jest.Mock).mockResolvedValue(null);
+    (authenticateRequest as jest.Mock).mockReturnValue({ userId: "u1", username: "admin" });
+
+    const headers = new Headers();
+    headers.set("x-api-key", "invalid-key");
+    headers.set("cookie", "run_insight_token=valid-cookie-token");
+
+    const req = {
+      url: "http://localhost/api/import",
+      headers,
+      json: async () => ({
+        rows: [{ caseNo: "TC001", name: "Test", resultSummary: "PASS" }],
+        importType: "pre-analysis",
+        projectId: "p1",
+        testStageId: "s1",
+        batchScopeId: "b1",
+      }),
+    } as unknown as Request;
+
+    const res = await POST(req as any);
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({
+      error: "UNAUTHORIZED",
+      message: "API Key 无效",
+    });
+    expect(authenticateRequest).not.toHaveBeenCalled();
+    expect(prisma.batchScope.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("should reject an API key used for a different project", async () => {
+    (prisma.apiKey.findFirst as jest.Mock).mockResolvedValue({
+      projectId: "p-key-project",
+      userId: "u-api",
+    });
+
+    const headers = new Headers();
+    headers.set("x-api-key", "project-scoped-key");
+
+    const req = {
+      url: "http://localhost/api/import",
+      headers,
+      json: async () => ({
+        rows: [{ caseNo: "TC001", name: "Test", resultSummary: "PASS" }],
+        importType: "pre-analysis",
+        projectId: "p-other-project",
+        testStageId: "s1",
+        batchScopeId: "b1",
+      }),
+    } as unknown as Request;
+
+    const res = await POST(req as any);
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({
+      error: "FORBIDDEN",
+      message: "API Key 无权访问该项目",
+    });
+    expect(authenticateRequest).not.toHaveBeenCalled();
+    expect(prisma.batchScope.findUnique).not.toHaveBeenCalled();
   });
 });

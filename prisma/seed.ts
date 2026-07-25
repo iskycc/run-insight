@@ -129,7 +129,17 @@ async function main() {
 
   for (let pi = 0; pi < PROJECTS.length; pi++) {
     const projDef = PROJECTS[pi];
-    const project = await prisma.project.create({ data: { name: projDef.name } });
+    const project = await prisma.project.create({
+      data: {
+        name: projDef.name,
+        members: {
+          create: [
+            { userId: admin.id, role: "ADMIN" },
+            { userId: viewer.id, role: "VIEWER" },
+          ],
+        },
+      },
+    });
     console.log(`📦 Project: ${project.name}`);
 
     for (let si = 0; si < projDef.stages.length; si++) {

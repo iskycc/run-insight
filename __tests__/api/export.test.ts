@@ -2,9 +2,16 @@ import { GET } from "@/app/api/export/route";
 import { prisma } from "@/lib/prisma";
 import { NextRequest } from "next/server";
 import { generateToken } from "@/lib/auth";
+import ExcelJS from "exceljs";
 
 jest.mock("@/lib/prisma", () => ({
   prisma: {
+    user: { findUnique: jest.fn().mockResolvedValue({ role: "ADMIN" }) },
+    testStage: { findUnique: jest.fn().mockResolvedValue({ projectId: "p1" }) },
+    batchScope: {
+      findUnique: jest.fn().mockResolvedValue({ projectId: "p1", testStageId: "s1" }),
+    },
+    projectMember: { findUnique: jest.fn() },
     caseResult: {
       findMany: jest.fn(),
     },
@@ -109,6 +116,92 @@ describe("GET /api/export", () => {
     expect(findManyCall.where.batchScopeId).toBe("b1");
   });
 
+  it("should apply all workbench filters", async () => {
+    (mockPrisma.caseResult.findMany as jest.Mock).mockResolvedValue([]);
+
+    const req = createRequest(
+      "/api/export?progressCategory=FIXED&assetSaved=true&resultSummary=FAIL" +
+        "&assignee=alice&rootCause=timeout&search=TC&dateFrom=2026-07-01&dateTo=2026-07-31"
+    );
+    req.headers.set("cookie", authCookie());
+    await GET(req);
+
+    const findManyCall = (mockPrisma.caseResult.findMany as jest.Mock).mock.calls[0][0];
+    expect(findManyCall.where).toEqual({
+      progressCategory: "FIXED",
+      assetSaved: true,
+      resultSummary: "FAIL",
+      assignee: { contains: "alice" },
+      rootCause: { contains: "timeout" },
+      OR: [
+        { caseNo: { contains: "TC" } },
+        { name: { contains: "TC" } },
+      ],
+      createdAt: {
+        gte: new Date("2026-07-01T00:00:00.000Z"),
+        lte: new Date("2026-07-31T23:59:59.999Z"),
+      },
+    });
+  });
+
+  it("should treat assetSaved=false as an explicit filter", async () => {
+    (mockPrisma.caseResult.findMany as jest.Mock).mockResolvedValue([]);
+
+    const req = createRequest("/api/export?assetSaved=false");
+    req.headers.set("cookie", authCookie());
+    await GET(req);
+
+    const findManyCall = (mockPrisma.caseResult.findMany as jest.Mock).mock.calls[0][0];
+    expect(findManyCall.where.assetSaved).toBe(false);
+  });
+
+  it.each([
+    ["progressCategory=UNKNOWN", "进展分类"],
+    ["resultSummary=UNKNOWN", "结果概要"],
+    ["assetSaved=yes", "资产状态"],
+    ["dateFrom=2026-02-30", "开始日期"],
+    ["dateTo=25-07-2026", "结束日期"],
+    ["dateFrom=2026-08-01&dateTo=2026-07-01", "开始日期不能晚于结束日期"],
+    ["sortField=unknown", "排序字段"],
+    ["sortOrder=sideways", "排序方向"],
+  ])("rejects invalid export filter %s", async (query, message) => {
+    const req = createRequest(`/api/export?${query}`);
+    req.headers.set("cookie", authCookie());
+
+    const res = await GET(req);
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body.error).toBe("VALIDATION_ERROR");
+    expect(body.message).toContain(message);
+    expect(mockPrisma.caseResult.findMany).not.toHaveBeenCalled();
+  });
+
+  it("preserves requested sorting", async () => {
+    (mockPrisma.caseResult.findMany as jest.Mock).mockResolvedValue([]);
+    const req = createRequest("/api/export?sortField=caseNo&sortOrder=asc");
+    req.headers.set("cookie", authCookie());
+
+    await GET(req);
+
+    expect(mockPrisma.caseResult.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ orderBy: { caseNo: "asc" } })
+    );
+  });
+
+  it("escapes formula-like values in CSV exports", async () => {
+    (mockPrisma.caseResult.findMany as jest.Mock).mockResolvedValue([
+      { ...sampleCase, name: "=SUM(1,1)" },
+    ]);
+    const req = createRequest("/api/export?format=csv");
+    req.headers.set("cookie", authCookie());
+
+    const res = await GET(req);
+    const csv = await res.text();
+
+    expect(csv).toContain("'=SUM(1,1)");
+  });
+
   it("should return 500 on database error", async () => {
     (mockPrisma.caseResult.findMany as jest.Mock).mockRejectedValue(new Error("DB error"));
 
@@ -138,6 +231,13 @@ describe("GET /api/export", () => {
     expect(head[1]).toBe(0x4b);
     expect(head[2]).toBe(0x03);
     expect(head[3]).toBe(0x04);
+
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer);
+    const sheet = workbook.getWorksheet("用例结果");
+    expect(sheet?.getRow(1).values).toEqual(
+      expect.arrayContaining(["优先级", "截止日期", "根因分类", "备注"])
+    );
   });
 
   it("should accept format=excel as an alias for xlsx", async () => {

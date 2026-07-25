@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { authenticateRequest, requireRole, hashPassword } from "@/lib/auth";
 import { internalError, jsonError } from "@/lib/api-helpers";
-import type { UsersResponse, UserWithRole, CreateUserRequest } from "@/types";
+import { writeAuditLog } from "@/lib/audit";
+import { isValidRole } from "@/lib/validations";
+import type { UsersResponse, UserWithRole } from "@/types";
 
 export async function GET(request: NextRequest) {
   const authResult = authenticateRequest(request);
@@ -39,11 +41,24 @@ export async function POST(request: NextRequest) {
   if (roleCheck) return roleCheck;
 
   try {
-    const body: CreateUserRequest = await request.json();
-    const { username, password, role } = body;
-
-    if (!username || !password || !role) {
+    const body: unknown = await request.json();
+    if (!body || typeof body !== "object") {
       return jsonError("VALIDATION_ERROR", "用户名、密码和角色为必填");
+    }
+
+    const { username, password, role } = body as Record<string, unknown>;
+
+    if (typeof username !== "string" || !username ||
+        typeof password !== "string" || !password || !role) {
+      return jsonError("VALIDATION_ERROR", "用户名、密码和角色为必填");
+    }
+
+    if (password.length < 8 || password.length > 128) {
+      return jsonError("VALIDATION_ERROR", "密码长度必须为 8 到 128 个字符");
+    }
+
+    if (!isValidRole(role)) {
+      return jsonError("VALIDATION_ERROR", "角色不合法");
     }
 
     const existing = await prisma.user.findUnique({ where: { username } });
@@ -55,6 +70,13 @@ export async function POST(request: NextRequest) {
     const user = await prisma.user.create({
       data: { username, password: hashed, role },
       select: { id: true, username: true, role: true, createdAt: true, updatedAt: true },
+    });
+    await writeAuditLog({
+      userId: authResult.userId,
+      action: "CREATE",
+      entityType: "user",
+      entityId: user.id,
+      changes: { username: user.username, role: user.role },
     });
 
     return NextResponse.json<UserWithRole>({

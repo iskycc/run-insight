@@ -3,21 +3,32 @@ import { prisma } from "@/lib/prisma";
 import { NextRequest } from "next/server";
 import { generateToken } from "@/lib/auth";
 
-jest.mock("@/lib/prisma", () => ({
-  prisma: {
+jest.mock("@/lib/prisma", () => {
+  const prisma = {
     user: { findUnique: jest.fn().mockResolvedValue({ role: "ADMIN" }) },
+    projectMember: { findUnique: jest.fn() },
+    rootCauseCategory: { findUnique: jest.fn() },
+    caseActivity: { create: jest.fn() },
     caseResult: {
       findUnique: jest.fn(),
       update: jest.fn(),
     },
     auditLog: { create: jest.fn() },
-  },
-}));
+    $transaction: jest.fn(),
+  };
+  prisma.$transaction.mockImplementation(
+    (callback: (tx: typeof prisma) => Promise<unknown>) => callback(prisma),
+  );
+  return { prisma };
+});
 
 const mockPrisma = prisma as jest.Mocked<typeof prisma>;
 
 function createRequest(url: string, options?: Record<string, unknown>): NextRequest {
-  return new NextRequest(new URL(url, "http://localhost:3000"), options as RequestInit);
+  return new NextRequest(
+    new URL(url, "http://localhost:3000"),
+    options as ConstructorParameters<typeof NextRequest>[1],
+  );
 }
 
 function authCookie(): string {
@@ -39,7 +50,9 @@ const sampleCase = {
   progressCategory: null,
   rootCause: null,
   mrOrTicket: null,
+  notes: null,
   assetSaved: false,
+  updatedBy: null,
   createdAt: new Date("2026-01-01"),
   updatedAt: new Date("2026-01-01"),
 };
@@ -49,11 +62,13 @@ const sampleCaseWithRelations = {
   project: { id: "p1", name: "项目1" },
   stage: { id: "s1", name: "阶段1" },
   batchScope: { id: "b1", name: "批跑1" },
+  updater: { username: "analyst" },
 };
 
 describe("GET /api/cases/[id]", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue({ role: "ADMIN" });
   });
 
   it("should return 401 without auth", async () => {
@@ -98,6 +113,17 @@ describe("GET /api/cases/[id]", () => {
     expect(body.case.project.name).toBe("项目1");
     expect(body.case.stage.name).toBe("阶段1");
     expect(body.case.batchScope.name).toBe("批跑1");
+    expect(body.case.updatedByUsername).toBe("analyst");
+    expect(mockPrisma.caseResult.findUnique).toHaveBeenCalledWith({
+      where: { id: validId },
+      include: {
+        project: { select: { id: true, name: true } },
+        stage: { select: { id: true, name: true } },
+        batchScope: { select: { id: true, name: true } },
+        updater: { select: { username: true } },
+        rootCauseCategory: { select: { id: true, name: true } },
+      },
+    });
   });
 
   it("should return 500 on database error", async () => {
@@ -109,11 +135,35 @@ describe("GET /api/cases/[id]", () => {
     const res = await GET(req, { params });
     expect(res.status).toBe(500);
   });
+
+  it("returns a null updater name when no updater is associated", async () => {
+    (mockPrisma.caseResult.findUnique as jest.Mock).mockResolvedValue({
+      ...sampleCaseWithRelations,
+      updater: null,
+    });
+    const req = createRequest(`/api/cases/${validId}`);
+    req.headers.set("cookie", authCookie());
+
+    const res = await GET(req, { params: Promise.resolve({ id: validId }) });
+
+    expect((await res.json()).case.updatedByUsername).toBeNull();
+  });
+
+  it("denies case details to a user outside the project", async () => {
+    (mockPrisma.caseResult.findUnique as jest.Mock).mockResolvedValue(sampleCaseWithRelations);
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue({ role: "VIEWER" });
+    (mockPrisma.projectMember.findUnique as jest.Mock).mockResolvedValue(null);
+    const req = createRequest(`/api/cases/${validId}`);
+    req.headers.set("cookie", authCookie());
+
+    expect((await GET(req, { params: Promise.resolve({ id: validId }) })).status).toBe(403);
+  });
 });
 
 describe("PATCH /api/cases/[id]", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue({ role: "ADMIN" });
   });
 
   it("should return 401 without auth", async () => {
@@ -173,6 +223,30 @@ describe("PATCH /api/cases/[id]", () => {
 
     const body = await res.json();
     expect(body.case.assignee).toBe("张三");
+  });
+
+  it("should update notes and return the authenticated updater name", async () => {
+    (mockPrisma.caseResult.findUnique as jest.Mock).mockResolvedValue(sampleCase);
+    (mockPrisma.caseResult.update as jest.Mock).mockResolvedValue({
+      ...sampleCase,
+      notes: "补充分析结论",
+      updatedBy: "user_1",
+    });
+
+    const req = createRequest(`/api/cases/${validId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ notes: "补充分析结论" }),
+      headers: { "Content-Type": "application/json" },
+    });
+    req.headers.set("cookie", authCookie());
+    const res = await PATCH(req, { params: Promise.resolve({ id: validId }) });
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect((mockPrisma.caseResult.update as jest.Mock).mock.calls[0][0].data.notes)
+      .toBe("补充分析结论");
+    expect(body.case.notes).toBe("补充分析结论");
+    expect(body.case.updatedByUsername).toBe("admin");
   });
 
   it("should update case with empty body (no update fields)", async () => {
@@ -330,5 +404,161 @@ describe("PATCH /api/cases/[id]", () => {
 
     const body = await res.json();
     expect(body.error).toBe("VALIDATION_ERROR");
+  });
+
+  it("denies editing to a project viewer", async () => {
+    (mockPrisma.caseResult.findUnique as jest.Mock).mockResolvedValue(sampleCase);
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue({ role: "VIEWER" });
+    (mockPrisma.projectMember.findUnique as jest.Mock).mockResolvedValue({ role: "VIEWER" });
+    const req = createRequest(`/api/cases/${validId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ priority: "HIGH" }),
+    });
+    req.headers.set("cookie", authCookie());
+
+    expect((await PATCH(req, { params: Promise.resolve({ id: validId }) })).status).toBe(403);
+  });
+
+  it.each([
+    [{ assigneeId: 123 }, "责任人"],
+    [{ priority: "URGENT" }, "优先级"],
+    [{ dueDate: "bad-date" }, "截止日期"],
+    [{ rootCauseCategoryId: 123 }, "根因分类"],
+    [{ mrOrTicket: "m".repeat(201) }, "MR/单号"],
+    [{ notes: "n".repeat(5001) }, "备注"],
+  ])("rejects invalid detail field %#", async (body, message) => {
+    (mockPrisma.caseResult.findUnique as jest.Mock).mockResolvedValue(sampleCase);
+    const req = createRequest(`/api/cases/${validId}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+    req.headers.set("cookie", authCookie());
+
+    const res = await PATCH(req, { params: Promise.resolve({ id: validId }) });
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).message).toContain(message);
+  });
+
+  it("rejects an assignee who is not a project member", async () => {
+    (mockPrisma.caseResult.findUnique as jest.Mock).mockResolvedValue(sampleCase);
+    (mockPrisma.projectMember.findUnique as jest.Mock).mockResolvedValue(null);
+    const req = createRequest(`/api/cases/${validId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ assigneeId: "u2" }),
+    });
+    req.headers.set("cookie", authCookie());
+
+    expect((await PATCH(req, { params: Promise.resolve({ id: validId }) })).status).toBe(400);
+  });
+
+  it("sets an assignee and records date-aware changes in one transaction", async () => {
+    const current = {
+      ...sampleCase,
+      assigneeId: null,
+      priority: null,
+      dueDate: new Date("2026-07-01"),
+      rootCauseCategoryId: null,
+    };
+    (mockPrisma.caseResult.findUnique as jest.Mock).mockResolvedValue(current);
+    (mockPrisma.projectMember.findUnique as jest.Mock).mockResolvedValue({
+      user: { username: "bob" },
+    });
+    (mockPrisma.caseResult.update as jest.Mock).mockImplementation(
+      ({ data }: { data: Record<string, unknown> }) => Promise.resolve({ ...current, ...data }),
+    );
+    const req = createRequest(`/api/cases/${validId}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        assigneeId: "u2",
+        priority: "HIGH",
+        dueDate: "2026-08-01",
+      }),
+    });
+    req.headers.set("cookie", authCookie());
+
+    const res = await PATCH(req, { params: Promise.resolve({ id: validId }) });
+    const activity = (mockPrisma.caseActivity.create as jest.Mock).mock.calls[0][0];
+
+    expect(res.status).toBe(200);
+    expect(mockPrisma.$transaction).toHaveBeenCalled();
+    expect(activity.data.changes.dueDate).toEqual({
+      from: new Date("2026-07-01").toISOString(),
+      to: new Date("2026-08-01").toISOString(),
+    });
+    expect((mockPrisma.caseResult.update as jest.Mock).mock.calls[0][0].data.assignee)
+      .toBe("bob");
+  });
+
+  it("clears optional assignment, category and due-date fields", async () => {
+    const current = {
+      ...sampleCase,
+      assigneeId: "u2",
+      priority: "HIGH",
+      dueDate: new Date("2026-08-01"),
+      rootCauseCategoryId: "rc1",
+    };
+    (mockPrisma.caseResult.findUnique as jest.Mock).mockResolvedValue(current);
+    (mockPrisma.caseResult.update as jest.Mock).mockImplementation(
+      ({ data }: { data: Record<string, unknown> }) => Promise.resolve({ ...current, ...data }),
+    );
+    const req = createRequest(`/api/cases/${validId}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        assigneeId: null,
+        priority: null,
+        dueDate: null,
+        rootCauseCategoryId: "",
+      }),
+    });
+    req.headers.set("cookie", authCookie());
+
+    const res = await PATCH(req, { params: Promise.resolve({ id: validId }) });
+    const data = (mockPrisma.caseResult.update as jest.Mock).mock.calls[0][0].data;
+
+    expect(res.status).toBe(200);
+    expect(data).toMatchObject({
+      assigneeId: null,
+      assignee: null,
+      priority: null,
+      dueDate: null,
+      rootCauseCategoryId: null,
+    });
+  });
+
+  it("accepts a global or same-project active root-cause category", async () => {
+    (mockPrisma.caseResult.findUnique as jest.Mock).mockResolvedValue(sampleCase);
+    (mockPrisma.rootCauseCategory.findUnique as jest.Mock).mockResolvedValue({
+      id: "rc1",
+      archived: false,
+      projectId: null,
+    });
+    (mockPrisma.caseResult.update as jest.Mock).mockResolvedValue({
+      ...sampleCase,
+      rootCauseCategoryId: "rc1",
+    });
+    const req = createRequest(`/api/cases/${validId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ rootCauseCategoryId: "rc1" }),
+    });
+    req.headers.set("cookie", authCookie());
+
+    expect((await PATCH(req, { params: Promise.resolve({ id: validId }) })).status).toBe(200);
+  });
+
+  it.each([
+    null,
+    { id: "rc1", archived: true, projectId: null },
+    { id: "rc1", archived: false, projectId: "p2" },
+  ])("rejects an unavailable root-cause category %#", async (category) => {
+    (mockPrisma.caseResult.findUnique as jest.Mock).mockResolvedValue(sampleCase);
+    (mockPrisma.rootCauseCategory.findUnique as jest.Mock).mockResolvedValue(category);
+    const req = createRequest(`/api/cases/${validId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ rootCauseCategoryId: "rc1" }),
+    });
+    req.headers.set("cookie", authCookie());
+
+    expect((await PATCH(req, { params: Promise.resolve({ id: validId }) })).status).toBe(400);
   });
 });

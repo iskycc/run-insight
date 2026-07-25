@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { Badge } from '@/components/shared/Badge';
 import { Button } from '@/components/shared/Button';
 import { isSafeHttpUrl } from '@/lib/url';
@@ -15,12 +16,19 @@ export type CaseDetailData = {
   testStageId: string;
   batchScopeId: string;
   assignee: string | null;
+  assigneeId?: string | null;
+  assigneeUsername?: string | null;
+  priority?: 'HIGH' | 'MEDIUM' | 'LOW' | null;
+  dueDate?: string | null;
   progressCategory: string | null;
   rootCause: string | null;
+  rootCauseCategoryId?: string | null;
+  rootCauseCategory?: { id: string; name: string } | null;
   mrOrTicket: string | null;
   notes: string | null;
   assetSaved: boolean;
   updatedBy: string | null;
+  updatedByUsername?: string | null;
   createdAt: string;
   updatedAt: string;
   project: { id: string; name: string };
@@ -29,6 +37,7 @@ export type CaseDetailData = {
 };
 
 type CaseDetailProps = {
+  canEdit: boolean;
   caseData: CaseDetailData;
   onEdit: () => void;
   onSaveAsset: () => void;
@@ -43,9 +52,10 @@ function InfoRow({ label, children }: { label: string; children: React.ReactNode
   );
 }
 
-export function CaseDetail({ caseData, onEdit, onSaveAsset }: CaseDetailProps) {
+export function CaseDetail({ canEdit, caseData, onEdit, onSaveAsset }: CaseDetailProps) {
   const progressKey = getProgressBadgeKey(caseData.progressCategory) ?? undefined;
   const progressLabel = getProgressLabel(caseData.progressCategory) ?? caseData.progressCategory;
+  const [renderedAt] = useState(() => Date.now());
 
   return (
     <div className="space-y-lg">
@@ -56,18 +66,20 @@ export function CaseDetail({ caseData, onEdit, onSaveAsset }: CaseDetailProps) {
           <h1 className="truncate text-xl font-semibold text-text-primary">{caseData.name}</h1>
         </div>
         <div className="flex items-center gap-sm">
-          <Button variant="secondary" size="sm" onClick={onEdit}>
-            编辑分析
-          </Button>
-          {caseData.assetSaved ? (
-            <span className="inline-flex items-center px-sm py-xs text-xs font-medium rounded-md bg-success/15 text-success">
-              已保存资产
-            </span>
-          ) : (
-            <Button size="sm" onClick={onSaveAsset}>
-              保存为资产
+          {canEdit && (
+            <Button variant="secondary" size="sm" onClick={onEdit}>
+              编辑分析
             </Button>
           )}
+          {canEdit ? (
+            <Button size="sm" onClick={onSaveAsset}>
+              {caseData.assetSaved ? '更新资产快照' : '保存为资产'}
+            </Button>
+          ) : caseData.assetSaved ? (
+            <span className="inline-flex items-center rounded-md bg-success/15 px-sm py-xs text-xs font-medium text-success">
+              已保存资产
+            </span>
+          ) : null}
         </div>
       </div>
 
@@ -112,7 +124,19 @@ export function CaseDetail({ caseData, onEdit, onSaveAsset }: CaseDetailProps) {
         <h2 className="text-sm font-semibold text-text-primary mb-md">分析信息</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-md">
           <InfoRow label="分析责任人">
-            {caseData.assignee ?? <span className="text-text-secondary">—</span>}
+            {caseData.assigneeUsername ?? caseData.assignee ?? <span className="text-text-secondary">—</span>}
+          </InfoRow>
+          <InfoRow label="优先级">
+            {caseData.priority
+              ? ({ HIGH: '高', MEDIUM: '中', LOW: '低' } as const)[caseData.priority]
+              : <span className="text-text-secondary">—</span>}
+          </InfoRow>
+          <InfoRow label="截止日期">
+            {caseData.dueDate
+              ? <span className={new Date(caseData.dueDate).getTime() < renderedAt ? 'text-danger' : ''}>
+                  {new Date(caseData.dueDate).toLocaleDateString('zh-CN')}
+                </span>
+              : <span className="text-text-secondary">—</span>}
           </InfoRow>
           <InfoRow label="进展分类">
             {progressKey && progressLabel ? (
@@ -121,7 +145,10 @@ export function CaseDetail({ caseData, onEdit, onSaveAsset }: CaseDetailProps) {
               <span className="text-text-secondary">—</span>
             )}
           </InfoRow>
-          <InfoRow label="问题根因">
+          <InfoRow label="根因分类">
+            {caseData.rootCauseCategory?.name ?? <span className="text-text-secondary">—</span>}
+          </InfoRow>
+          <InfoRow label="根因补充">
             {caseData.rootCause ?? <span className="text-text-secondary">—</span>}
           </InfoRow>
           <InfoRow label="MR 链接 / 单号">
@@ -138,6 +165,13 @@ export function CaseDetail({ caseData, onEdit, onSaveAsset }: CaseDetailProps) {
               ) : (
                 <span>{caseData.mrOrTicket}</span>
               )
+            ) : (
+              <span className="text-text-secondary">—</span>
+            )}
+          </InfoRow>
+          <InfoRow label="备注">
+            {caseData.notes ? (
+              <span className="whitespace-pre-wrap break-words">{caseData.notes}</span>
             ) : (
               <span className="text-text-secondary">—</span>
             )}
@@ -159,6 +193,7 @@ export function CaseDetail({ caseData, onEdit, onSaveAsset }: CaseDetailProps) {
       <div className="flex flex-wrap gap-md text-xs text-text-secondary">
         <span>创建于 {new Date(caseData.createdAt).toLocaleString('zh-CN')}</span>
         <span>更新于 {new Date(caseData.updatedAt).toLocaleString('zh-CN')}</span>
+        <span>最近更新人 {caseData.updatedByUsername ?? '—'}</span>
       </div>
     </div>
   );

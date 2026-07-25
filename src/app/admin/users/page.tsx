@@ -27,6 +27,11 @@ interface CreateForm {
   role: Role;
 }
 
+interface ResetPasswordForm {
+  newPassword: string;
+  confirmPassword: string;
+}
+
 export default function AdminUsersPage() {
   const { user } = useAuth();
   const { showToast } = useToast();
@@ -45,6 +50,13 @@ export default function AdminUsersPage() {
   const [isCreating, setIsCreating] = useState(false);
 
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const [resetTarget, setResetTarget] = useState<UserWithRole | null>(null);
+  const [resetForm, setResetForm] = useState<ResetPasswordForm>({
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [resetError, setResetError] = useState('');
+  const [isResetting, setIsResetting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -81,8 +93,8 @@ export default function AdminUsersPage() {
       setCreateError('用户名为必填');
       return;
     }
-    if (!password) {
-      setCreateError('密码为必填');
+    if (password.length < 8 || password.length > 128) {
+      setCreateError('密码长度必须为 8 到 128 个字符');
       return;
     }
     setCreateError('');
@@ -132,6 +144,48 @@ export default function AdminUsersPage() {
   const isLastAdmin = (target: UserWithRole) =>
     target.role === 'ADMIN' && adminCount <= 1;
 
+  const closeResetModal = useCallback(() => {
+    if (isResetting) return;
+    setResetTarget(null);
+    setResetForm({ newPassword: '', confirmPassword: '' });
+    setResetError('');
+  }, [isResetting]);
+
+  const handleResetPassword = useCallback(async () => {
+    if (!resetTarget) return;
+    const { newPassword, confirmPassword } = resetForm;
+    if (newPassword.length < 8 || newPassword.length > 128) {
+      setResetError('新密码长度必须为 8 到 128 个字符');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setResetError('两次输入的新密码不一致');
+      return;
+    }
+
+    setResetError('');
+    setIsResetting(true);
+    try {
+      await fetchJson<{ success: true }>(`/api/users/${resetTarget.id}/password`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newPassword }),
+        reloadOnUnauthorized: false,
+      });
+      showToast({ message: `已重置 ${resetTarget.username} 的密码`, type: 'success' });
+      setResetTarget(null);
+      setResetForm({ newPassword: '', confirmPassword: '' });
+    } catch (error) {
+      let message = error instanceof ApiError ? error.message : '重置密码失败';
+      if (error instanceof ApiError && error.status === 401) message = '登录状态已失效，请重新登录';
+      if (error instanceof ApiError && error.status === 403) message = '权限不足，仅管理员可重置密码';
+      setResetError(message);
+      showToast({ message, type: 'error' });
+    } finally {
+      setIsResetting(false);
+    }
+  }, [resetForm, resetTarget, showToast]);
+
   if (loadError) {
     return (
       <PageContainer title="用户管理" subtitle="创建用户、调整角色">
@@ -167,6 +221,7 @@ export default function AdminUsersPage() {
                 <th className="px-4 py-3">角色</th>
                 <th className="px-4 py-3">创建时间</th>
                 <th className="px-4 py-3">更新时间</th>
+                <th className="px-4 py-3 text-right">操作</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -204,12 +259,28 @@ export default function AdminUsersPage() {
                     </td>
                     <td className="px-4 py-3 text-text-secondary">{formatDateTime(u.createdAt)}</td>
                     <td className="px-4 py-3 text-text-secondary">{formatDateTime(u.updatedAt)}</td>
+                    <td className="px-4 py-3 text-right">
+                      {u.id !== user?.id && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => {
+                            setResetTarget(u);
+                            setResetForm({ newPassword: '', confirmPassword: '' });
+                            setResetError('');
+                          }}
+                          aria-label={`重置 ${u.username} 的密码`}
+                        >
+                          重置密码
+                        </Button>
+                      )}
+                    </td>
                   </tr>
                 );
               })}
               {pendingId && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-2 text-xs text-text-secondary">
+                  <td colSpan={5} className="px-4 py-2 text-xs text-text-secondary">
                     更新中...
                   </td>
                 </tr>
@@ -263,6 +334,8 @@ export default function AdminUsersPage() {
             onChange={(e) => setCreateForm((f) => ({ ...f, password: e.target.value }))}
             placeholder="输入初始密码"
             disabled={isCreating}
+            minLength={8}
+            maxLength={128}
           />
           <Select
             label="角色"
@@ -272,6 +345,76 @@ export default function AdminUsersPage() {
             disabled={isCreating}
           />
         </div>
+      </Modal>
+
+      <Modal
+        open={resetTarget !== null}
+        onClose={closeResetModal}
+        title="重置密码"
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              onClick={closeResetModal}
+              disabled={isResetting}
+            >
+              取消
+            </Button>
+            <Button
+              type="submit"
+              form="reset-password-form"
+              disabled={isResetting}
+            >
+              {isResetting ? '重置中...' : '确认重置'}
+            </Button>
+          </>
+        }
+      >
+        <form
+          id="reset-password-form"
+          className="space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void handleResetPassword();
+          }}
+          noValidate
+        >
+          <p className="text-sm text-text-secondary">
+            为用户 <span className="font-medium text-text-primary">{resetTarget?.username}</span>{' '}
+            设置新密码。
+          </p>
+          <Input
+            label="新密码"
+            type="password"
+            autoComplete="new-password"
+            value={resetForm.newPassword}
+            onChange={(event) =>
+              setResetForm((form) => ({ ...form, newPassword: event.target.value }))
+            }
+            disabled={isResetting}
+            minLength={8}
+            maxLength={128}
+            required
+          />
+          <Input
+            label="确认新密码"
+            type="password"
+            autoComplete="new-password"
+            value={resetForm.confirmPassword}
+            onChange={(event) =>
+              setResetForm((form) => ({ ...form, confirmPassword: event.target.value }))
+            }
+            disabled={isResetting}
+            minLength={8}
+            maxLength={128}
+            required
+          />
+          {resetError && (
+            <p className="text-sm text-danger" role="alert">
+              {resetError}
+            </p>
+          )}
+        </form>
       </Modal>
     </PageContainer>
   );

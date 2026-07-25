@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { authenticateRequest, requireRole } from "@/lib/auth";
+import { authenticateRequest } from "@/lib/auth";
 import { internalError, jsonError } from "@/lib/api-helpers";
+import { writeAuditLog } from "@/lib/audit";
+import { getProjectAccess } from "@/lib/project-access";
 
 export async function DELETE(
   request: NextRequest,
@@ -10,11 +12,10 @@ export async function DELETE(
   const authResult = authenticateRequest(request);
   if (authResult instanceof NextResponse) return authResult;
 
-  const roleCheck = await requireRole(authResult.userId, ["ADMIN"], prisma);
-  if (roleCheck) return roleCheck;
-
   try {
     const { id, keyId } = await params;
+    const access = await getProjectAccess(prisma, authResult.userId, id);
+    if (!access?.canAdmin) return jsonError("FORBIDDEN", "无权管理该项目的 API Key", 403);
     const record = await prisma.apiKey.findFirst({
       where: { id: keyId, projectId: id },
     });
@@ -24,6 +25,13 @@ export async function DELETE(
     }
 
     await prisma.apiKey.delete({ where: { id: keyId } });
+    await writeAuditLog({
+      userId: authResult.userId,
+      action: "DELETE",
+      entityType: "apiKey",
+      entityId: keyId,
+      changes: { projectId: id, description: record.description },
+    });
 
     return NextResponse.json({ deleted: true });
   } catch {
