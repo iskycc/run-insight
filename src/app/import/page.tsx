@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/components/shared/AuthProvider';
 import ImportTypeSwitch from '@/components/import/ImportTypeSwitch';
 import FileDropZone from '@/components/import/FileDropZone';
@@ -27,14 +28,28 @@ import type {
 
 type Step = 'select-type' | 'upload' | 'mapping' | 'validate' | 'done';
 type ProgressStatus = 'idle' | 'active' | 'success' | 'error';
+type ImportJobStatus = 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED';
 
 type ImportProgress = {
-  value: number;
+  value: number | null;
   label: string;
   detail: string;
   status: ProgressStatus;
   startedAt: number | null;
   finishedMs: number | null;
+};
+
+type ImportJobDTO = {
+  id: string;
+  status: ImportJobStatus;
+  progress: number;
+  totalRows: number;
+  processedRows: number;
+  errorCount: number;
+  errorSummary: string | null;
+  errorDetails: unknown;
+  importRecordId: string | null;
+  cancelRequested: boolean;
 };
 
 const EMPTY_PROGRESS: ImportProgress = {
@@ -58,6 +73,60 @@ function waitForPaint() {
   return new Promise<void>((resolve) => {
     requestAnimationFrame(() => resolve());
   });
+}
+
+function waitForPoll(signal: AbortSignal, delay = 1500) {
+  return new Promise<void>((resolve, reject) => {
+    const onAbort = () => {
+      window.clearTimeout(timeout);
+      reject(new DOMException('Aborted', 'AbortError'));
+    };
+    const timeout = window.setTimeout(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    }, delay);
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
+function errorsFromJob(job: ImportJobDTO): ValidationError[] {
+  if (Array.isArray(job.errorDetails)) {
+    const details = job.errorDetails.flatMap((item): ValidationError[] => {
+      if (typeof item !== 'object' || item === null) return [];
+      const detail = item as {
+        row?: unknown;
+        field?: unknown;
+        message?: unknown;
+      };
+      if (typeof detail.message !== 'string') return [];
+      return [{
+        row: typeof detail.row === 'number' ? detail.row : 0,
+        field: typeof detail.field === 'string' ? detail.field : '',
+        message: detail.message,
+      }];
+    });
+    if (details.length > 0) return details;
+  }
+  return [{
+    row: 0,
+    field: '',
+    message:
+      job.errorSummary ??
+      (job.status === 'CANCELLED' ? '导入任务已取消' : '导入任务失败'),
+  }];
+}
+
+function downloadErrorsJson(job: ImportJobDTO) {
+  const details = errorsFromJob(job);
+  const blob = new Blob([JSON.stringify(details, null, 2)], {
+    type: 'application/json;charset=utf-8',
+  });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `import-errors-${job.id}.json`;
+  anchor.click();
+  URL.revokeObjectURL(url);
 }
 
 function formatDuration(ms: number | null) {
@@ -104,6 +173,8 @@ function Metric({ label, value }: { label: string; value: string | number }) {
 function ProgressPanel({ progress }: { progress: ImportProgress }) {
   const isActive = progress.status === 'active';
   const isDone = progress.status === 'success';
+  const indeterminate = progress.value === null;
+  const progressValue = progress.value ?? 0;
 
   return (
     <Panel title="当前进度">
@@ -114,7 +185,7 @@ function ProgressPanel({ progress }: { progress: ImportProgress }) {
             <p className="mt-1 text-xs text-[var(--color-text-secondary)]">{progress.detail}</p>
           </div>
           <span className="text-3xl font-semibold tracking-[-0.04em] text-[var(--color-text-primary)]">
-            {Math.round(progress.value)}%
+            {indeterminate ? '处理中' : `${Math.round(progressValue)}%`}
           </span>
         </div>
         <div
@@ -123,7 +194,8 @@ function ProgressPanel({ progress }: { progress: ImportProgress }) {
           aria-label={progress.label}
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-valuenow={Math.round(progress.value)}
+          aria-valuenow={indeterminate ? undefined : Math.round(progressValue)}
+          aria-valuetext={indeterminate ? '后台处理中' : undefined}
         >
           <div
             className={`h-full rounded-full transition-all duration-500 ${
@@ -132,8 +204,8 @@ function ProgressPanel({ progress }: { progress: ImportProgress }) {
                 : isDone
                   ? 'bg-[var(--color-success)]'
                   : 'bg-[var(--color-accent)]'
-            }`}
-            style={{ width: `${progress.value}%` }}
+            } ${indeterminate ? 'animate-pulse' : ''}`}
+            style={{ width: indeterminate ? '100%' : `${progressValue}%` }}
           />
         </div>
         <div className="grid grid-cols-2 gap-3 border-t border-border pt-4">
@@ -294,10 +366,21 @@ export default function ImportPage() {
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [progress, setProgress] = useState<ImportProgress>(EMPTY_PROGRESS);
+  const [activeJob, setActiveJob] = useState<ImportJobDTO | null>(null);
+  const [jobMessage, setJobMessage] = useState('');
   const previewInFlightRef = useRef(false);
   const importInFlightRef = useRef(false);
+  const mountedRef = useRef(true);
   const requestIdRef = useRef<string | null>(null);
+  const pollControllerRef = useRef<AbortController | null>(null);
+  const pollGenerationRef = useRef(0);
   const canImport = canCreateProject || projects.some((project) => project.canEdit);
+
+  useEffect(() => () => {
+    mountedRef.current = false;
+    pollGenerationRef.current += 1;
+    pollControllerRef.current?.abort();
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -311,11 +394,11 @@ export default function ImportPage() {
       });
   }, [user]);
 
-  const updateProgress = useCallback((patch: Partial<ImportProgress>) => {
-    setProgress((current) => ({ ...current, ...patch }));
-  }, []);
-
   const resetWorkflow = useCallback(() => {
+    pollGenerationRef.current += 1;
+    pollControllerRef.current?.abort();
+    pollControllerRef.current = null;
+    importInFlightRef.current = false;
     requestIdRef.current = crypto.randomUUID();
     setStep('select-type');
     setFileName('');
@@ -329,9 +412,17 @@ export default function ImportPage() {
     setPreview(null);
     setFileError('');
     setProgress(EMPTY_PROGRESS);
+    setActiveJob(null);
+    setJobMessage('');
+    setIsImporting(false);
   }, []);
 
   const handleFileAccepted = useCallback(async (file: File) => {
+    pollGenerationRef.current += 1;
+    pollControllerRef.current?.abort();
+    pollControllerRef.current = null;
+    setActiveJob(null);
+    setJobMessage('');
     requestIdRef.current = crypto.randomUUID();
     const startedAt = performance.now();
     try {
@@ -636,6 +727,94 @@ export default function ImportPage() {
     validatedRows,
   ]);
 
+  const pollImportJob = useCallback(async (jobId: string, startedAt: number) => {
+    pollGenerationRef.current += 1;
+    const generation = pollGenerationRef.current;
+    pollControllerRef.current?.abort();
+    const controller = new AbortController();
+    pollControllerRef.current = controller;
+    let consecutiveErrors = 0;
+
+    while (mountedRef.current && generation === pollGenerationRef.current) {
+      try {
+        const result = await fetchJson<{ job: ImportJobDTO }>(
+          `/api/import-jobs/${jobId}`,
+          { cache: 'no-store', signal: controller.signal },
+        );
+        if (
+          controller.signal.aborted ||
+          generation !== pollGenerationRef.current ||
+          !mountedRef.current
+        ) return;
+        consecutiveErrors = 0;
+        const job = result.job;
+        setActiveJob(job);
+
+        if (job.status === 'SUCCEEDED') {
+          setImported(job.processedRows);
+          setProgress({
+            value: 100,
+            label: '导入完成',
+            detail: `成功导入 ${job.processedRows} 条`,
+            status: 'success',
+            startedAt,
+            finishedMs: performance.now() - startedAt,
+          });
+          setStep('done');
+          requestIdRef.current = crypto.randomUUID();
+          return;
+        }
+        if (job.status === 'FAILED' || job.status === 'CANCELLED') {
+          const jobErrors = job.status === 'FAILED' ? errorsFromJob(job) : [];
+          setErrors(jobErrors);
+          setProgress({
+            value: job.progress,
+            label: job.status === 'CANCELLED' ? '导入已取消' : '导入失败',
+            detail:
+              job.status === 'CANCELLED'
+                ? '任务在进入数据库事务前已取消'
+                : jobErrors[0]?.message ?? '导入任务未完成',
+            status: 'error',
+            startedAt,
+            finishedMs: performance.now() - startedAt,
+          });
+          setStep('validate');
+          return;
+        }
+
+        setProgress({
+          value: null,
+          label: '后台处理中',
+          detail: job.cancelRequested
+            ? '取消请求已记录，正在等待当前数据库处理结束'
+            : job.status === 'PENDING'
+              ? '任务已排队，等待后台处理'
+              : '正在执行数据库导入；该事务完成前无法中断',
+          status: 'active',
+          startedAt,
+          finishedMs: null,
+        });
+        await waitForPoll(controller.signal);
+      } catch (error) {
+        if (
+          controller.signal.aborted ||
+          generation !== pollGenerationRef.current ||
+          (error instanceof DOMException && error.name === 'AbortError')
+        ) return;
+        consecutiveErrors += 1;
+        setProgress({
+          value: null,
+          label: '正在重新连接',
+          detail: `暂时无法获取任务状态，正在第 ${consecutiveErrors} 次重试`,
+          status: 'active',
+          startedAt,
+          finishedMs: null,
+        });
+        await waitForPoll(controller.signal, Math.min(5000, 1000 * consecutiveErrors));
+      }
+    }
+  }, []);
+
   const handleImport = useCallback(async () => {
     if (
       !canImport
@@ -649,9 +828,11 @@ export default function ImportPage() {
     const startedAt = performance.now();
     setIsImporting(true);
     setErrors([]);
+    setActiveJob(null);
+    setJobMessage('');
     setProgress({
-      value: 68,
-      label: '准备导入',
+      value: null,
+      label: '正在创建后台任务',
       detail: `${rows.length} 条数据`,
       status: 'active',
       startedAt,
@@ -659,17 +840,13 @@ export default function ImportPage() {
     });
     await waitForPaint();
 
-    const rowsToImport = validatedRows.length === rows.length ? validatedRows : mapRows(rows, mapping);
+    const rowsToImport =
+      validatedRows.length === rows.length ? validatedRows : mapRows(rows, mapping);
     const requestId = requestIdRef.current ?? crypto.randomUUID();
     requestIdRef.current = requestId;
 
     try {
-      updateProgress({
-        value: 78,
-        label: '写入数据库',
-        detail: '批量提交中',
-      });
-      const response = await fetch('/api/import', {
+      const data = await fetchJson<{ job: ImportJobDTO }>('/api/import-jobs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -682,73 +859,121 @@ export default function ImportPage() {
           requestId,
         }),
       });
-      const data = await response.json() as
-        | ImportResponse
-        | ImportValidationErrorResponse
-        | { error?: string; message?: string };
-      if (!response.ok) {
-        if ('details' in data && Array.isArray(data.details)) {
-          setErrors(data.details);
-          setProgress({
-            value: 78,
-            label: '导入失败',
-            detail: `${data.details.length} 个错误需要处理`,
-            status: 'error',
-            startedAt,
-            finishedMs: performance.now() - startedAt,
-          });
-          setStep('validate');
-          return;
-        }
-        const errorCode = 'error' in data ? data.error : undefined;
-        const errorMessage = 'message' in data ? data.message : undefined;
-        throw new ApiError(response.status, errorCode ?? 'IMPORT_FAILED', errorMessage ?? '导入失败');
-      }
-
-      if (!('imported' in data)) {
-        throw new ApiError(response.status, 'IMPORT_FAILED', '导入失败');
-      }
-      setErrors(data.errors);
-      setImported(data.imported);
+      setActiveJob(data.job);
       setProgress({
-        value: 100,
-        label: '导入完成',
-        detail: `成功导入 ${data.imported} 条`,
-        status: 'success',
+        value: null,
+        label: '后台处理中',
+        detail: data.job.status === 'RUNNING'
+          ? '正在执行数据库导入；该事务完成前无法中断'
+          : '任务已排队，等待后台处理',
+        status: 'active',
         startedAt,
-        finishedMs: performance.now() - startedAt,
+        finishedMs: null,
       });
-      setStep('done');
-      requestIdRef.current = crypto.randomUUID();
+      await pollImportJob(data.job.id, startedAt);
     } catch (error) {
-      const message = error instanceof ApiError ? error.message : '网络错误';
-      setErrors([{ row: 0, field: '', message }]);
-      setProgress({
-        value: 78,
-        label: '导入失败',
-        detail: message,
-        status: 'error',
-        startedAt,
-        finishedMs: performance.now() - startedAt,
-      });
-      setStep('validate');
+      if (!(error instanceof DOMException && error.name === 'AbortError')) {
+        const message = error instanceof ApiError ? error.message : '网络错误';
+        setErrors([{ row: 0, field: '', message }]);
+        setProgress({
+          value: 0,
+          label: '创建导入任务失败',
+          detail: message,
+          status: 'error',
+          startedAt,
+          finishedMs: performance.now() - startedAt,
+        });
+        setStep('validate');
+      }
     } finally {
       importInFlightRef.current = false;
       setIsImporting(false);
     }
   }, [
-    rows,
+    canImport,
     fileName,
-    mapping,
-    validatedRows,
     importType,
+    mapping,
+    pollImportJob,
+    preview,
+    rows,
+    selectedBatchScopeId,
     selectedProjectId,
     selectedStageId,
-    selectedBatchScopeId,
-    updateProgress,
-    canImport,
-    preview,
+    validatedRows,
   ]);
+
+  const handleCancelJob = useCallback(async () => {
+    if (!activeJob || !['PENDING', 'RUNNING'].includes(activeJob.status)) return;
+    setJobMessage('');
+    try {
+      const result = await fetchJson<{
+        status: 'RUNNING' | 'CANCELLED';
+        cancelRequested: boolean;
+        message: string;
+      }>(`/api/import-jobs/${activeJob.id}`, { method: 'DELETE' });
+      setJobMessage(result.message);
+      setActiveJob((current) =>
+        current?.id === activeJob.id
+          ? {
+              ...current,
+              status: result.status,
+              cancelRequested: result.cancelRequested,
+            }
+          : current,
+      );
+    } catch (error) {
+      setJobMessage(error instanceof ApiError ? error.message : '取消请求失败');
+    }
+  }, [activeJob]);
+
+  const handleRetryJob = useCallback(async () => {
+    if (!activeJob || !['FAILED', 'CANCELLED'].includes(activeJob.status)) return;
+    if (importInFlightRef.current) return;
+    importInFlightRef.current = true;
+    const startedAt = performance.now();
+    setIsImporting(true);
+    setErrors([]);
+    setJobMessage('');
+    setProgress({
+      value: null,
+      label: '正在创建重试任务',
+      detail: '将使用原导入数据重新处理',
+      status: 'active',
+      startedAt,
+      finishedMs: null,
+    });
+    try {
+      const data = await fetchJson<{ job: ImportJobDTO }>(
+        `/api/import-jobs/${activeJob.id}/retry`,
+        { method: 'POST' },
+      );
+      setActiveJob(data.job);
+      setProgress({
+        value: null,
+        label: '后台处理中',
+        detail: '重试任务已创建，等待后台处理',
+        status: 'active',
+        startedAt,
+        finishedMs: null,
+      });
+      await pollImportJob(data.job.id, startedAt);
+    } catch (error) {
+      const message = error instanceof ApiError ? error.message : '重试失败';
+      setErrors([{ row: 0, field: '', message }]);
+      setProgress({
+        value: 0,
+        label: '重试失败',
+        detail: message,
+        status: 'error',
+        startedAt,
+        finishedMs: performance.now() - startedAt,
+      });
+    } finally {
+      importInFlightRef.current = false;
+      setIsImporting(false);
+    }
+  }, [activeJob, pollImportJob]);
 
   if (!user) {
     return (
@@ -800,7 +1025,7 @@ export default function ImportPage() {
             </p>
           </div>
           <div className="grid w-full grid-cols-3 gap-px overflow-hidden rounded-2xl border border-white/80 bg-border shadow-[0_12px_30px_rgba(15,23,42,0.06)] sm:w-auto">
-            <div className="bg-white px-4 py-3 sm:min-w-24"><Metric label="行数上限" value="100,000" /></div>
+            <div className="bg-white px-4 py-3 sm:min-w-24"><Metric label="行数上限" value="10,000" /></div>
             <div className="bg-white px-4 py-3 sm:min-w-24">
             <Metric label="字段数" value={headers.length || '—'} />
             </div>
@@ -987,6 +1212,7 @@ export default function ImportPage() {
                     <MappingTemplates
                       key={importType}
                       importType={importType}
+                      projectId={selectedProjectId}
                       headers={headers}
                       mapping={mapping}
                       onApply={setMapping}
@@ -1015,6 +1241,58 @@ export default function ImportPage() {
             {step === 'validate' && (
               <div className="space-y-5">
                 <ValidationReport errors={preValidationErrors.length > 0 ? preValidationErrors : errors} totalRows={rows.length} />
+                {activeJob && (
+                  <Panel title="后台导入任务">
+                    <div className="flex flex-wrap items-center justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-semibold text-text-primary">
+                          {activeJob.status === 'PENDING' && '等待后台处理'}
+                          {activeJob.status === 'RUNNING' && '后台处理中'}
+                          {activeJob.status === 'FAILED' && '导入失败'}
+                          {activeJob.status === 'CANCELLED' && '导入已取消'}
+                          {activeJob.status === 'SUCCEEDED' && '导入完成'}
+                        </p>
+                        <p className="mt-1 text-xs text-text-secondary">
+                          任务 ID：{activeJob.id}
+                          {activeJob.cancelRequested ? ' · 已请求取消' : ''}
+                        </p>
+                        {jobMessage && (
+                          <p className="mt-2 text-xs text-text-secondary" role="status">
+                            {jobMessage}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {['PENDING', 'RUNNING'].includes(activeJob.status) && (
+                          <Button
+                            variant="danger"
+                            onClick={() => void handleCancelJob()}
+                            disabled={activeJob.cancelRequested}
+                          >
+                            {activeJob.cancelRequested
+                              ? '已请求取消'
+                              : activeJob.status === 'RUNNING'
+                                ? '请求取消'
+                                : '取消任务'}
+                          </Button>
+                        )}
+                        {activeJob.status === 'FAILED' && (
+                          <Button
+                            variant="secondary"
+                            onClick={() => downloadErrorsJson(activeJob)}
+                          >
+                            下载错误 JSON
+                          </Button>
+                        )}
+                        {['FAILED', 'CANCELLED'].includes(activeJob.status) && (
+                          <Button onClick={() => void handleRetryJob()} disabled={isImporting}>
+                            {isImporting ? '重试中' : '重试任务'}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </Panel>
+                )}
                 {preview && (
                   <Panel title="导入差异预览">
                     <div className="grid gap-4 sm:grid-cols-4">
@@ -1060,7 +1338,7 @@ export default function ImportPage() {
                   >
                     上一步
                   </Button>
-                  {preValidationErrors.length === 0 && errors.length === 0 && !preview && (
+                  {preValidationErrors.length === 0 && errors.length === 0 && !preview && !activeJob && (
                     <Button
                       onClick={handlePreview}
                       disabled={isPreviewing || !targetReady || rows.length === 0}
@@ -1068,7 +1346,7 @@ export default function ImportPage() {
                       {isPreviewing ? '预览中' : '预览导入差异'}
                     </Button>
                   )}
-                  {preValidationErrors.length === 0 && errors.length === 0 && preview && (
+                  {preValidationErrors.length === 0 && errors.length === 0 && preview && !activeJob && (
                     <Button onClick={handleImport} disabled={isImporting || !targetReady}>
                       {isImporting ? '导入中' : '确认并导入'}
                     </Button>
@@ -1086,6 +1364,14 @@ export default function ImportPage() {
                     <Metric label="总行数" value={rows.length} />
                     <Metric label="导入耗时" value={formatDuration(progress.finishedMs)} />
                   </div>
+                  {activeJob?.importRecordId && (
+                    <Link
+                      href={`/import-history/${activeJob.importRecordId}`}
+                      className="mt-5 inline-flex rounded-xl bg-accent/10 px-4 py-2 text-sm font-semibold text-accent hover:bg-accent/15"
+                    >
+                      查看导入记录
+                    </Link>
+                  )}
                 </Panel>
                 <div className="flex justify-end">
                   <Button onClick={resetWorkflow}>继续导入</Button>

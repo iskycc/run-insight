@@ -74,6 +74,7 @@ describe('CaseTable', () => {
     expect(screen.getByText('C002')).toBeInTheDocument();
     expect(screen.getByText('Test Case 1')).toBeInTheDocument();
     expect(screen.getByText('Test Case 2')).toBeInTheDocument();
+    expect(screen.getAllByText('2024年1月1日 08:00')).toHaveLength(2);
   });
 
   test('shows empty state when no cases', () => {

@@ -14,10 +14,16 @@ jest.mock("@/lib/prisma", () => ({
       update: jest.fn(),
       count: jest.fn(),
     };
+    const session = {
+      updateMany: jest.fn(),
+    };
     return {
       user,
-      $transaction: jest.fn(async (callback: (tx: { user: typeof user }) => Promise<unknown>) =>
-        callback({ user })
+      session,
+      $transaction: jest.fn(async (
+        callback: (tx: { user: typeof user; session: typeof session }) => Promise<unknown>,
+      ) =>
+        callback({ user, session })
       ),
     };
   })(),
@@ -90,6 +96,10 @@ describe("User management API", () => {
       entityType: "user",
       entityId: "u2",
       changes: { role: "VIEWER" },
+    });
+    expect(prisma.session.updateMany).toHaveBeenCalledWith({
+      where: { userId: "u2", revokedAt: null },
+      data: { revokedAt: expect.any(Date) },
     });
   });
 

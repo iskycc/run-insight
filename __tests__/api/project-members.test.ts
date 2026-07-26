@@ -12,6 +12,7 @@ jest.mock("@/lib/prisma", () => ({
   prisma: {
     project: { findUnique: jest.fn() },
     user: { findUnique: jest.fn() },
+    organizationMember: { findUnique: jest.fn() },
     projectMember: {
       findMany: jest.fn(),
       findUnique: jest.fn(),
@@ -27,7 +28,11 @@ describe("/api/projects/[id]/members", () => {
     jest.clearAllMocks();
     (authenticateRequest as jest.Mock).mockReturnValue({ userId: "u1", username: "admin" });
     (getProjectAccess as jest.Mock).mockResolvedValue({ canView: true, canAdmin: true });
-    (prisma.project.findUnique as jest.Mock).mockResolvedValue({ id: "p1" });
+    (prisma.project.findUnique as jest.Mock).mockResolvedValue({
+      id: "p1",
+      organizationId: "o1",
+    });
+    (prisma.organizationMember.findUnique as jest.Mock).mockResolvedValue({ id: "om1" });
   });
 
   it("returns members and management capability", async () => {

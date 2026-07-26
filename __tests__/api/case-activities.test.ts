@@ -39,10 +39,41 @@ describe("/api/cases/[id]/activities", () => {
 
     expect(response.status).toBe(200);
     expect(body.activities[0].comment).toBe("已复现");
+    expect(body.activities[0].canManage).toBe(true);
     expect(prisma.caseActivity.findMany).toHaveBeenCalledWith(expect.objectContaining({
       orderBy: { createdAt: "desc" },
     }));
   });
+
+  it.each([
+    [true, true],
+    [false, false],
+  ])(
+    "marks another user's comment manageable when project admin is %s",
+    async (canAdmin, expected) => {
+      (getProjectAccess as jest.Mock).mockResolvedValue({
+        canView: true,
+        canEdit: true,
+        canAdmin,
+      });
+      (prisma.caseActivity.findMany as jest.Mock).mockResolvedValue([{
+        id: "a2",
+        type: "COMMENT",
+        changes: null,
+        comment: "他人评论",
+        user: { id: "u2", username: "bob" },
+        createdAt: new Date("2026-07-25T00:00:00Z"),
+      }]);
+
+      const response = await GET(
+        new NextRequest(`http://localhost/api/cases/${validId}/activities`),
+        { params },
+      );
+      const body = await response.json();
+
+      expect(body.activities[0].canManage).toBe(expected);
+    },
+  );
 
   it("lets editors add a trimmed comment", async () => {
     (prisma.caseActivity.create as jest.Mock).mockResolvedValue({
@@ -62,6 +93,7 @@ describe("/api/cases/[id]/activities", () => {
     const response = await POST(request, { params });
 
     expect(response.status).toBe(201);
+    expect((await response.json()).activity.canManage).toBe(true);
     expect(prisma.caseActivity.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ comment: "已复现", userId: "u1" }),
     }));
@@ -77,6 +109,35 @@ describe("/api/cases/[id]/activities", () => {
 
     const response = await POST(request, { params });
     expect(response.status).toBe(403);
+  });
+
+  it("keeps comments read-only when the case hierarchy is archived", async () => {
+    (prisma.caseResult.findUnique as jest.Mock).mockResolvedValue({
+      id: validId,
+      projectId: "p1",
+      project: { archived: false },
+      stage: { archived: true },
+      batchScope: { archived: false },
+    });
+    (prisma.caseActivity.findMany as jest.Mock).mockResolvedValue([]);
+
+    const listed = await GET(
+      new NextRequest(`http://localhost/api/cases/${validId}/activities`),
+      { params },
+    );
+    const request = new NextRequest(
+      `http://localhost/api/cases/${validId}/activities`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ comment: "越权写入" }),
+      },
+    );
+    const created = await POST(request, { params });
+
+    expect((await listed.json()).canComment).toBe(false);
+    expect(created.status).toBe(409);
+    expect(prisma.caseActivity.create).not.toHaveBeenCalled();
   });
 
   it.each([GET, POST])("passes through authentication failures", async (handler) => {
@@ -143,6 +204,26 @@ describe("/api/cases/[id]/activities", () => {
 
     expect(response.status).toBe(400);
     expect((await response.json()).message).toContain(message);
+    expect(prisma.caseActivity.create).not.toHaveBeenCalled();
+  });
+
+  it("returns a validation error for malformed comment JSON", async () => {
+    const request = new NextRequest(
+      `http://localhost/api/cases/${validId}/activities`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{",
+      },
+    );
+
+    const response = await POST(request, { params });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "VALIDATION_ERROR",
+      message: "请求体必须是有效的 JSON 对象",
+    });
     expect(prisma.caseActivity.create).not.toHaveBeenCalled();
   });
 

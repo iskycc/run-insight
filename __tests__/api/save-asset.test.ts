@@ -7,6 +7,7 @@ import { NextRequest } from "next/server";
 jest.mock("@/lib/prisma", () => {
   const tx = {
     asset: { upsert: jest.fn() },
+    assetVersion: { upsert: jest.fn() },
     caseResult: { update: jest.fn(), updateMany: jest.fn() },
   };
   const client = {
@@ -124,6 +125,19 @@ describe("save asset APIs", () => {
         update: {},
       })
     );
+    expect(
+      (mockPrisma as unknown as {
+        __tx: { assetVersion: { upsert: jest.Mock } };
+      }).__tx.assetVersion.upsert,
+    ).toHaveBeenCalledWith({
+      where: { assetId_version: { assetId: "asset_1", version: 1 } },
+      create: expect.objectContaining({
+        assetId: "asset_1",
+        version: 1,
+        status: "DRAFT",
+      }),
+      update: {},
+    });
   });
 
   it("does not overwrite curated fields when saving an existing asset again", async () => {
@@ -186,8 +200,17 @@ describe("save asset APIs", () => {
       { ...caseResult, id: "clxxxxxxxxxxxxxxxxxxxxxx2", caseNo: "TC-2" },
     ]);
     const tx = (mockPrisma as unknown as { __tx: {
+      asset: { upsert: jest.Mock };
+      assetVersion: { upsert: jest.Mock };
       caseResult: { updateMany: jest.Mock };
     } }).__tx;
+    tx.asset.upsert
+      .mockResolvedValueOnce(asset)
+      .mockResolvedValueOnce({
+        ...asset,
+        id: "asset_2",
+        sourceCaseId: "clxxxxxxxxxxxxxxxxxxxxxx2",
+      });
     tx.caseResult.updateMany.mockResolvedValue({ count: 2 });
 
     const response = await batchSaveAsset(
@@ -198,6 +221,7 @@ describe("save asset APIs", () => {
     expect(response.status).toBe(200);
     expect((await response.json()).updated).toBe(2);
     expect(mockPrisma.asset.upsert).toHaveBeenCalledTimes(2);
+    expect(tx.assetVersion.upsert).toHaveBeenCalledTimes(2);
   });
 
   it("rejects missing cases during batch save", async () => {

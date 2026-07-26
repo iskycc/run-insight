@@ -11,6 +11,12 @@ import { Input } from '@/components/shared/Input';
 import { Modal } from '@/components/shared/Modal';
 import { useAuth } from '@/components/shared/AuthProvider';
 import { useToast } from '@/contexts/ToastContext';
+import {
+  dateTimeLocalToISOString,
+  formatDate,
+  formatDateTime,
+  toDateTimeLocalValue,
+} from '@/lib/date-time';
 import { ApiError, fetchJson } from '@/lib/fetch';
 import { ArrowLeft, CaretDown, DotsThree, Plus } from '@phosphor-icons/react';
 import type {
@@ -30,8 +36,68 @@ type BatchState = {
   loaded: boolean;
 };
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('zh-CN');
+type BatchMetadataForm = {
+  executedAt: string;
+  startedAt: string;
+  finishedAt: string;
+  environment: string;
+  buildVersion: string;
+  commitSha: string;
+  pipelineUrl: string;
+};
+
+function emptyBatchMetadata(): BatchMetadataForm {
+  return {
+    executedAt: toDateTimeLocalValue(),
+    startedAt: '',
+    finishedAt: '',
+    environment: '',
+    buildVersion: '',
+    commitSha: '',
+    pipelineUrl: '',
+  };
+}
+
+function serializeBatchMetadata(metadata: BatchMetadataForm): {
+  data: {
+    executedAt: string;
+    startedAt: string | null;
+    finishedAt: string | null;
+    environment: string | null;
+    buildVersion: string | null;
+    commitSha: string | null;
+    pipelineUrl: string | null;
+  } | null;
+  error: string | null;
+} {
+  if (!metadata.executedAt) {
+    return { data: null, error: '执行时间不能为空' };
+  }
+  const executedAt = dateTimeLocalToISOString(metadata.executedAt);
+  const startedAt = metadata.startedAt
+    ? dateTimeLocalToISOString(metadata.startedAt)
+    : null;
+  const finishedAt = metadata.finishedAt
+    ? dateTimeLocalToISOString(metadata.finishedAt)
+    : null;
+  if (!executedAt || (metadata.startedAt && !startedAt) || (metadata.finishedAt && !finishedAt)) {
+    return { data: null, error: '执行时间格式不正确' };
+  }
+  if (startedAt && finishedAt && Date.parse(finishedAt) < Date.parse(startedAt)) {
+    return { data: null, error: '结束时间不能早于开始时间' };
+  }
+  return {
+    data: {
+      executedAt,
+      startedAt,
+      finishedAt,
+      environment: metadata.environment.trim() || null,
+      buildVersion: metadata.buildVersion.trim() || null,
+      commitSha: metadata.commitSha.trim() || null,
+      pipelineUrl: metadata.pipelineUrl.trim() || null,
+    },
+    error: null,
+  };
 }
 
 function rate(part: number, total: number) {
@@ -60,6 +126,8 @@ export default function ProjectDetailPage() {
 
   const [batchStage, setBatchStage] = useState<TestStageWithStats | null>(null);
   const [batchName, setBatchName] = useState('');
+  const [batchMetadata, setBatchMetadata] = useState<BatchMetadataForm>(emptyBatchMetadata);
+  const [editingBatch, setEditingBatch] = useState<BatchScopeWithStats | null>(null);
   const [batchError, setBatchError] = useState('');
   const [creatingBatch, setCreatingBatch] = useState(false);
 
@@ -184,6 +252,11 @@ export default function ProjectDetailPage() {
       setBatchError('批跑名称为必填');
       return;
     }
+    const serialized = serializeBatchMetadata(batchMetadata);
+    if (!serialized.data) {
+      setBatchError(serialized.error ?? '批跑执行信息格式不正确');
+      return;
+    }
     setCreatingBatch(true);
     setBatchError('');
     try {
@@ -192,12 +265,16 @@ export default function ProjectDetailPage() {
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name }),
+          body: JSON.stringify({
+            name,
+            ...serialized.data,
+          }),
         }
       );
       const stageId = batchStage.id;
       setBatchStage(null);
       setBatchName('');
+      setBatchMetadata(emptyBatchMetadata());
       showToast({ message: '批跑创建成功', type: 'success' });
       await loadBatches(stageId, true);
       setReloadKey((value) => value + 1);
@@ -206,24 +283,53 @@ export default function ProjectDetailPage() {
     } finally {
       setCreatingBatch(false);
     }
-  }, [batchName, batchStage, loadBatches, showToast]);
+  }, [batchMetadata, batchName, batchStage, loadBatches, showToast]);
 
-  const updateArchive = useCallback(
+  const editBatch = useCallback(async () => {
+    const name = batchName.trim();
+    if (!editingBatch || !name) {
+      setBatchError('批跑名称为必填');
+      return;
+    }
+    const serialized = serializeBatchMetadata(batchMetadata);
+    if (!serialized.data) {
+      setBatchError(serialized.error ?? '批跑执行信息格式不正确');
+      return;
+    }
+    setCreatingBatch(true);
+    setBatchError('');
+    try {
+      await fetchJson(`/api/batches/${editingBatch.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          ...serialized.data,
+        }),
+      });
+      const stageId = editingBatch.testStageId;
+      setEditingBatch(null);
+      setBatchName('');
+      setBatchMetadata(emptyBatchMetadata());
+      showToast({ message: '批跑信息已更新', type: 'success' });
+      await loadBatches(stageId, true);
+    } catch (error) {
+      setBatchError(error instanceof ApiError ? error.message : '更新批跑失败');
+    } finally {
+      setCreatingBatch(false);
+    }
+  }, [batchMetadata, batchName, editingBatch, loadBatches, showToast]);
+
+  const restoreItem = useCallback(
     async (kind: 'stage' | 'batch', item: TestStageWithStats | BatchScopeWithStats) => {
       const label = kind === 'stage' ? '阶段' : '批跑';
-      if (!window.confirm(item.archived ? `确定取消归档该${label}吗？` : `确定归档该${label}吗？`)) {
-        return;
-      }
       try {
         await fetchJson(`/api/${kind === 'stage' ? 'stages' : 'batches'}/${item.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ archived: !item.archived }),
+          body: JSON.stringify({ archived: false }),
         });
-        showToast({
-          message: item.archived ? `${label}已取消归档` : `${label}已归档`,
-          type: 'success',
-        });
+        showToast({ message: `${label}已恢复`, type: 'success' });
         if (kind === 'batch') {
           await loadBatches((item as BatchScopeWithStats).testStageId, true);
         }
@@ -238,17 +344,17 @@ export default function ProjectDetailPage() {
     [loadBatches, showToast]
   );
 
-  const deleteItem = useCallback(
+  const moveToTrash = useCallback(
     async (kind: 'stage' | 'batch', item: TestStageWithStats | BatchScopeWithStats) => {
       const label = kind === 'stage' ? '阶段' : '批跑';
-      if (!window.confirm(`确定删除该${label}吗？其关联数据也会被删除，此操作不可撤销。`)) {
+      if (!window.confirm(`确定将${label}“${item.name}”移至回收站吗？之后可以恢复。`)) {
         return;
       }
       try {
         await fetchJson(`/api/${kind === 'stage' ? 'stages' : 'batches'}/${item.id}`, {
           method: 'DELETE',
         });
-        showToast({ message: `${label}已删除`, type: 'success' });
+        showToast({ message: `${label}已移至回收站`, type: 'success' });
         if (kind === 'batch') {
           await loadBatches((item as BatchScopeWithStats).testStageId, true);
         } else if (expandedStageId === item.id) {
@@ -258,6 +364,48 @@ export default function ProjectDetailPage() {
       } catch (error) {
         showToast({
           message: error instanceof ApiError ? error.message : `删除${label}失败`,
+          type: 'error',
+        });
+      }
+    },
+    [expandedStageId, loadBatches, showToast]
+  );
+
+  const permanentlyDeleteItem = useCallback(
+    async (kind: 'stage' | 'batch', item: TestStageWithStats | BatchScopeWithStats) => {
+      const label = kind === 'stage' ? '阶段' : '批跑';
+      const cascadeDescription = kind === 'stage'
+        ? '其批跑、用例及关联数据也会被级联删除'
+        : '其用例及关联数据也会被级联删除';
+      if (
+        !window.confirm(
+          `永久删除${label}“${item.name}”后无法恢复，${cascadeDescription}。确定继续吗？`
+        )
+      ) {
+        return;
+      }
+      const confirmation = window.prompt(`请输入${label}名称“${item.name}”以确认永久删除：`);
+      if (confirmation !== item.name) {
+        if (confirmation !== null) {
+          showToast({ message: '名称不匹配，已取消永久删除', type: 'error' });
+        }
+        return;
+      }
+      try {
+        await fetchJson(
+          `/api/${kind === 'stage' ? 'stages' : 'batches'}/${item.id}?permanent=true`,
+          { method: 'DELETE' }
+        );
+        showToast({ message: `${label}已永久删除`, type: 'success' });
+        if (kind === 'batch') {
+          await loadBatches((item as BatchScopeWithStats).testStageId, true);
+        } else if (expandedStageId === item.id) {
+          setExpandedStageId(null);
+        }
+        setReloadKey((value) => value + 1);
+      } catch (error) {
+        showToast({
+          message: error instanceof ApiError ? error.message : `永久删除${label}失败`,
           type: 'error',
         });
       }
@@ -287,7 +435,7 @@ export default function ProjectDetailPage() {
     return (
       <PageContainer title="项目不存在">
         <div className="panel p-10 text-center">
-          <p className="text-sm text-text-secondary">该项目不存在或已被删除</p>
+          <p className="text-sm text-text-secondary">该项目不存在或已被永久删除</p>
           <Link href="/projects" className="mt-4 inline-block text-sm text-accent">
             返回项目列表
           </Link>
@@ -347,7 +495,7 @@ export default function ProjectDetailPage() {
       <div className="space-y-6">
         {projectInactive && (
           <div className="rounded-md border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-text-primary">
-            此项目已归档。取消归档后才能继续创建阶段或批跑。
+            此项目位于回收站。请先在项目列表中恢复项目，再继续创建或管理阶段与批跑。
           </div>
         )}
 
@@ -358,7 +506,7 @@ export default function ProjectDetailPage() {
               <p className="text-4xl font-semibold tracking-tight text-text-primary">
                 {rate(project?.passCount ?? 0, project?.caseCount ?? 0)}
               </p>
-              <Badge progress="fixed">{project?.archived ? '已归档' : '运行中'}</Badge>
+              <Badge progress="fixed">{project?.archived ? '回收站' : '运行中'}</Badge>
             </div>
             <div className="mt-5 h-2 overflow-hidden rounded-full bg-border/70">
               <div
@@ -392,19 +540,34 @@ export default function ProjectDetailPage() {
                 展开阶段查看并管理其批跑范围
               </p>
             </div>
-            <label className="flex items-center gap-2 text-sm text-text-secondary">
-              <input
-                type="checkbox"
-                checked={showArchived}
-                onChange={(event) => {
-                  setShowArchived(event.target.checked);
-                  setExpandedStageId(null);
-                  setBatchStates({});
-                }}
-                className="h-4 w-4 rounded border-border text-accent focus:ring-accent"
-              />
-              显示已归档
-            </label>
+            <div
+              className="inline-flex rounded-xl border border-border bg-bg p-1"
+              role="group"
+              aria-label="阶段与批跑筛选"
+            >
+              {([
+                [false, '活跃内容'],
+                [true, '含回收站'],
+              ] as const).map(([value, label]) => (
+                <button
+                  key={label}
+                  type="button"
+                  aria-pressed={showArchived === value}
+                  onClick={() => {
+                    setShowArchived(value);
+                    setExpandedStageId(null);
+                    setBatchStates({});
+                  }}
+                  className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+                    showArchived === value
+                      ? 'bg-surface-solid text-text-primary shadow-sm'
+                      : 'text-text-secondary hover:text-text-primary'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="panel overflow-hidden">
@@ -444,7 +607,7 @@ export default function ProjectDetailPage() {
                               <span className="rounded-full bg-accent/10 px-2 py-1 text-xs font-semibold text-accent">
                                 {stage.batchCount} 个批跑
                               </span>
-                              {stage.archived && <Badge progress="blocked">已归档</Badge>}
+                              {stage.archived && <Badge progress="blocked">回收站</Badge>}
                             </span>
                             <span className="mt-1.5 block text-xs text-text-secondary">
                               {stage.caseCount} 个用例 ·
@@ -463,6 +626,7 @@ export default function ProjectDetailPage() {
                               onClick={() => {
                                 setBatchStage(stage);
                                 setBatchName('');
+                                setBatchMetadata(emptyBatchMetadata());
                                 setBatchError('');
                               }}
                             >
@@ -479,22 +643,31 @@ export default function ProjectDetailPage() {
                                 <DotsThree size={20} weight="bold" aria-hidden="true" />
                               </summary>
                               <div className="absolute right-0 top-10 z-20 w-36 overflow-hidden rounded-xl border border-border bg-surface-solid p-1.5 shadow-lg">
-                                {canEdit && (
+                                {canEdit && !stage.archived && (
                                   <button
                                     type="button"
-                                    onClick={() => void updateArchive('stage', stage)}
+                                    onClick={() => void moveToTrash('stage', stage)}
                                     className="w-full rounded-lg px-3 py-2 text-left text-sm text-text-primary hover:bg-bg"
                                   >
-                                    {stage.archived ? '取消归档' : '归档阶段'}
+                                    移至回收站
                                   </button>
                                 )}
-                                {canDelete && (
+                                {canEdit && stage.archived && (
                                   <button
                                     type="button"
-                                    onClick={() => void deleteItem('stage', stage)}
+                                    onClick={() => void restoreItem('stage', stage)}
+                                    className="w-full rounded-lg px-3 py-2 text-left text-sm text-text-primary hover:bg-bg"
+                                  >
+                                    恢复阶段
+                                  </button>
+                                )}
+                                {canDelete && stage.archived && (
+                                  <button
+                                    type="button"
+                                    onClick={() => void permanentlyDeleteItem('stage', stage)}
                                     className="w-full rounded-lg px-3 py-2 text-left text-sm text-danger hover:bg-danger/10"
                                   >
-                                    删除阶段
+                                    永久删除
                                   </button>
                                 )}
                               </div>
@@ -523,13 +696,52 @@ export default function ProjectDetailPage() {
                                   <div className="min-w-[10rem] flex-1">
                                     <div className="flex items-center gap-2">
                                       <span className="text-sm font-medium text-text-primary">{batch.name}</span>
-                                      {batch.archived && <Badge progress="blocked">已归档</Badge>}
+                                      {batch.archived && <Badge progress="blocked">回收站</Badge>}
                                     </div>
                                     <p className="mt-1 text-xs text-text-secondary">
                                       {batch.caseCount} 个用例 ·
                                       <span className="ml-1 text-success">{batch.passCount} 通过</span>
                                       <span className="ml-1 text-danger">{batch.failCount} 失败</span>
                                     </p>
+                                    <p className="mt-1 text-xs text-text-secondary">
+                                      {formatDateTime(batch.executedAt)}
+                                      {batch.environment ? ` · ${batch.environment}` : ''}
+                                      {batch.buildVersion ? ` · ${batch.buildVersion}` : ''}
+                                    </p>
+                                    {(batch.startedAt || batch.finishedAt) && (
+                                      <p className="mt-1 text-xs text-text-secondary">
+                                        {batch.startedAt
+                                          ? `开始 ${formatDateTime(batch.startedAt)}`
+                                          : '未记录开始时间'}
+                                        {' · '}
+                                        {batch.finishedAt
+                                          ? `结束 ${formatDateTime(batch.finishedAt)}`
+                                          : '进行中'}
+                                      </p>
+                                    )}
+                                    {(batch.commitSha || batch.pipelineUrl) && (
+                                      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                                        {batch.commitSha && (
+                                          <code
+                                            className="rounded-md bg-bg px-2 py-1 text-text-secondary"
+                                            title={`Commit ${batch.commitSha}`}
+                                          >
+                                            {batch.commitSha.slice(0, 12)}
+                                          </code>
+                                        )}
+                                        {batch.pipelineUrl && (
+                                          <a
+                                            href={batch.pipelineUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="font-medium text-accent hover:underline"
+                                            aria-label={`打开 ${batch.name} 的流水线链接（新窗口）`}
+                                          >
+                                            查看流水线 ↗
+                                          </a>
+                                        )}
+                                      </div>
+                                    )}
                                   </div>
                                   <Link
                                     href={`/workspace?projectId=${id}&testStageId=${stage.id}&batchScopeId=${batch.id}`}
@@ -546,22 +758,57 @@ export default function ProjectDetailPage() {
                                         <DotsThree size={20} weight="bold" aria-hidden="true" />
                                       </summary>
                                       <div className="absolute right-0 top-10 z-20 w-36 overflow-hidden rounded-xl border border-border bg-surface-solid p-1.5 shadow-lg">
-                                        {canEdit && (
+                                        {canEdit && !batch.archived && (
                                           <button
                                             type="button"
-                                            onClick={() => void updateArchive('batch', batch)}
+                                            onClick={() => {
+                                              setEditingBatch(batch);
+                                              setBatchName(batch.name);
+                                              setBatchMetadata({
+                                                executedAt: toDateTimeLocalValue(batch.executedAt),
+                                                startedAt: batch.startedAt
+                                                  ? toDateTimeLocalValue(batch.startedAt)
+                                                  : '',
+                                                finishedAt: batch.finishedAt
+                                                  ? toDateTimeLocalValue(batch.finishedAt)
+                                                  : '',
+                                                environment: batch.environment ?? '',
+                                                buildVersion: batch.buildVersion ?? '',
+                                                commitSha: batch.commitSha ?? '',
+                                                pipelineUrl: batch.pipelineUrl ?? '',
+                                              });
+                                              setBatchError('');
+                                            }}
                                             className="w-full rounded-lg px-3 py-2 text-left text-sm text-text-primary hover:bg-bg"
                                           >
-                                            {batch.archived ? '取消归档' : '归档批跑'}
+                                            编辑信息
                                           </button>
                                         )}
-                                        {canDelete && (
+                                        {canEdit && !batch.archived && (
                                           <button
                                             type="button"
-                                            onClick={() => void deleteItem('batch', batch)}
+                                            onClick={() => void moveToTrash('batch', batch)}
+                                            className="w-full rounded-lg px-3 py-2 text-left text-sm text-text-primary hover:bg-bg"
+                                          >
+                                            移至回收站
+                                          </button>
+                                        )}
+                                        {canEdit && batch.archived && (
+                                          <button
+                                            type="button"
+                                            onClick={() => void restoreItem('batch', batch)}
+                                            className="w-full rounded-lg px-3 py-2 text-left text-sm text-text-primary hover:bg-bg"
+                                          >
+                                            恢复批跑
+                                          </button>
+                                        )}
+                                        {canDelete && batch.archived && (
+                                          <button
+                                            type="button"
+                                            onClick={() => void permanentlyDeleteItem('batch', batch)}
                                             className="w-full rounded-lg px-3 py-2 text-left text-sm text-danger hover:bg-danger/10"
                                           >
-                                            删除批跑
+                                            永久删除
                                           </button>
                                         )}
                                       </div>
@@ -618,6 +865,7 @@ export default function ProjectDetailPage() {
         onClose={() => {
           setBatchStage(null);
           setBatchName('');
+          setBatchMetadata(emptyBatchMetadata());
           setBatchError('');
         }}
         title={`新建批跑${batchStage ? ` · ${batchStage.name}` : ''}`}
@@ -632,16 +880,143 @@ export default function ProjectDetailPage() {
           </>
         }
       >
-        <Input
-          label="批跑名称"
-          value={batchName}
-          onChange={(event) => setBatchName(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') void createBatch();
-          }}
-          error={batchError}
-          placeholder="例如：2026-07-25 回归"
-        />
+        <div className="space-y-4">
+          <Input
+            label="批跑名称"
+            value={batchName}
+            onChange={(event) => setBatchName(event.target.value)}
+            error={batchError}
+            placeholder="例如：2026-07-25 回归"
+          />
+          <Input
+            label="执行时间"
+            type="datetime-local"
+            required
+            value={batchMetadata.executedAt}
+            onChange={(event) => setBatchMetadata((value) => ({ ...value, executedAt: event.target.value }))}
+          />
+          <p className="-mt-2 text-xs text-text-secondary">
+            按当前设备时区填写，保存后统一转换为标准时间。
+          </p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Input
+              label="开始时间（可选）"
+              type="datetime-local"
+              value={batchMetadata.startedAt}
+              onChange={(event) => setBatchMetadata((value) => ({ ...value, startedAt: event.target.value }))}
+            />
+            <Input
+              label="结束时间（可选）"
+              type="datetime-local"
+              value={batchMetadata.finishedAt}
+              onChange={(event) => setBatchMetadata((value) => ({ ...value, finishedAt: event.target.value }))}
+            />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Input
+              label="执行环境（可选）"
+              value={batchMetadata.environment}
+              onChange={(event) => setBatchMetadata((value) => ({ ...value, environment: event.target.value }))}
+              placeholder="例如：SIT"
+            />
+            <Input
+              label="构建版本（可选）"
+              value={batchMetadata.buildVersion}
+              onChange={(event) => setBatchMetadata((value) => ({ ...value, buildVersion: event.target.value }))}
+              placeholder="例如：v2.3.1"
+            />
+          </div>
+          <Input
+            label="Commit SHA（可选）"
+            value={batchMetadata.commitSha}
+            onChange={(event) => setBatchMetadata((value) => ({ ...value, commitSha: event.target.value }))}
+            placeholder="例如：a1b2c3d"
+          />
+          <Input
+            label="流水线链接（可选）"
+            type="url"
+            value={batchMetadata.pipelineUrl}
+            onChange={(event) => setBatchMetadata((value) => ({ ...value, pipelineUrl: event.target.value }))}
+            placeholder="https://ci.example.com/pipelines/123"
+          />
+        </div>
+      </Modal>
+
+      <Modal
+        open={!!editingBatch}
+        onClose={() => {
+          setEditingBatch(null);
+          setBatchName('');
+          setBatchMetadata(emptyBatchMetadata());
+          setBatchError('');
+        }}
+        title="编辑批跑信息"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setEditingBatch(null)}>
+              取消
+            </Button>
+            <Button onClick={editBatch} disabled={creatingBatch}>
+              {creatingBatch ? '保存中...' : '保存修改'}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <Input
+            label="批跑名称"
+            value={batchName}
+            onChange={(event) => setBatchName(event.target.value)}
+            error={batchError}
+          />
+          <Input
+            label="执行时间"
+            type="datetime-local"
+            required
+            value={batchMetadata.executedAt}
+            onChange={(event) => setBatchMetadata((value) => ({ ...value, executedAt: event.target.value }))}
+          />
+          <p className="-mt-2 text-xs text-text-secondary">
+            按当前设备时区填写，保存后统一转换为标准时间。
+          </p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Input
+              label="开始时间（可选）"
+              type="datetime-local"
+              value={batchMetadata.startedAt}
+              onChange={(event) => setBatchMetadata((value) => ({ ...value, startedAt: event.target.value }))}
+            />
+            <Input
+              label="结束时间（可选）"
+              type="datetime-local"
+              value={batchMetadata.finishedAt}
+              onChange={(event) => setBatchMetadata((value) => ({ ...value, finishedAt: event.target.value }))}
+            />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Input
+              label="执行环境（可选）"
+              value={batchMetadata.environment}
+              onChange={(event) => setBatchMetadata((value) => ({ ...value, environment: event.target.value }))}
+            />
+            <Input
+              label="构建版本（可选）"
+              value={batchMetadata.buildVersion}
+              onChange={(event) => setBatchMetadata((value) => ({ ...value, buildVersion: event.target.value }))}
+            />
+          </div>
+          <Input
+            label="Commit SHA（可选）"
+            value={batchMetadata.commitSha}
+            onChange={(event) => setBatchMetadata((value) => ({ ...value, commitSha: event.target.value }))}
+          />
+          <Input
+            label="流水线链接（可选）"
+            type="url"
+            value={batchMetadata.pipelineUrl}
+            onChange={(event) => setBatchMetadata((value) => ({ ...value, pipelineUrl: event.target.value }))}
+          />
+        </div>
       </Modal>
     </PageContainer>
   );

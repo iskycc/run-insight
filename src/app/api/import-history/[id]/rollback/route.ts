@@ -5,6 +5,7 @@ import { authenticateRequest } from "@/lib/auth";
 import { internalError, jsonError } from "@/lib/api-helpers";
 import { getProjectAccess } from "@/lib/project-access";
 import { prisma } from "@/lib/prisma";
+import { writeAuditLog } from "@/lib/audit";
 
 class RollbackConflictError extends Error {}
 
@@ -50,7 +51,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const authResult = authenticateRequest(request);
+  const authResult = await authenticateRequest(request);
   if (authResult instanceof NextResponse) return authResult;
 
   try {
@@ -175,19 +176,17 @@ export async function POST(
         restored += 1;
       }
 
-      await tx.auditLog.create({
-        data: {
-          userId: authResult.userId,
-          action: "ROLLBACK",
-          entityType: "import",
-          entityId: id,
-          changes: {
-            projectId: record.projectId,
-            deleted,
-            restored,
-          } as Prisma.InputJsonValue,
+      await writeAuditLog({
+        userId: authResult.userId,
+        action: "ROLLBACK",
+        entityType: "import",
+        entityId: id,
+        changes: {
+          projectId: record.projectId,
+          deleted,
+          restored,
         },
-      });
+      }, tx);
 
       return { deleted, restored };
     }, { timeout: 60_000 });
@@ -212,6 +211,11 @@ export async function POST(
         409
       );
     }
-    return internalError("回滚导入失败");
+    return internalError("回滚导入失败", {
+      request,
+      error,
+      event: "import.rollback_failed",
+      context: { userId: authResult.userId },
+    });
   }
 }

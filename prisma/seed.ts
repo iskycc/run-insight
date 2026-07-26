@@ -2,7 +2,35 @@ import { PrismaClient } from "../src/generated/prisma/client.js";
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import bcrypt from "bcryptjs";
 
-const url = new URL(process.env.DATABASE_URL || "mysql://root:root123@127.0.0.1:3306/run_insight");
+const isProduction = process.env.NODE_ENV === "production";
+const allowProductionSeed = process.env.RUN_INSIGHT_ALLOW_PRODUCTION_SEED === "true";
+
+if (isProduction && !allowProductionSeed) {
+  throw new Error(
+    "拒绝在生产环境写入并清空演示数据。如确需执行，请显式设置 RUN_INSIGHT_ALLOW_PRODUCTION_SEED=true。",
+  );
+}
+
+const adminPassword = process.env.SEED_ADMIN_PASSWORD
+  ?? (isProduction ? "" : "admin123");
+const viewerPassword = process.env.SEED_VIEWER_PASSWORD
+  ?? (isProduction ? "" : "viewer123");
+
+if (
+  !adminPassword
+  || !viewerPassword
+  || (isProduction && (adminPassword.length < 12 || viewerPassword.length < 12))
+) {
+  throw new Error("种子账号密码不能为空；生产环境必须通过环境变量提供至少 12 位密码。");
+}
+
+const databaseUrl = process.env.DATABASE_URL
+  ?? (isProduction ? "" : "mysql://root:root123@127.0.0.1:3306/run_insight");
+if (!databaseUrl) {
+  throw new Error("DATABASE_URL 环境变量不能为空。");
+}
+
+const url = new URL(databaseUrl);
 const adapter = new PrismaMariaDb({
   host: url.hostname || "127.0.0.1",
   port: Number(url.port) || 3306,
@@ -24,6 +52,13 @@ const PROJECTS = [
   { name: "交易引擎", stages: ["SIT-1", "UAT-1"], batches: [["Batch-20260705", "Batch-20260710"], ["Batch-20260718", "Batch-20260725"]] },
   { name: "风控平台", stages: ["SIT-1", "SIT-2"], batches: [["Batch-20260708", "Batch-20260712"], ["Batch-20260722", "Batch-20260803"]] },
 ] as const;
+
+function batchExecutedAt(batchName: string): Date {
+  const match = batchName.match(/(20\d{2})(0[1-9]|1[0-2])([0-2]\d|3[01])/);
+  if (!match) return new Date();
+  const [, year, month, day] = match;
+  return new Date(`${year}-${month}-${day}T09:00:00+08:00`);
+}
 
 // ── Case templates per project ──────────────────────────────────────
 interface CaseTpl {
@@ -101,21 +136,56 @@ async function main() {
   console.log("🌱 Seeding enriched data ...\n");
 
   // ── 1. Users ──────────────────────────────────────────────────
-  const hashedPassword = await bcrypt.hash("admin123", 10);
+  const hashedPassword = await bcrypt.hash(adminPassword, 10);
   const admin = await prisma.user.upsert({
     where: { username: "admin" },
-    update: { role: "ADMIN" },
+    update: { role: "ADMIN", password: hashedPassword },
     create: { username: "admin", password: hashedPassword, role: "ADMIN" },
   });
   console.log(`✅ User: ${admin.username} (ADMIN)`);
 
-  const viewerHashed = await bcrypt.hash("viewer123", 10);
+  const viewerHashed = await bcrypt.hash(viewerPassword, 10);
   const viewer = await prisma.user.upsert({
     where: { username: "viewer" },
-    update: { role: "VIEWER" },
+    update: { role: "VIEWER", password: viewerHashed },
     create: { username: "viewer", password: viewerHashed, role: "VIEWER" },
   });
   console.log(`✅ User: ${viewer.username} (VIEWER)`);
+
+  const organization = await prisma.organization.upsert({
+    where: { id: "legacy-default-organization" },
+    update: { name: "默认组织", archived: false },
+    create: { id: "legacy-default-organization", name: "默认组织" },
+  });
+  await prisma.organizationMember.upsert({
+    where: {
+      organizationId_userId: {
+        organizationId: organization.id,
+        userId: admin.id,
+      },
+    },
+    update: { role: "OWNER" },
+    create: {
+      organizationId: organization.id,
+      userId: admin.id,
+      role: "OWNER",
+    },
+  });
+  await prisma.organizationMember.upsert({
+    where: {
+      organizationId_userId: {
+        organizationId: organization.id,
+        userId: viewer.id,
+      },
+    },
+    update: { role: "MEMBER" },
+    create: {
+      organizationId: organization.id,
+      userId: viewer.id,
+      role: "MEMBER",
+    },
+  });
+  console.log(`✅ Organization: ${organization.name} (admin OWNER)`);
 
   // ── 2. Projects → Stages → Batches → Cases ──────────────────────
   // Use deleteMany in reverse dependency order to allow re-seeding
@@ -131,6 +201,7 @@ async function main() {
     const projDef = PROJECTS[pi];
     const project = await prisma.project.create({
       data: {
+        organizationId: organization.id,
         name: projDef.name,
         members: {
           create: [
@@ -152,7 +223,14 @@ async function main() {
       for (let bi = 0; bi < projDef.batches[si].length; bi++) {
         const batchName = projDef.batches[si][bi];
         const batch = await prisma.batchScope.create({
-          data: { name: batchName, projectId: project.id, testStageId: stage.id },
+          data: {
+            name: batchName,
+            projectId: project.id,
+            testStageId: stage.id,
+            executedAt: batchExecutedAt(batchName),
+            environment: stageName.startsWith("UAT") ? "UAT" : "SIT",
+            buildVersion: `demo-${pi + 1}.${si + 1}.${bi + 1}`,
+          },
         });
         console.log(`  │   ├── Batch: ${batch.name}`);
 

@@ -6,16 +6,21 @@ import { Button } from '@/components/shared/Button';
 import { Input } from '@/components/shared/Input';
 import { Modal } from '@/components/shared/Modal';
 import { Select } from '@/components/shared/Select';
+import { formatDateTime } from '@/lib/date-time';
 import { ApiError, fetchJson } from '@/lib/fetch';
 import type {
   AssetDTO,
   AssetStatus,
+  AssetVersionDetailResponse,
+  AssetVersionDTO,
+  AssetVersionsResponse,
   RootCauseCategoriesResponse,
   RootCauseCategoryDTO,
 } from '@/types';
 
 const STATUS_LABELS: Record<AssetStatus, string> = {
   DRAFT: '草稿',
+  REVIEW: '待审核',
   PUBLISHED: '已发布',
   ARCHIVED: '已归档',
 };
@@ -39,12 +44,41 @@ export function AssetDetail({ asset, onClose, onUpdated }: Props) {
   const [categories, setCategories] = useState<RootCauseCategoryDTO[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [versions, setVersions] = useState<AssetVersionDTO[]>([]);
+  const [versionDetail, setVersionDetail] =
+    useState<AssetVersionDetailResponse | null>(null);
+  const [versionsLoading, setVersionsLoading] = useState(false);
 
   useEffect(() => {
     void fetchJson<RootCauseCategoriesResponse>(
       `/api/root-cause-categories?projectId=${encodeURIComponent(asset.projectId)}`
     ).then((data) => setCategories(data.categories)).catch(() => undefined);
   }, [asset.projectId]);
+
+  useEffect(() => {
+    if (!asset.canEdit) return;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => {
+      setVersionsLoading(true);
+      void fetchJson<AssetVersionsResponse>(
+        `/api/assets/${asset.id}/versions`,
+        { signal: controller.signal, cache: 'no-store' },
+      )
+        .then((data) => {
+          if (!controller.signal.aborted) setVersions(data.versions);
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setError('加载版本历史失败');
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setVersionsLoading(false);
+        });
+    }, 0);
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [asset.canEdit, asset.id, asset.version]);
 
   const update = async (body: Record<string, unknown>) => {
     const data = await fetchJson<{ asset: AssetDTO }>(`/api/assets/${asset.id}`, {
@@ -76,10 +110,46 @@ export function AssetDetail({ asset, onClose, onUpdated }: Props) {
   };
 
   const setStatus = async (status: AssetStatus) => {
+    setSaving(true);
+    setError('');
     try {
       await update({ status });
     } catch (caught) {
       setError(caught instanceof ApiError ? caught.message : '更新资产状态失败');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const showVersion = async (version: number) => {
+    setError('');
+    try {
+      const detail = await fetchJson<AssetVersionDetailResponse>(
+        `/api/assets/${asset.id}/versions/${version}`,
+      );
+      setVersionDetail(detail);
+    } catch (caught) {
+      setError(caught instanceof ApiError ? caught.message : '加载版本详情失败');
+    }
+  };
+
+  const rollback = async (version: number) => {
+    if (!window.confirm(`确定将 v${version} 的内容恢复为一个新草稿版本吗？`)) {
+      return;
+    }
+    setSaving(true);
+    setError('');
+    try {
+      const data = await fetchJson<{ asset: AssetDTO }>(
+        `/api/assets/${asset.id}/versions/${version}/rollback`,
+        { method: 'POST' },
+      );
+      setVersionDetail(null);
+      onUpdated(data.asset);
+    } catch (caught) {
+      setError(caught instanceof ApiError ? caught.message : '回滚版本失败');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -105,23 +175,55 @@ export function AssetDetail({ asset, onClose, onUpdated }: Props) {
           <p className="mt-1 text-xs text-text-secondary">{asset.project.name}</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="secondary" onClick={() => void markReused()}>
-            标记已复用
-          </Button>
-          {asset.canEdit && (
+          {asset.status !== 'ARCHIVED' && (
+            <Button size="sm" variant="secondary" onClick={() => void markReused()}>
+              标记已复用
+            </Button>
+          )}
+          {asset.canEdit && asset.status === 'DRAFT' && (
             <>
               <Button size="sm" variant="secondary" onClick={() => setEditOpen(true)}>
                 编辑
               </Button>
-              {asset.status !== 'PUBLISHED' && (
-                <Button size="sm" onClick={() => void setStatus('PUBLISHED')}>发布</Button>
-              )}
-              {asset.status !== 'ARCHIVED' && (
-                <Button size="sm" variant="secondary" onClick={() => void setStatus('ARCHIVED')}>
-                  归档
-                </Button>
-              )}
+              <Button size="sm" onClick={() => void setStatus('REVIEW')} disabled={saving}>
+                提交审核
+              </Button>
             </>
+          )}
+          {asset.canReview && asset.status === 'REVIEW' && (
+            <>
+              <Button size="sm" onClick={() => void setStatus('PUBLISHED')} disabled={saving}>
+                发布
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => void setStatus('DRAFT')}
+                disabled={saving}
+              >
+                驳回
+              </Button>
+            </>
+          )}
+          {asset.canReview && asset.status !== 'ARCHIVED' && (
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => void setStatus('ARCHIVED')}
+              disabled={saving}
+            >
+              归档
+            </Button>
+          )}
+          {asset.canReview && asset.status === 'ARCHIVED' && (
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => void setStatus('DRAFT')}
+              disabled={saving}
+            >
+              恢复为草稿
+            </Button>
           )}
           <Button size="sm" variant="secondary" onClick={onClose}>关闭</Button>
         </div>
@@ -163,8 +265,101 @@ export function AssetDetail({ asset, onClose, onUpdated }: Props) {
         )}
         <span>浏览 {asset.viewCount}</span>
         <span>复用 {asset.reuseCount}</span>
-        <span>更新于 {new Date(asset.updatedAt).toLocaleString('zh-CN')}</span>
+        <span>更新于 {formatDateTime(asset.updatedAt)}</span>
       </div>
+
+      {asset.canEdit && (
+        <section className="border-t border-border pt-5" aria-label="版本历史">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <h3 className="text-sm font-semibold text-text-primary">版本历史</h3>
+              <p className="mt-1 text-xs text-text-secondary">
+                每次编辑、审核流转和回滚都会生成不可变快照。
+              </p>
+            </div>
+          </div>
+          {versionsLoading ? (
+            <p className="py-4 text-sm text-text-secondary">加载版本中...</p>
+          ) : (
+            <div className="mt-3 grid gap-3 lg:grid-cols-[260px_minmax(0,1fr)]">
+              <div className="max-h-72 space-y-2 overflow-y-auto">
+                {versions.map((version) => (
+                  <button
+                    type="button"
+                    key={version.id}
+                    onClick={() => void showVersion(version.version)}
+                    className="w-full rounded-xl border border-border px-3 py-2 text-left transition-colors hover:bg-bg"
+                  >
+                    <span className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium text-text-primary">
+                        v{version.version}
+                      </span>
+                      <span className="text-xs text-text-secondary">
+                        {STATUS_LABELS[version.status]}
+                      </span>
+                    </span>
+                    <span className="mt-1 block text-xs text-text-secondary">
+                      {version.author?.username ?? '已删除用户'}
+                      {' · '}
+                      {formatDateTime(version.createdAt)}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <div className="rounded-xl border border-border p-4">
+                {!versionDetail ? (
+                  <p className="text-sm text-text-secondary">
+                    选择一个版本查看与前一版本的差异摘要。
+                  </p>
+                ) : (
+                  <div>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h4 className="text-sm font-semibold text-text-primary">
+                        v{versionDetail.version.version}
+                        {versionDetail.compareTo
+                          ? ` 对比 v${versionDetail.compareTo.version}`
+                          : ' · 基线版本'}
+                      </h4>
+                      {versionDetail.canRollback
+                        && versionDetail.version.version !== asset.version && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            disabled={saving}
+                            onClick={() =>
+                              void rollback(versionDetail.version.version)
+                            }
+                          >
+                            恢复此版本
+                          </Button>
+                        )}
+                    </div>
+                    {versionDetail.changes.length === 0 ? (
+                      <p className="mt-3 text-sm text-text-secondary">
+                        这是基线版本，或与对比版本无差异。
+                      </p>
+                    ) : (
+                      <ul className="mt-3 space-y-2">
+                        {versionDetail.changes.map((change) => (
+                          <li
+                            key={change.field}
+                            className="rounded-lg bg-bg px-3 py-2 text-xs text-text-secondary"
+                          >
+                            <span className="font-medium text-text-primary">
+                              {change.label}
+                            </span>
+                            {' 已变更'}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </section>
+      )}
 
       <Modal
         open={editOpen}

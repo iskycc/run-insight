@@ -19,6 +19,12 @@ enum ProjectRole {
   VIEWER
 }
 
+enum OrganizationRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
 enum CasePriority {
   HIGH
   MEDIUM
@@ -33,6 +39,7 @@ enum CaseActivityType {
 
 enum AssetStatus {
   DRAFT
+  REVIEW
   PUBLISHED
   ARCHIVED
 }
@@ -42,67 +49,182 @@ enum ImportChangeType {
   UPDATED
 }
 
+enum ImportJobStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
+enum SavedViewScope {
+  PERSONAL
+  PROJECT
+}
+
+enum ImportMappingTemplateScope {
+  PERSONAL
+  PROJECT
+}
+
+enum NotificationType {
+  ASSIGNMENT
+  MENTION
+  WATCHED_COMMENT
+  WATCHED_UPDATE
+  DUE_SOON
+  OVERDUE
+}
+
+enum ScheduledReportType {
+  QUALITY_GATE
+  ASSIGNEE
+  TREND
+}
+
+enum ReportCadence {
+  DAILY
+  WEEKLY
+}
+
+enum WebhookEvent {
+  IMPORT_COMPLETED
+  IMPORT_FAILED
+  QUALITY_GATE_FAILED
+  REPORT_GENERATED
+}
+
+enum WebhookDeliveryStatus {
+  PENDING
+  PROCESSING
+  SUCCEEDED
+  FAILED
+}
+
 model User {
-  id                 String          @id @default(cuid())
-  username           String          @unique
-  password           String
-  role               Role            @default(EDITOR)
-  createdAt          DateTime        @default(now())
-  updatedAt          DateTime        @updatedAt
-  importRecords      ImportRecord[]
-  auditLogs          AuditLog[]
-  apiKeys            ApiKey[]        @relation("UserToApiKey")
-  caseUpdates        CaseResult[]    @relation("CaseUpdater")
-  caseAssignments    CaseResult[]    @relation("CaseAssignee")
-  projectMemberships ProjectMember[]
-  caseActivities     CaseActivity[]
-  assetsCreated      Asset[]         @relation("AssetCreator")
-  assetsUpdated      Asset[]         @relation("AssetUpdater")
+  id                      String                  @id @default(cuid())
+  username                String                  @unique
+  password                String
+  role                    Role                    @default(EDITOR)
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime                @updatedAt
+  importRecords           ImportRecord[]
+  auditLogs               AuditLog[]
+  apiKeys                 ApiKey[]                @relation("UserToApiKey")
+  caseUpdates             CaseResult[]            @relation("CaseUpdater")
+  caseAssignments         CaseResult[]            @relation("CaseAssignee")
+  projectMemberships      ProjectMember[]
+  caseActivities          CaseActivity[]
+  assetsCreated           Asset[]                 @relation("AssetCreator")
+  assetsUpdated           Asset[]                 @relation("AssetUpdater")
+  assetVersions           AssetVersion[]          @relation("AssetVersionAuthor")
+  savedViews              SavedView[]
+  mappingTemplates        ImportMappingTemplate[]
+  sessions                Session[]
+  notifications           Notification[]          @relation("NotificationRecipient")
+  notificationEvents      Notification[]          @relation("NotificationActor")
+  caseWatchers            CaseWatcher[]
+  notificationPreference  NotificationPreference?
+  importJobs              ImportJob[]
+  scheduledReports        ScheduledReport[]
+  reportNotifications     ReportNotification[]
+  organizationMemberships OrganizationMember[]
+}
+
+model Organization {
+  id        String               @id @default(cuid())
+  name      String               @unique @db.VarChar(100)
+  archived  Boolean              @default(false)
+  members   OrganizationMember[]
+  projects  Project[]
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  @@index([archived, createdAt])
+}
+
+model OrganizationMember {
+  id             String           @id @default(cuid())
+  organizationId String
+  userId         String
+  role           OrganizationRole @default(MEMBER)
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@unique([organizationId, userId])
+  @@index([userId, createdAt])
 }
 
 model Project {
-  id                  String              @id @default(cuid())
-  name                String              @unique
-  archived            Boolean             @default(false)
-  createdAt           DateTime            @default(now())
-  updatedAt           DateTime            @updatedAt
-  stages              TestStage[]         @relation("ProjectToTestStage")
-  cases               CaseResult[]        @relation("ProjectToCaseResult")
-  batches             BatchScope[]        @relation("ProjectToBatchScope")
-  importRecords       ImportRecord[]      @relation("ProjectToImportRecord")
-  apiKeys             ApiKey[]            @relation("ProjectToApiKey")
+  id                  String                  @id @default(cuid())
+  organizationId      String
+  name                String
+  archived            Boolean                 @default(false)
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+  stages              TestStage[]             @relation("ProjectToTestStage")
+  cases               CaseResult[]            @relation("ProjectToCaseResult")
+  batches             BatchScope[]            @relation("ProjectToBatchScope")
+  importRecords       ImportRecord[]          @relation("ProjectToImportRecord")
+  apiKeys             ApiKey[]                @relation("ProjectToApiKey")
   members             ProjectMember[]
   rootCauseCategories RootCauseCategory[]
   assets              Asset[]
+  savedViews          SavedView[]
+  mappingTemplates    ImportMappingTemplate[]
+  notifications       Notification[]
+  importJobs          ImportJob[]
+  scheduledReports    ScheduledReport[]
+  reportSnapshots     ReportSnapshot[]
+  reportNotifications ReportNotification[]
+  webhookEndpoints    WebhookEndpoint[]
+  webhookDeliveries   WebhookDelivery[]
+  organization        Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, name])
+  @@index([organizationId, archived, createdAt])
 }
 
 model TestStage {
-  id        String       @id @default(cuid())
-  projectId String
-  name      String
-  archived  Boolean      @default(false)
-  project   Project      @relation("ProjectToTestStage", fields: [projectId], references: [id], onDelete: Cascade)
-  batches   BatchScope[] @relation("TestStageToBatchScope")
-  cases     CaseResult[] @relation("TestStageToCaseResult")
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  id         String       @id @default(cuid())
+  projectId  String
+  name       String
+  archived   Boolean      @default(false)
+  project    Project      @relation("ProjectToTestStage", fields: [projectId], references: [id], onDelete: Cascade)
+  batches    BatchScope[] @relation("TestStageToBatchScope")
+  cases      CaseResult[] @relation("TestStageToCaseResult")
+  importJobs ImportJob[]
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
 
   @@unique([projectId, name])
 }
 
 model BatchScope {
-  id          String       @id @default(cuid())
-  projectId   String
-  testStageId String
-  name        String
-  archived    Boolean      @default(false)
-  project     Project      @relation("ProjectToBatchScope", fields: [projectId], references: [id], onDelete: Cascade)
-  stage       TestStage    @relation("TestStageToBatchScope", fields: [testStageId], references: [id], onDelete: Cascade)
-  cases       CaseResult[] @relation("BatchScopeToCaseResult")
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id           String       @id @default(cuid())
+  projectId    String
+  testStageId  String
+  name         String
+  archived     Boolean      @default(false)
+  executedAt   DateTime     @default(now())
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  environment  String?      @db.VarChar(100)
+  buildVersion String?      @db.VarChar(191)
+  commitSha    String?      @db.VarChar(64)
+  pipelineUrl  String?      @db.VarChar(500)
+  project      Project      @relation("ProjectToBatchScope", fields: [projectId], references: [id], onDelete: Cascade)
+  stage        TestStage    @relation("TestStageToBatchScope", fields: [testStageId], references: [id], onDelete: Cascade)
+  cases        CaseResult[] @relation("BatchScopeToCaseResult")
+  importJobs   ImportJob[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
   @@unique([projectId, testStageId, name])
+  @@index([projectId, executedAt])
+  @@index([testStageId, executedAt])
 }
 
 model CaseResult {
@@ -132,6 +254,8 @@ model CaseResult {
   assigneeUser        User?              @relation("CaseAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
   rootCauseCategory   RootCauseCategory? @relation(fields: [rootCauseCategoryId], references: [id], onDelete: SetNull)
   activities          CaseActivity[]
+  watchers            CaseWatcher[]
+  notifications       Notification[]
   asset               Asset?
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
@@ -168,7 +292,7 @@ model Asset {
   sourceCaseId        String?            @unique
   projectId           String
   rootCauseCategoryId String?
-  title               String
+  title               String             @db.VarChar(200)
   summary             String             @db.Text
   solution            String             @db.Text
   rootCauseText       String?            @db.Text
@@ -184,6 +308,7 @@ model Asset {
   rootCauseCategory   RootCauseCategory? @relation(fields: [rootCauseCategoryId], references: [id], onDelete: SetNull)
   creator             User?              @relation("AssetCreator", fields: [createdBy], references: [id], onDelete: SetNull)
   updater             User?              @relation("AssetUpdater", fields: [updatedBy], references: [id], onDelete: SetNull)
+  versions            AssetVersion[]
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
 
@@ -191,6 +316,72 @@ model Asset {
   @@index([rootCauseCategoryId])
   @@index([createdBy])
   @@index([updatedBy])
+}
+
+model AssetVersion {
+  id            String      @id @default(cuid())
+  assetId       String
+  version       Int
+  title         String      @db.VarChar(200)
+  summary       String      @db.Text
+  solution      String      @db.Text
+  rootCauseText String?     @db.Text
+  tags          Json
+  status        AssetStatus
+  changedBy     String?
+  asset         Asset       @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  author        User?       @relation("AssetVersionAuthor", fields: [changedBy], references: [id], onDelete: SetNull)
+  createdAt     DateTime    @default(now())
+
+  @@unique([assetId, version])
+  @@index([assetId, createdAt])
+  @@index([changedBy])
+}
+
+model Notification {
+  id           String           @id @default(cuid())
+  userId       String
+  actorId      String?
+  projectId    String
+  caseResultId String
+  type         NotificationType
+  dedupeKey    String?          @unique @db.VarChar(191)
+  readAt       DateTime?
+  recipient    User             @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  actor        User?            @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+  project      Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  caseResult   CaseResult       @relation(fields: [caseResultId], references: [id], onDelete: Cascade)
+  createdAt    DateTime         @default(now())
+
+  @@index([userId, readAt, createdAt])
+  @@index([projectId, createdAt])
+  @@index([caseResultId, createdAt])
+  @@index([actorId])
+}
+
+model CaseWatcher {
+  id           String     @id @default(cuid())
+  userId       String
+  caseResultId String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  caseResult   CaseResult @relation(fields: [caseResultId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@unique([userId, caseResultId])
+  @@index([caseResultId, createdAt])
+}
+
+model NotificationPreference {
+  userId            String   @id
+  assignmentEnabled Boolean  @default(true)
+  mentionEnabled    Boolean  @default(true)
+  watchedEnabled    Boolean  @default(true)
+  dueSoonEnabled    Boolean  @default(true)
+  overdueEnabled    Boolean  @default(true)
+  dueSoonHours      Int      @default(48)
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }
 
 model ProjectMember {
@@ -238,9 +429,49 @@ model ImportRecord {
   project       Project        @relation("ProjectToImportRecord", fields: [projectId], references: [id], onDelete: Cascade)
   user          User           @relation(fields: [userId], references: [id])
   changes       ImportChange[]
+  job           ImportJob?
   createdAt     DateTime       @default(now())
 
   @@index([projectId])
+}
+
+model ImportJob {
+  id              String          @id @default(cuid())
+  ownerId         String
+  projectId       String
+  testStageId     String
+  batchScopeId    String
+  importRecordId  String?         @unique
+  importType      String          @db.VarChar(32)
+  fileName        String          @db.VarChar(191)
+  requestId       String          @unique @db.VarChar(64)
+  status          ImportJobStatus @default(PENDING)
+  progress        Int             @default(0)
+  totalRows       Int
+  processedRows   Int             @default(0)
+  errorCount      Int             @default(0)
+  errorSummary    String?         @db.Text
+  errorDetails    Json?
+  payload         Json
+  attempts        Int             @default(0)
+  claimToken      String?         @unique @db.VarChar(64)
+  claimedAt       DateTime?
+  heartbeatAt     DateTime?
+  cancelRequested Boolean         @default(false)
+  startedAt       DateTime?
+  finishedAt      DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  owner           User            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  project         Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  stage           TestStage       @relation(fields: [testStageId], references: [id], onDelete: Cascade)
+  batchScope      BatchScope      @relation(fields: [batchScopeId], references: [id], onDelete: Cascade)
+  importRecord    ImportRecord?   @relation(fields: [importRecordId], references: [id], onDelete: SetNull)
+
+  @@index([ownerId, createdAt])
+  @@index([projectId, createdAt])
+  @@index([status, createdAt])
+  @@index([status, heartbeatAt])
 }
 
 model ImportChange {
@@ -272,14 +503,183 @@ model AuditLog {
 }
 
 model ApiKey {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   projectId   String
   userId      String?
-  keyHash     String
+  keyHash     String    @unique
+  prefix      String    @db.VarChar(16)
   description String
-  createdAt   DateTime @default(now())
-  project     Project  @relation("ProjectToApiKey", fields: [projectId], references: [id], onDelete: Cascade)
-  user        User?    @relation("UserToApiKey", fields: [userId], references: [id], onDelete: Cascade)
+  scopes      Json
+  expiresAt   DateTime?
+  revokedAt   DateTime?
+  lastUsedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  project     Project   @relation("ProjectToApiKey", fields: [projectId], references: [id], onDelete: Cascade)
+  user        User?     @relation("UserToApiKey", fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([keyHash])
+  @@index([projectId, revokedAt, createdAt])
+}
+
+model Session {
+  id         String    @id @default(cuid())
+  userId     String
+  deviceInfo String    @db.VarChar(100)
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  lastSeenAt DateTime  @default(now())
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt, expiresAt])
+  @@index([expiresAt])
+}
+
+model SavedView {
+  id        String         @id @default(cuid())
+  ownerId   String
+  projectId String?
+  name      String         @db.VarChar(100)
+  filters   Json
+  scope     SavedViewScope @default(PERSONAL)
+  isDefault Boolean        @default(false)
+  owner     User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  project   Project?       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@index([ownerId, scope, updatedAt])
+  @@index([projectId, scope, updatedAt])
+  @@index([ownerId, isDefault])
+}
+
+model ImportMappingTemplate {
+  id         String                     @id @default(cuid())
+  ownerId    String
+  projectId  String?
+  name       String                     @db.VarChar(100)
+  importType String                     @db.VarChar(32)
+  mapping    Json
+  scope      ImportMappingTemplateScope @default(PERSONAL)
+  owner      User                       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  project    Project?                   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt  DateTime                   @default(now())
+  updatedAt  DateTime                   @updatedAt
+
+  @@index([ownerId, importType, scope, updatedAt])
+  @@index([projectId, importType, scope, updatedAt])
+}
+
+model ScheduledReport {
+  id               String              @id @default(cuid())
+  ownerId          String
+  projectId        String
+  name             String              @db.VarChar(100)
+  type             ScheduledReportType
+  config           Json
+  cadence          ReportCadence
+  timezone         String              @db.VarChar(100)
+  runHour          Int                 @default(9)
+  runMinute        Int                 @default(0)
+  weekDay          Int                 @default(1)
+  nextRunAt        DateTime
+  lastRunAt        DateTime?
+  active           Boolean             @default(true)
+  claimToken       String?             @unique @db.VarChar(64)
+  claimedAt        DateTime?
+  lastError        String?             @db.Text
+  consecutiveFails Int                 @default(0)
+  owner            User                @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  project          Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  snapshots        ReportSnapshot[]
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@index([ownerId, updatedAt])
+  @@index([projectId, updatedAt])
+  @@index([active, nextRunAt])
+  @@index([claimToken, claimedAt])
+}
+
+model ReportSnapshot {
+  id                String              @id @default(cuid())
+  scheduledReportId String
+  projectId         String
+  reportName        String              @db.VarChar(100)
+  reportType        ScheduledReportType
+  periodKey         String              @db.VarChar(100)
+  summary           Json
+  generatedAt       DateTime            @default(now())
+  scheduledReport   ScheduledReport     @relation(fields: [scheduledReportId], references: [id], onDelete: Cascade)
+  project           Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  notification      ReportNotification?
+
+  @@unique([scheduledReportId, periodKey])
+  @@index([projectId, generatedAt])
+  @@index([scheduledReportId, generatedAt])
+}
+
+model ReportNotification {
+  id         String         @id @default(cuid())
+  userId     String
+  projectId  String
+  snapshotId String         @unique
+  link       String         @db.VarChar(500)
+  readAt     DateTime?
+  recipient  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project    Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  snapshot   ReportSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  createdAt  DateTime       @default(now())
+
+  @@index([userId, readAt, createdAt])
+  @@index([projectId, createdAt])
+}
+
+model WebhookEndpoint {
+  id               String            @id @default(cuid())
+  projectId        String
+  url              String            @db.VarChar(2048)
+  active           Boolean           @default(true)
+  events           Json
+  secretCiphertext String            @db.Text
+  secretPrefix     String            @db.VarChar(16)
+  deletedAt        DateTime?
+  project          Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  deliveries       WebhookDelivery[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([projectId, deletedAt, updatedAt])
+  @@index([projectId, active, deletedAt])
+}
+
+model WebhookDelivery {
+  id             String                @id @default(cuid())
+  endpointId     String
+  projectId      String
+  eventId        String                @db.VarChar(64)
+  event          WebhookEvent
+  targetUrl      String                @db.VarChar(2048)
+  payload        Json
+  status         WebhookDeliveryStatus @default(PENDING)
+  attempts       Int                   @default(0)
+  maxAttempts    Int                   @default(6)
+  nextAttemptAt  DateTime?
+  claimToken     String?               @unique @db.VarChar(64)
+  claimedAt      DateTime?
+  responseStatus Int?
+  responseBody   String?               @db.VarChar(2048)
+  errorCode      String?               @db.VarChar(64)
+  deliveredAt    DateTime?
+  endpoint       WebhookEndpoint       @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+  project        Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  @@index([status, nextAttemptAt, createdAt])
+  @@index([projectId, createdAt])
+  @@index([endpointId, createdAt])
+  @@index([eventId])
+  @@index([claimToken, claimedAt])
 }

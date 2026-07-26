@@ -82,6 +82,13 @@ describe('AdminAuditLogsPage', () => {
     expect(screen.getByRole('option', { name: '根因分类' })).toHaveValue(
       'rootCauseCategory',
     );
+    expect(screen.getByRole('option', { name: '登录' })).toHaveValue('LOGIN');
+    expect(screen.getByRole('option', { name: '导入' })).toHaveValue('IMPORT');
+    expect(screen.getByRole('option', { name: '撤销 API Key' })).toHaveValue(
+      'API_KEY_REVOKE',
+    );
+    expect(screen.getByRole('option', { name: '登录会话' })).toHaveValue('session');
+    expect(screen.getByRole('option', { name: '导入记录' })).toHaveValue('import');
     expect(screen.queryByText(/pending/)).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: '查看详情' }));
@@ -104,19 +111,20 @@ describe('AdminAuditLogsPage', () => {
     await user.selectOptions(screen.getByLabelText('用户'), 'u1');
     await user.selectOptions(screen.getByLabelText('动作'), 'UPDATE');
     await user.selectOptions(screen.getByLabelText('实体类型'), 'case');
+    await user.type(screen.getByLabelText('实体 ID'), 'c1');
     fireEvent.change(screen.getByLabelText('开始日期'), { target: { value: '2025-01-01' } });
     fireEvent.change(screen.getByLabelText('结束日期'), { target: { value: '2025-01-31' } });
     await user.click(screen.getByRole('button', { name: '应用筛选' }));
 
     await waitFor(() => {
       expect(mockFetchJson).toHaveBeenCalledWith(
-        '/api/audit-logs?userId=u1&action=UPDATE&entityType=case&dateFrom=2025-01-01&dateTo=2025-01-31&page=1&pageSize=50',
+        '/api/audit-logs?userId=u1&action=UPDATE&entityType=case&entityId=c1&dateFrom=2025-01-01&dateTo=2025-01-31&page=1&pageSize=50',
         expect.objectContaining({ signal: expect.any(AbortSignal) }),
       );
     });
     expect(screen.getByRole('link', { name: '导出 CSV' })).toHaveAttribute(
       'href',
-      '/api/audit-logs?userId=u1&action=UPDATE&entityType=case&dateFrom=2025-01-01&dateTo=2025-01-31&format=csv',
+      '/api/audit-logs?userId=u1&action=UPDATE&entityType=case&entityId=c1&dateFrom=2025-01-01&dateTo=2025-01-31&format=csv',
     );
   });
 

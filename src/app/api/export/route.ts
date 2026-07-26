@@ -1,14 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { authenticateRequest } from "@/lib/auth";
-import { internalError, jsonError } from "@/lib/api-helpers";
+import {
+  internalError,
+  jsonError,
+  parseRequestUrl,
+} from "@/lib/api-helpers";
 import Papa from "papaparse";
 import ExcelJS from "exceljs";
 import { getProjectAccess } from "@/lib/project-access";
+import { writeAuditLog } from "@/lib/audit";
 import type { Prisma } from "@/generated/prisma/client";
 import { PROGRESS_CATEGORIES, RESULT_SUMMARIES } from "@/types";
 
 const EXPORT_FORMATS = ["csv", "json", "xlsx", "excel"] as const;
+const STREAM_BATCH_SIZE = 500;
+const EXCEL_MAX_ROWS = 10_000;
 const SORTABLE_FIELDS = [
   "caseNo",
   "name",
@@ -58,6 +65,25 @@ type CaseRow = {
   assetSaved: string;
   createdAt: string;
   updatedAt: string;
+};
+
+type CaseRecord = {
+  id: string;
+  caseNo: string;
+  name: string;
+  resultSummary: string;
+  logUrl: string | null;
+  assignee: string | null;
+  priority: string | null;
+  dueDate: Date | null;
+  progressCategory: string | null;
+  rootCause: string | null;
+  rootCauseCategory?: { name: string } | null;
+  mrOrTicket: string | null;
+  notes: string | null;
+  assetSaved: boolean;
+  createdAt: Date;
+  updatedAt: Date;
 };
 
 function parseDateFilter(value: string, endOfDay: boolean): Date | null {
@@ -155,23 +181,7 @@ function buildWhere(params: URLSearchParams): Prisma.CaseResultWhereInput {
   return where;
 }
 
-function toRows(cases: Array<{
-  caseNo: string;
-  name: string;
-  resultSummary: string;
-  logUrl: string | null;
-  assignee: string | null;
-  priority: string | null;
-  dueDate: Date | null;
-  progressCategory: string | null;
-  rootCause: string | null;
-  rootCauseCategory?: { name: string } | null;
-  mrOrTicket: string | null;
-  notes: string | null;
-  assetSaved: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-}>): CaseRow[] {
+function toRows(cases: CaseRecord[]): CaseRow[] {
   return cases.map((c) => ({
     caseNo: c.caseNo,
     name: c.name,
@@ -191,22 +201,142 @@ function toRows(cases: Array<{
   }));
 }
 
+const CSV_COLUMN_KEYS = EXPORT_COLUMNS.map((column) => column.key);
+const CSV_HEADER = Papa.unparse(
+  { fields: CSV_COLUMN_KEYS, data: [] },
+  { escapeFormulae: true, newline: "\r\n" },
+);
+
+function csvBatch(rows: CaseRow[]): string {
+  return Papa.unparse(rows, {
+    columns: CSV_COLUMN_KEYS,
+    escapeFormulae: true,
+    header: false,
+    newline: "\r\n",
+  });
+}
+
+function createCaseExportStream({
+  initialCases,
+  format,
+  signal,
+  fetchNext,
+  recordExport,
+}: {
+  initialCases: CaseRecord[];
+  format: "csv" | "json";
+  signal?: AbortSignal;
+  fetchNext: (cursorId: string) => Promise<CaseRecord[]>;
+  recordExport: (rowCount: number, cancelled: boolean) => Promise<void>;
+}): ReadableStream<Uint8Array> {
+  const encoder = new TextEncoder();
+  let cases = initialCases;
+  let emittedRows = 0;
+  let firstJsonRow = true;
+  let cancelled = signal?.aborted ?? false;
+  let consumerCancelled = false;
+  let finalized = false;
+
+  const handleAbort = () => {
+    cancelled = true;
+  };
+  signal?.addEventListener("abort", handleAbort, { once: true });
+
+  const finalize = async (wasCancelled: boolean) => {
+    if (finalized) return;
+    finalized = true;
+    signal?.removeEventListener("abort", handleAbort);
+    await recordExport(emittedRows, wasCancelled);
+  };
+
+  return new ReadableStream<Uint8Array>(
+    {
+      start(controller) {
+        controller.enqueue(
+          encoder.encode(format === "json" ? '{"cases":[' : `\uFEFF${CSV_HEADER}`),
+        );
+      },
+      async pull(controller) {
+        if (cancelled) {
+          await finalize(true);
+          if (!consumerCancelled) controller.close();
+          return;
+        }
+
+        try {
+          if (cases.length === 0) {
+            await finalize(false);
+            if (consumerCancelled) return;
+            if (format === "json") controller.enqueue(encoder.encode("]}"));
+            controller.close();
+            return;
+          }
+
+          const currentCases = cases;
+          cases = [];
+          const rows = toRows(currentCases);
+          emittedRows += rows.length;
+
+          if (format === "json") {
+            const serialized = rows.map((row) => JSON.stringify(row)).join(",");
+            controller.enqueue(
+              encoder.encode(`${firstJsonRow ? "" : ","}${serialized}`),
+            );
+            firstJsonRow = false;
+          } else {
+            controller.enqueue(encoder.encode(`${csvBatch(rows)}\r\n`));
+          }
+
+          if (currentCases.length < STREAM_BATCH_SIZE) {
+            await finalize(false);
+            if (consumerCancelled) return;
+            if (format === "json") controller.enqueue(encoder.encode("]}"));
+            controller.close();
+            return;
+          }
+
+          const nextCases = await fetchNext(currentCases[currentCases.length - 1].id);
+          if (cancelled) {
+            await finalize(true);
+            if (!consumerCancelled) controller.close();
+            return;
+          }
+          cases = nextCases;
+        } catch (error) {
+          signal?.removeEventListener("abort", handleAbort);
+          controller.error(error);
+        }
+      },
+      async cancel() {
+        consumerCancelled = true;
+        cancelled = true;
+        await finalize(true);
+      },
+    },
+    { highWaterMark: 0 },
+  );
+}
+
 export async function GET(request: NextRequest) {
-  const authResult = authenticateRequest(request);
+  const authResult = await authenticateRequest(request);
   if (authResult instanceof NextResponse) return authResult;
 
   try {
-    const { searchParams } = new URL(request.url);
-    const format = (searchParams.get("format") || "csv").toLowerCase();
-    if (!EXPORT_FORMATS.includes(format as ExportFormat)) {
-      return jsonError("VALIDATION_ERROR", `不支持的导出格式: ${format}`);
+    const parsedUrl = parseRequestUrl(request);
+    if (!parsedUrl.ok) return parsedUrl.response;
+    const { searchParams } = parsedUrl.value;
+    const requestedFormat = (searchParams.get("format") || "csv").toLowerCase();
+    if (!EXPORT_FORMATS.includes(requestedFormat as ExportFormat)) {
+      return jsonError("VALIDATION_ERROR", `不支持的导出格式: ${requestedFormat}`);
     }
+    const format = requestedFormat as ExportFormat;
     const validationError = validateExportParams(searchParams);
     if (validationError) return jsonError("VALIDATION_ERROR", validationError);
 
     const where = buildWhere(searchParams);
     const sortField = (searchParams.get("sortField") || "createdAt") as SortableField;
-    const sortOrder = searchParams.get("sortOrder") === "asc" ? "asc" : "desc";
+    const sortOrder: Prisma.SortOrder =
+      searchParams.get("sortOrder") === "asc" ? "asc" : "desc";
     const projectId = searchParams.get("projectId") || undefined;
     const stageId = searchParams.get("testStageId") || undefined;
     const batchId = searchParams.get("batchScopeId") || undefined;
@@ -249,19 +379,46 @@ export async function GET(request: NextRequest) {
         where.project = { members: { some: { userId: authResult.userId } } };
       }
     }
-    const cases = await prisma.caseResult.findMany({
-      where,
-      include: { rootCauseCategory: { select: { name: true } } },
-      orderBy: { [sortField]: sortOrder },
-    });
-    const rows = toRows(cases);
+    const orderBy = [
+      { [sortField]: sortOrder },
+      { id: sortOrder },
+    ] as Prisma.CaseResultOrderByWithRelationInput[];
+    const findCases = (cursorId?: string, take = STREAM_BATCH_SIZE) =>
+      prisma.caseResult.findMany({
+        where,
+        include: { rootCauseCategory: { select: { name: true } } },
+        orderBy,
+        take,
+        ...(cursorId ? { cursor: { id: cursorId }, skip: 1 } : {}),
+      });
     const today = new Date().toISOString().slice(0, 10);
-
-    if (format === "json") {
-      return NextResponse.json({ cases: rows });
-    }
+    const recordExport = async (rowCount: number, cancelled = false) => {
+      await writeAuditLog({
+        userId: authResult.userId,
+        action: "EXPORT",
+        entityType: "export",
+        entityId: resolvedProjectId ?? "all",
+        changes: {
+          format,
+          rowCount,
+          projectId: resolvedProjectId,
+          stageId,
+          batchId,
+          ...(cancelled ? { cancelled: true } : {}),
+        },
+      });
+    };
 
     if (format === "xlsx" || format === "excel") {
+      const cases = await findCases(undefined, EXCEL_MAX_ROWS + 1);
+      if (cases.length > EXCEL_MAX_ROWS) {
+        return jsonError(
+          "EXPORT_TOO_LARGE",
+          `Excel 导出最多支持 ${EXCEL_MAX_ROWS} 行，请缩小筛选范围或改用 CSV 导出`,
+          413,
+        );
+      }
+      const rows = toRows(cases);
       const workbook = new ExcelJS.Workbook();
       workbook.creator = "Run Insight";
       workbook.created = new Date();
@@ -280,6 +437,7 @@ export async function GET(request: NextRequest) {
       rows.forEach((row) => sheet.addRow(row));
 
       const buffer = await workbook.xlsx.writeBuffer();
+      await recordExport(rows.length);
       return new NextResponse(buffer, {
         headers: {
           "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -288,14 +446,33 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const csv = Papa.unparse(rows, { escapeFormulae: true });
-    return new NextResponse(csv, {
+    const initialCases = await findCases();
+    const stream = createCaseExportStream({
+      initialCases,
+      format,
+      signal: request.signal,
+      fetchNext: (cursorId) => findCases(cursorId),
+      recordExport,
+    });
+    return new NextResponse(stream, {
       headers: {
-        "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": `attachment; filename="cases-${today}.csv"`,
+        "Content-Type":
+          format === "json"
+            ? "application/json; charset=utf-8"
+            : "text/csv; charset=utf-8",
+        ...(format === "csv"
+          ? {
+              "Content-Disposition": `attachment; filename="cases-${today}.csv"`,
+            }
+          : {}),
       },
     });
-  } catch {
-    return internalError("导出失败");
+  } catch (error) {
+    return internalError("导出失败", {
+      request,
+      error,
+      event: "export.prepare_failed",
+      context: { userId: authResult.userId },
+    });
   }
 }

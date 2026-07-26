@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateTime } from '@/lib/date-time';
 import { getProgressLabel } from '@/lib/progress';
 import { ArrowRight, CaretDown, CaretUp } from '@phosphor-icons/react';
 
@@ -64,21 +65,6 @@ const PROGRESS_TONES: Record<string, string> = {
   NOT_ISSUE: 'bg-info',
   BLOCKED: 'bg-progress-blocked',
 };
-
-function formatUpdatedAt(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  const datePart = [
-    date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, '0'),
-    String(date.getDate()).padStart(2, '0'),
-  ].join('-');
-  const timePart = [
-    String(date.getHours()).padStart(2, '0'),
-    String(date.getMinutes()).padStart(2, '0'),
-  ].join(':');
-  return `${datePart} ${timePart}`;
-}
 
 interface CaseTableProps {
   canEdit: boolean;
@@ -383,7 +369,7 @@ export default function CaseTable({
                     data-label="更新时间"
                     className="flex items-center justify-between gap-4 py-1.5 text-[13px] text-text-secondary before:text-xs before:font-medium before:content-[attr(data-label)] md:relative md:table-cell md:px-4 md:py-2.5 md:before:hidden"
                   >
-                    <span>{formatUpdatedAt(c.updatedAt)}</span>
+                    <span>{formatDateTime(c.updatedAt)}</span>
                     <div className="mt-2 flex items-center justify-end gap-2 border-t border-border/60 pt-3 md:absolute md:right-3 md:top-1/2 md:mt-0 md:-translate-y-1/2 md:border-0 md:bg-white/95 md:p-1 md:opacity-0 md:shadow-sm md:transition md:group-hover:opacity-100 md:focus-within:opacity-100">
                       <button
                         aria-label="查看详情"

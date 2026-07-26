@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
   authenticateRequest,
+  createLogoutCookie,
   hashPassword,
   verifyPassword,
 } from "@/lib/auth";
@@ -13,7 +14,7 @@ function validateNewPassword(value: unknown): value is string {
 }
 
 export async function POST(request: NextRequest) {
-  const authResult = authenticateRequest(request);
+  const authResult = await authenticateRequest(request);
   if (authResult instanceof NextResponse) return authResult;
 
   try {
@@ -46,19 +47,28 @@ export async function POST(request: NextRequest) {
       return jsonError("AUTH_FAILED", "当前密码错误", 401);
     }
 
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { password: await hashPassword(newPassword) },
+    const password = await hashPassword(newPassword);
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: user.id },
+        data: { password },
+      });
+      await tx.session.updateMany({
+        where: { userId: user.id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
     });
     await writeAuditLog({
       userId: user.id,
-      action: "UPDATE",
+      action: "PASSWORD_CHANGE",
       entityType: "user",
       entityId: user.id,
       changes: { passwordChanged: true },
     });
 
-    return NextResponse.json({ success: true });
+    const response = NextResponse.json({ success: true });
+    response.headers.set("set-cookie", createLogoutCookie());
+    return response;
   } catch {
     return internalError("修改密码失败");
   }

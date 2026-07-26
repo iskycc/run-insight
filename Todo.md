@@ -1,15 +1,20 @@
 # Run Insight 项目现状与优化 Todo
 
-更新时间：2026-07-23
+更新时间：2026-07-27
 
 ## 当前结论
 
 Run Insight 已从原型推进到完整可交付状态。所有 P0/P1/P2 优化项均已完成。
 
+本轮又完成了：真实批跑元数据、保存视图、导入映射模板、服务端会话与 API Key
+生命周期、审计与回收站、评论/关注/通知、资产版本与审核、质量门禁、异步导入、
+流式导出、定时报表快照、项目 Webhook、组织多租户、结构化日志、安全响应头、
+健康检查、备份恢复、真实 MariaDB 集成检查及 Playwright 关键路径。
+
 验证结果：
 
-- [x] `npm test` 通过：21 个测试套件，290 个测试全部通过。
-- [x] `npx jest --coverage` 通过：99.85% stmt / 99.53% branch / 100% func / 100% lines。
+- [x] `npm test` 通过：114 个测试套件，1153 个测试全部通过。
+- [x] `npx jest --coverage` 通过：83.71% stmt / 76.62% branch / 87.60% func / 86.56% lines。
 - [x] `npm run build` 通过：Next.js 生产构建成功。
 - [x] `npm run lint` 通过：0 errors, 0 warnings。
 

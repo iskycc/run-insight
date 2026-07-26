@@ -3,9 +3,12 @@
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
+import { formatDate, formatDateTime } from '@/lib/date-time';
 
 interface TrendDataPoint {
+  batchId: string;
   batch: string;
+  executedAt: string;
   passed: number;
   failed: number;
   blocked: number;
@@ -20,28 +23,12 @@ interface TrendChartProps {
   data: TrendDataPoint[];
 }
 
-function getBatchDate(batch: string) {
-  const match = batch.match(/(?:^|\D)(20\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])(?:\D|$)/);
-  if (!match) return null;
-
-  const [, year, month, day] = match;
-  const date = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
-  if (
-    date.getUTCFullYear() !== Number(year)
-    || date.getUTCMonth() !== Number(month) - 1
-    || date.getUTCDate() !== Number(day)
-  ) {
-    return null;
-  }
-
-  return date;
+function formatBatchLabel(executedAt: string) {
+  return formatDate(executedAt);
 }
 
-function formatBatchLabel(batch: string) {
-  const date = getBatchDate(batch);
-  if (!date) return batch;
-
-  return `${date.getUTCMonth() + 1}月${date.getUTCDate()}日`;
+function formatBatchTooltipDate(executedAt: string) {
+  return formatDateTime(executedAt, { fallback: '时间未知' });
 }
 
 export default function TrendChart({ data }: TrendChartProps) {
@@ -53,12 +40,9 @@ export default function TrendChart({ data }: TrendChartProps) {
     );
   }
 
-  const hasDatedBatchNames = data.every((item) => getBatchDate(item.batch));
-  const chartData = hasDatedBatchNames
-    ? [...data].sort((a, b) => (
-        getBatchDate(a.batch)!.getTime() - getBatchDate(b.batch)!.getTime()
-      ))
-    : data;
+  const chartData = [...data].sort(
+    (a, b) => new Date(a.executedAt).getTime() - new Date(b.executedAt).getTime()
+  );
 
   return (
     <section className="bento-panel p-5 sm:p-6" aria-labelledby="quality-trend-title">
@@ -70,7 +54,21 @@ export default function TrendChart({ data }: TrendChartProps) {
         <span className="text-xs font-medium text-text-secondary">数量 / 比率</span>
       </div>
 
-      <div className="h-64">
+      <ul className="sr-only" aria-label="批跑趋势数据">
+        {chartData.map((item) => (
+          <li key={item.batchId}>
+            {item.batch}，执行时间 {formatBatchTooltipDate(item.executedAt)}，共 {item.total}
+            个用例，通过 {item.passed}，失败 {item.failed}，通过率 {item.passRate}%，
+            失败率 {item.failRate}%。
+          </li>
+        ))}
+      </ul>
+
+      <div
+        className="h-64"
+        role="img"
+        aria-label="最近批跑的用例总数、通过数和失败数趋势折线图"
+      >
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
             data={chartData}
@@ -78,10 +76,10 @@ export default function TrendChart({ data }: TrendChartProps) {
             accessibilityLayer
           >
             <XAxis
-              dataKey="batch"
+              dataKey="executedAt"
               interval="preserveStartEnd"
               minTickGap={22}
-              tickFormatter={formatBatchLabel}
+              tickFormatter={(value: string) => formatBatchLabel(value)}
               tick={{ fontSize: 11, fill: 'var(--color-text-secondary)' }}
               axisLine={{ stroke: 'var(--color-border)' }}
               tickLine={false}
@@ -92,7 +90,12 @@ export default function TrendChart({ data }: TrendChartProps) {
               tickLine={false}
             />
             <Tooltip
-              labelFormatter={(label: unknown) => formatBatchLabel(String(label))}
+              labelFormatter={(label: unknown, payload) => {
+                const item = payload?.[0]?.payload as TrendDataPoint | undefined;
+                return item
+                  ? `${item.batch} · ${formatBatchTooltipDate(String(label))}`
+                  : formatBatchTooltipDate(String(label));
+              }}
               formatter={(value: unknown, name: unknown) => [
                 Number(value).toLocaleString(),
                 String(name),
@@ -145,7 +148,11 @@ export default function TrendChart({ data }: TrendChartProps) {
 
       <div className="mt-6 border-t border-border pt-5">
         <div className="mb-3 text-xs font-semibold text-text-secondary">通过率 / 失败率</div>
-        <div className="h-52">
+        <div
+          className="h-52"
+          role="img"
+          aria-label="最近批跑的通过率和失败率趋势折线图"
+        >
           <ResponsiveContainer width="100%" height="100%">
             <LineChart
               data={chartData}
@@ -153,7 +160,7 @@ export default function TrendChart({ data }: TrendChartProps) {
               accessibilityLayer
             >
               <XAxis
-                dataKey="batch"
+                dataKey="executedAt"
                 interval="preserveStartEnd"
                 minTickGap={22}
                 tickFormatter={formatBatchLabel}
@@ -169,7 +176,12 @@ export default function TrendChart({ data }: TrendChartProps) {
                 tickLine={false}
               />
               <Tooltip
-                labelFormatter={(label: unknown) => formatBatchLabel(String(label))}
+                labelFormatter={(label: unknown, payload) => {
+                  const item = payload?.[0]?.payload as TrendDataPoint | undefined;
+                  return item
+                    ? `${item.batch} · ${formatBatchTooltipDate(String(label))}`
+                    : formatBatchTooltipDate(String(label));
+                }}
                 formatter={(value: unknown, name: unknown) => [
                   `${Number(value).toFixed(1)}%`,
                   String(name),

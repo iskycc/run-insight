@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Badge } from '@/components/shared/Badge';
 import { Button } from '@/components/shared/Button';
+import { formatDate, formatDateTime } from '@/lib/date-time';
 import { isSafeHttpUrl } from '@/lib/url';
 import { getProgressBadgeKey, getProgressLabel } from '@/lib/progress';
 
@@ -134,7 +135,7 @@ export function CaseDetail({ canEdit, caseData, onEdit, onSaveAsset }: CaseDetai
           <InfoRow label="截止日期">
             {caseData.dueDate
               ? <span className={new Date(caseData.dueDate).getTime() < renderedAt ? 'text-danger' : ''}>
-                  {new Date(caseData.dueDate).toLocaleDateString('zh-CN')}
+                  {formatDate(caseData.dueDate)}
                 </span>
               : <span className="text-text-secondary">—</span>}
           </InfoRow>
@@ -191,8 +192,8 @@ export function CaseDetail({ canEdit, caseData, onEdit, onSaveAsset }: CaseDetai
 
       {/* 时间戳 */}
       <div className="flex flex-wrap gap-4 text-xs text-text-secondary">
-        <span>创建于 {new Date(caseData.createdAt).toLocaleString('zh-CN')}</span>
-        <span>更新于 {new Date(caseData.updatedAt).toLocaleString('zh-CN')}</span>
+        <span>创建于 {formatDateTime(caseData.createdAt)}</span>
+        <span>更新于 {formatDateTime(caseData.updatedAt)}</span>
         <span>最近更新人 {caseData.updatedByUsername ?? '—'}</span>
       </div>
     </div>

@@ -30,7 +30,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = authenticateRequest(request);
+  const auth = await authenticateRequest(request);
   if (auth instanceof NextResponse) return auth;
 
   try {
@@ -59,14 +59,14 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = authenticateRequest(request);
+  const auth = await authenticateRequest(request);
   if (auth instanceof NextResponse) return auth;
 
   try {
     const { id: projectId } = await params;
     const project = await prisma.project.findUnique({
       where: { id: projectId },
-      select: { id: true },
+      select: { id: true, organizationId: true },
     });
     if (!project) return jsonError("NOT_FOUND", "项目不存在", 404);
     const access = await getProjectAccess(prisma, auth.userId, projectId);
@@ -87,6 +87,18 @@ export async function POST(
       ? await prisma.user.findUnique({ where: { id: body.userId as string } })
       : await prisma.user.findUnique({ where: { username: (body.username as string).trim() } });
     if (!user) return jsonError("NOT_FOUND", "用户不存在", 404);
+    const organizationMembership = await prisma.organizationMember.findUnique({
+      where: {
+        organizationId_userId: {
+          organizationId: project.organizationId,
+          userId: user.id,
+        },
+      },
+      select: { id: true },
+    });
+    if (!organizationMembership) {
+      return jsonError("VALIDATION_ERROR", "用户必须先加入项目所属组织");
+    }
 
     const existing = await prisma.projectMember.findUnique({
       where: { projectId_userId: { projectId, userId: user.id } },

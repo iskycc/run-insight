@@ -8,16 +8,13 @@ import { Badge } from '@/components/shared/Badge';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { useAuth } from '@/components/shared/AuthProvider';
 import { useToast } from '@/contexts/ToastContext';
+import { formatDateTime } from '@/lib/date-time';
 import { fetchJson, ApiError } from '@/lib/fetch';
 import type {
   ImportHistoryResponse,
   ImportRecordDTO,
   ImportRecordStatus,
 } from '@/types';
-
-function formatDateTime(iso: string) {
-  return new Date(iso).toLocaleString('zh-CN');
-}
 
 function importTypeLabel(t: string) {
   if (t === 'pre-analysis') return '分析前';

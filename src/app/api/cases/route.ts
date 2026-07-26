@@ -11,6 +11,8 @@ import {
 } from "@/lib/validations";
 import { toCaseDTO } from "@/lib/serializers";
 import { getProjectAccess } from "@/lib/project-access";
+import { writeAuditLog } from "@/lib/audit";
+import { notifyCaseUpdatesBestEffort } from "@/lib/notifications";
 import type { Prisma } from "@/generated/prisma/client";
 import { RESULT_SUMMARIES } from "@/types";
 import type {
@@ -34,7 +36,7 @@ const SORTABLE_FIELDS = [
 type SortableField = (typeof SORTABLE_FIELDS)[number];
 
 export async function GET(request: NextRequest) {
-  const authResult = authenticateRequest(request);
+  const authResult = await authenticateRequest(request);
   if (authResult instanceof NextResponse) return authResult;
 
   try {
@@ -156,7 +158,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const authResult = authenticateRequest(request);
+  const authResult = await authenticateRequest(request);
   if (authResult instanceof NextResponse) return authResult;
 
   try {
@@ -320,15 +322,13 @@ export async function PATCH(request: NextRequest) {
             },
           });
         }
-        await tx.auditLog.create({
-          data: {
-            userId: authResult.userId,
-            action: "UPDATE",
-            entityType: "case",
-            entityId: item.id,
-            changes: updates as Prisma.InputJsonValue,
-          },
-        });
+        await writeAuditLog({
+          userId: authResult.userId,
+          action: "UPDATE",
+          entityType: "case",
+          entityId: item.id,
+          changes: item.changes,
+        }, tx);
       }
       return result;
     };
@@ -336,6 +336,28 @@ export async function PATCH(request: NextRequest) {
       typeof prisma.$transaction === "function"
         ? await prisma.$transaction((tx) => runUpdate(tx))
         : await runUpdate(prisma);
+    await notifyCaseUpdatesBestEffort({
+      actorId: authResult.userId,
+      updates: existingCases.map((existing) => {
+        const changes =
+          changesByCase.find((item) => item.id === existing.id)?.changes ?? {};
+        return {
+          caseResultId: existing.id,
+          projectId: existing.projectId,
+          assigneeId:
+            "assigneeId" in data
+              ? (data.assigneeId as string | null)
+              : existing.assigneeId,
+          assigneeChanged: "assigneeId" in changes,
+          watchedChanged: [
+            "assigneeId",
+            "priority",
+            "dueDate",
+            "progressCategory",
+          ].some((field) => field in changes),
+        };
+      }),
+    });
 
     return NextResponse.json<BatchUpdateResponse>({ updated: result.count });
   } catch {

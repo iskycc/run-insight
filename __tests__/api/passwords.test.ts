@@ -5,15 +5,27 @@ import { generateToken, hashPassword } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 jest.mock("@/lib/prisma", () => ({
-  prisma: {
-    user: {
+  prisma: (() => {
+    const user = {
       findUnique: jest.fn(),
       update: jest.fn(),
-    },
-    auditLog: {
-      create: jest.fn(),
-    },
-  },
+    };
+    const session = {
+      updateMany: jest.fn(),
+    };
+    return {
+      user,
+      session,
+      $transaction: jest.fn(
+        async (
+          callback: (tx: { user: typeof user; session: typeof session }) => Promise<unknown>,
+        ) => callback({ user, session }),
+      ),
+      auditLog: {
+        create: jest.fn(),
+      },
+    };
+  })(),
 }));
 
 const mockPrisma = prisma as jest.Mocked<typeof prisma>;
@@ -132,6 +144,11 @@ describe("password management", () => {
       where: { id: "user_1" },
       data: { password: expect.any(String) },
     });
+    expect(mockPrisma.session.updateMany).toHaveBeenCalledWith({
+      where: { userId: "user_1", revokedAt: null },
+      data: { revokedAt: expect.any(Date) },
+    });
+    expect(res.headers.get("set-cookie")).toContain("Max-Age=0");
   });
 
   it("returns 500 when changing the password fails", async () => {
@@ -190,6 +207,10 @@ describe("password management", () => {
     expect(mockPrisma.user.update).toHaveBeenCalledWith({
       where: { id: "user_2" },
       data: { password: expect.any(String) },
+    });
+    expect(mockPrisma.session.updateMany).toHaveBeenCalledWith({
+      where: { userId: "user_2", revokedAt: null },
+      data: { revokedAt: expect.any(Date) },
     });
   });
 

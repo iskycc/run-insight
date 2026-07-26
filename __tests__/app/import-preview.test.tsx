@@ -82,24 +82,57 @@ describe('ImportPage preview flow', () => {
           batches: [{ id: 'b1', projectId: 'p1', testStageId: 's1', name: '批跑一' }],
         });
       }
+      if (url.startsWith('/api/import-mapping-templates?')) {
+        return jsonResponse({ templates: [], canShare: true });
+      }
       if (url === '/api/import') {
         const payload = JSON.parse(String(init?.body)) as { preview?: boolean };
-        if (payload.preview) {
-          return jsonResponse({
-            preview: true,
-            total: 1,
-            created: 0,
-            updated: 1,
-            unchanged: 0,
-            samples: {
-              created: [],
-              updated: [{ caseNo: 'TC-001', name: '登录' }],
-              unchanged: [],
-            },
-            errors: [],
-          });
-        }
-        return jsonResponse({ imported: 1, created: 0, updated: 1, errors: [] }, 201);
+        expect(payload.preview).toBe(true);
+        return jsonResponse({
+          preview: true,
+          total: 1,
+          created: 0,
+          updated: 1,
+          unchanged: 0,
+          samples: {
+            created: [],
+            updated: [{ caseNo: 'TC-001', name: '登录' }],
+            unchanged: [],
+          },
+          errors: [],
+        });
+      }
+      if (url === '/api/import-jobs') {
+        return jsonResponse({
+          job: {
+            id: 'job-1',
+            status: 'PENDING',
+            progress: 0,
+            totalRows: 1,
+            processedRows: 0,
+            errorCount: 0,
+            errorSummary: null,
+            errorDetails: null,
+            importRecordId: null,
+            cancelRequested: false,
+          },
+        }, 201);
+      }
+      if (url === '/api/import-jobs/job-1') {
+        return jsonResponse({
+          job: {
+            id: 'job-1',
+            status: 'SUCCEEDED',
+            progress: 100,
+            totalRows: 1,
+            processedRows: 1,
+            errorCount: 0,
+            errorSummary: null,
+            errorDetails: null,
+            importRecordId: 'record-1',
+            cancelRequested: false,
+          },
+        });
       }
       throw new Error(`Unexpected URL: ${url}`);
     });
@@ -132,9 +165,14 @@ describe('ImportPage preview flow', () => {
 
     expect(await screen.findByText('导入结果')).toBeInTheDocument();
     const importCalls = fetchMock.mock.calls.filter(([input]) => String(input) === '/api/import');
-    expect(importCalls).toHaveLength(2);
+    expect(importCalls).toHaveLength(1);
     expect(JSON.parse(String(importCalls[0][1]?.body))).toEqual(expect.objectContaining({ preview: true }));
-    expect(JSON.parse(String(importCalls[1][1]?.body))).not.toHaveProperty('preview');
+    expect(fetchMock.mock.calls.filter(([input]) => String(input) === '/api/import-jobs')).toHaveLength(1);
+    expect(fetchMock.mock.calls.filter(([input]) => String(input) === '/api/import-jobs/job-1')).toHaveLength(1);
+    expect(screen.getByRole('link', { name: '查看导入记录' })).toHaveAttribute(
+      'href',
+      '/import-history/record-1',
+    );
     await waitFor(() => expect(screen.getByText('成功导入')).toBeInTheDocument());
   });
 });

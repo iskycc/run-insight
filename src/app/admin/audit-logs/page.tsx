@@ -7,53 +7,46 @@ import { EmptyState } from '@/components/shared/EmptyState';
 import { Input } from '@/components/shared/Input';
 import { Select } from '@/components/shared/Select';
 import { useToast } from '@/contexts/ToastContext';
+import { formatDateTime, toDateInputValue } from '@/lib/date-time';
 import { ApiError, fetchJson } from '@/lib/fetch';
-import type { AuditLogDTO, AuditLogsResponse, UserWithRole, UsersResponse } from '@/types';
+import {
+  AUDIT_ACTIONS,
+  AUDIT_ACTION_LABELS,
+  AUDIT_ENTITY_TYPES,
+  AUDIT_ENTITY_TYPE_LABELS,
+} from '@/types';
+import type {
+  AuditAction,
+  AuditEntityType,
+  AuditLogDTO,
+  AuditLogsResponse,
+  UserWithRole,
+  UsersResponse,
+} from '@/types';
 
 const PAGE_SIZE = 50;
 
 const ACTION_OPTIONS = [
   { value: '', label: '全部动作' },
-  { value: 'CREATE', label: '创建' },
-  { value: 'UPDATE', label: '更新' },
-  { value: 'DELETE', label: '删除' },
+  ...AUDIT_ACTIONS.map((action) => ({
+    value: action,
+    label: AUDIT_ACTION_LABELS[action],
+  })),
 ];
 
 const ENTITY_TYPE_OPTIONS = [
   { value: '', label: '全部实体' },
-  { value: 'project', label: '项目' },
-  { value: 'stage', label: '测试阶段' },
-  { value: 'batch', label: '批次' },
-  { value: 'case', label: '用例' },
-  { value: 'user', label: '用户' },
-  { value: 'member', label: '项目成员' },
-  { value: 'apiKey', label: 'API Key' },
-  { value: 'asset', label: '知识资产' },
-  { value: 'rootCauseCategory', label: '根因分类' },
+  ...AUDIT_ENTITY_TYPES.map((entityType) => ({
+    value: entityType,
+    label: AUDIT_ENTITY_TYPE_LABELS[entityType],
+  })),
 ];
-
-const ACTION_LABELS: Record<string, string> = {
-  CREATE: '创建',
-  UPDATE: '更新',
-  DELETE: '删除',
-};
-
-const ENTITY_TYPE_LABELS: Record<string, string> = {
-  project: '项目',
-  stage: '测试阶段',
-  batch: '批次',
-  case: '用例',
-  user: '用户',
-  member: '项目成员',
-  apiKey: 'API Key',
-  asset: '知识资产',
-  rootCauseCategory: '根因分类',
-};
 
 interface AuditFilters {
   userId: string;
   action: string;
   entityType: string;
+  entityId: string;
   dateFrom: string;
   dateTo: string;
 }
@@ -62,13 +55,10 @@ const EMPTY_FILTERS: AuditFilters = {
   userId: '',
   action: '',
   entityType: '',
+  entityId: '',
   dateFrom: '',
   dateTo: '',
 };
-
-function formatDateTime(iso: string) {
-  return new Date(iso).toLocaleString('zh-CN');
-}
 
 function formatChanges(changes: unknown): string {
   if (changes === null || changes === undefined) return '';
@@ -194,11 +184,10 @@ export default function AdminAuditLogsPage() {
     const to = new Date();
     const from = new Date(to);
     from.setDate(from.getDate() - (days - 1));
-    const format = (date: Date) => date.toISOString().slice(0, 10);
     setDraftFilters((current) => ({
       ...current,
-      dateFrom: format(from),
-      dateTo: format(to),
+      dateFrom: toDateInputValue(from),
+      dateTo: toDateInputValue(to),
     }));
   }, []);
 
@@ -265,7 +254,7 @@ export default function AdminAuditLogsPage() {
             全部时间
           </button>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
           <Select
             label="用户"
             aria-label="用户"
@@ -286,6 +275,13 @@ export default function AdminAuditLogsPage() {
             options={ENTITY_TYPE_OPTIONS}
             value={draftFilters.entityType}
             onChange={(event) => updateDraftFilter('entityType', event.target.value)}
+          />
+          <Input
+            label="实体 ID"
+            aria-label="实体 ID"
+            placeholder="输入精确 ID"
+            value={draftFilters.entityId}
+            onChange={(event) => updateDraftFilter('entityId', event.target.value.trim())}
           />
           <Input
             label="开始日期"
@@ -366,10 +362,10 @@ export default function AdminAuditLogsPage() {
                           <p className="font-mono text-xs text-text-secondary">{log.userId}</p>
                         </td>
                         <td className="px-4 py-3 text-text-primary" title={log.action}>
-                          {ACTION_LABELS[log.action] ?? log.action}
+                          {AUDIT_ACTION_LABELS[log.action as AuditAction] ?? log.action}
                         </td>
                         <td className="px-4 py-3 text-text-secondary" title={log.entityType}>
-                          {ENTITY_TYPE_LABELS[log.entityType] ?? log.entityType}
+                          {AUDIT_ENTITY_TYPE_LABELS[log.entityType as AuditEntityType] ?? log.entityType}
                         </td>
                         <td className="px-4 py-3 font-mono text-xs text-text-secondary">
                           {log.entityId}

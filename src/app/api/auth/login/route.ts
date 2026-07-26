@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyPassword, generateToken, createTokenCookie } from "@/lib/auth";
+import {
+  createTokenCookie,
+  describeSessionDevice,
+  generateToken,
+  getSessionExpiresAt,
+  verifyPassword,
+} from "@/lib/auth";
 import { internalError, jsonError } from "@/lib/api-helpers";
-import { checkRateLimit, getClientIp, loginRateLimiter } from "@/lib/rate-limiter";
+import { checkLoginRateLimit } from "@/lib/rate-limiter";
+import { writeAuditLog } from "@/lib/audit";
 import type { LoginRequest, LoginResponse, UserDTO } from "@/types";
 
 export async function POST(request: NextRequest) {
-  const rateLimit = await checkRateLimit(loginRateLimiter, getClientIp(request));
-  if (rateLimit) return rateLimit;
-
   try {
     const body: LoginRequest = await request.json();
     const { username, password } = body;
@@ -16,6 +20,9 @@ export async function POST(request: NextRequest) {
     if (!username || !password) {
       return jsonError("VALIDATION_ERROR", "用户名和密码不能为空");
     }
+
+    const rateLimit = await checkLoginRateLimit(request, username);
+    if (rateLimit) return rateLimit;
 
     const user = await prisma.user.findUnique({ where: { username } });
 
@@ -29,15 +36,38 @@ export async function POST(request: NextRequest) {
       return jsonError("AUTH_FAILED", "用户名或密码错误", 401);
     }
 
-    const token = generateToken({ userId: user.id, username: user.username });
+    const session = await prisma.session.create({
+      data: {
+        userId: user.id,
+        deviceInfo: describeSessionDevice(request.headers.get("user-agent")),
+        expiresAt: getSessionExpiresAt(),
+      },
+      select: { id: true },
+    });
+    const token = generateToken({
+      userId: user.id,
+      username: user.username,
+      sessionId: session.id,
+    });
     const userDTO: UserDTO = {
       id: user.id,
       username: user.username,
+      role: user.role,
       createdAt: user.createdAt.toISOString(),
     };
 
     const response = NextResponse.json<LoginResponse>({ user: userDTO });
     response.headers.set("set-cookie", createTokenCookie(token));
+    await writeAuditLog({
+      userId: user.id,
+      action: "LOGIN",
+      entityType: "session",
+      entityId: session.id,
+      changes: {
+        authentication: "password",
+        deviceInfo: describeSessionDevice(request.headers.get("user-agent")),
+      },
+    });
     return response;
   } catch {
     return internalError("登录失败");

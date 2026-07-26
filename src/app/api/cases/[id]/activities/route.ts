@@ -1,15 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { authenticateRequest } from "@/lib/auth";
-import { internalError, jsonError } from "@/lib/api-helpers";
+import {
+  internalError,
+  jsonError,
+  parseJsonObject,
+} from "@/lib/api-helpers";
 import { getProjectAccess } from "@/lib/project-access";
 import { isValidCuid, validateStringMaxLength } from "@/lib/validations";
+import { notifyCommentBestEffort } from "@/lib/notifications";
 import type { CaseActivityDTO } from "@/types";
 
 async function getCaseAndAccess(caseId: string, userId: string) {
   const caseResult = await prisma.caseResult.findUnique({
     where: { id: caseId },
-    select: { id: true, projectId: true },
+    select: {
+      id: true,
+      projectId: true,
+      project: { select: { archived: true } },
+      stage: { select: { archived: true } },
+      batchScope: { select: { archived: true } },
+    },
   });
   if (!caseResult) return { caseResult: null, access: null };
   const access = await getProjectAccess(prisma, userId, caseResult.projectId);
@@ -20,7 +31,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = authenticateRequest(request);
+  const auth = await authenticateRequest(request);
   if (auth instanceof NextResponse) return auth;
 
   try {
@@ -43,10 +54,25 @@ export async function GET(
       comment: activity.comment,
       user: activity.user,
       createdAt: activity.createdAt.toISOString(),
+      canManage:
+        activity.type === "COMMENT" &&
+        (activity.user.id === auth.userId || access.canAdmin),
     }));
-    return NextResponse.json({ activities: result, canComment: access.canEdit });
-  } catch {
-    return internalError("获取用例动态失败");
+    const archived =
+      caseResult.project?.archived ||
+      caseResult.stage?.archived ||
+      caseResult.batchScope?.archived;
+    return NextResponse.json({
+      activities: result,
+      canComment: access.canEdit && !archived,
+    });
+  } catch (error) {
+    return internalError("获取用例动态失败", {
+      request,
+      error,
+      event: "case_activity.list_failed",
+      context: { userId: auth.userId },
+    });
   }
 }
 
@@ -54,7 +80,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = authenticateRequest(request);
+  const auth = await authenticateRequest(request);
   if (auth instanceof NextResponse) return auth;
 
   try {
@@ -63,8 +89,17 @@ export async function POST(
     const { caseResult, access } = await getCaseAndAccess(id, auth.userId);
     if (!caseResult) return jsonError("NOT_FOUND", "用例不存在", 404);
     if (!access?.canEdit) return jsonError("FORBIDDEN", "无权评论该项目的用例", 403);
+    if (
+      caseResult.project?.archived ||
+      caseResult.stage?.archived ||
+      caseResult.batchScope?.archived
+    ) {
+      return jsonError("CONFLICT", "不能评论已归档项目、阶段或批跑中的用例", 409);
+    }
 
-    const body: { comment?: unknown } = await request.json();
+    const parsedBody = await parseJsonObject(request, ["comment"]);
+    if (!parsedBody.ok) return parsedBody.response;
+    const body = parsedBody.value;
     if (typeof body.comment !== "string" || !body.comment.trim()) {
       return jsonError("VALIDATION_ERROR", "评论内容不能为空");
     }
@@ -81,6 +116,12 @@ export async function POST(
       },
       include: { user: { select: { id: true, username: true } } },
     });
+    await notifyCommentBestEffort({
+      actorId: auth.userId,
+      caseResultId: id,
+      projectId: caseResult.projectId,
+      comment,
+    });
     return NextResponse.json(
       {
         activity: {
@@ -90,11 +131,17 @@ export async function POST(
           comment: activity.comment,
           user: activity.user,
           createdAt: activity.createdAt.toISOString(),
+          canManage: true,
         },
       },
       { status: 201 }
     );
-  } catch {
-    return internalError("发表评论失败");
+  } catch (error) {
+    return internalError("发表评论失败", {
+      request,
+      error,
+      event: "case_activity.comment_failed",
+      context: { userId: auth.userId },
+    });
   }
 }

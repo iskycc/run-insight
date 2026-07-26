@@ -13,7 +13,7 @@ jest.mock("@/lib/prisma", () => {
   return {
     prisma: {
       user: { findUnique: jest.fn() },
-      apiKey: { findFirst: jest.fn() },
+      apiKey: { findUnique: jest.fn(), updateMany: jest.fn() },
       batchScope: { findUnique: jest.fn() },
       caseResult: { createMany: jest.fn(), upsert: jest.fn() },
       importRecord: { create: jest.fn(), findUnique: jest.fn() },
@@ -64,13 +64,22 @@ function mockTransaction() {
 describe("Import with API Key", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (prisma.apiKey.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
   });
 
   it("should accept X-API-Key header and skip JWT", async () => {
     const rawKey = crypto.randomBytes(32).toString("hex");
     const _keyHash = crypto.createHash("sha256").update(rawKey).digest("hex");
 
-    (prisma.apiKey.findFirst as jest.Mock).mockResolvedValue({ projectId: "p1", userId: "u-api" });
+    (prisma.apiKey.findUnique as jest.Mock).mockResolvedValue({
+      id: "key-1",
+      projectId: "p1",
+      userId: "u-api",
+      scopes: ["IMPORT"],
+      expiresAt: null,
+      revokedAt: null,
+      project: { archived: false },
+    });
     (prisma.batchScope.findUnique as jest.Mock).mockResolvedValue({ id: "b1", testStageId: "s1", projectId: "p1" });
     mockTransaction();
 
@@ -97,7 +106,7 @@ describe("Import with API Key", () => {
   });
 
   it("should fall back to JWT when no API key", async () => {
-    (prisma.apiKey.findFirst as jest.Mock).mockResolvedValue(null);
+    (prisma.apiKey.findUnique as jest.Mock).mockResolvedValue(null);
     (authenticateRequest as jest.Mock).mockReturnValue({ userId: "u1", username: "admin" });
     (prisma.user.findUnique as jest.Mock).mockResolvedValue({ role: "ADMIN" });
     (prisma.batchScope.findUnique as jest.Mock).mockResolvedValue({ id: "b1", testStageId: "s1", projectId: "p1" });
@@ -122,7 +131,7 @@ describe("Import with API Key", () => {
   });
 
   it("should reject an invalid API key without falling back to JWT", async () => {
-    (prisma.apiKey.findFirst as jest.Mock).mockResolvedValue(null);
+    (prisma.apiKey.findUnique as jest.Mock).mockResolvedValue(null);
     (authenticateRequest as jest.Mock).mockReturnValue({ userId: "u1", username: "admin" });
 
     const headers = new Headers();
@@ -151,10 +160,44 @@ describe("Import with API Key", () => {
     expect(prisma.batchScope.findUnique).not.toHaveBeenCalled();
   });
 
+  it("should reject an API key without the IMPORT scope", async () => {
+    (prisma.apiKey.findUnique as jest.Mock).mockResolvedValue({
+      id: "key-without-import",
+      projectId: "p1",
+      userId: "u-api",
+      scopes: ["READ"],
+      expiresAt: null,
+      revokedAt: null,
+      project: { archived: false },
+    });
+
+    const headers = new Headers();
+    headers.set("x-api-key", "wrong-scope-key");
+    const req = {
+      url: "http://localhost/api/import",
+      headers,
+      json: async () => ({}),
+    } as unknown as Request;
+
+    const res = await POST(req as never);
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({
+      error: "UNAUTHORIZED",
+      message: "API Key 无效",
+    });
+    expect(prisma.apiKey.updateMany).not.toHaveBeenCalled();
+    expect(prisma.batchScope.findUnique).not.toHaveBeenCalled();
+  });
+
   it("should reject an API key used for a different project", async () => {
-    (prisma.apiKey.findFirst as jest.Mock).mockResolvedValue({
+    (prisma.apiKey.findUnique as jest.Mock).mockResolvedValue({
+      id: "key-2",
       projectId: "p-key-project",
       userId: "u-api",
+      scopes: ["IMPORT"],
+      expiresAt: null,
+      revokedAt: null,
+      project: { archived: false },
     });
 
     const headers = new Headers();
@@ -180,5 +223,81 @@ describe("Import with API Key", () => {
     });
     expect(authenticateRequest).not.toHaveBeenCalled();
     expect(prisma.batchScope.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("rejects a cross-project key before idempotency replay is queried", async () => {
+    (prisma.apiKey.findUnique as jest.Mock).mockResolvedValue({
+      id: "key-project-a",
+      projectId: "project-a",
+      userId: "shared-owner",
+      scopes: ["IMPORT"],
+      expiresAt: null,
+      revokedAt: null,
+      project: { archived: false },
+    });
+    (prisma.importRecord.findUnique as jest.Mock).mockResolvedValue({
+      requestId: "d9428888-122b-4f41-9f94-3d36f7db9842",
+      userId: "shared-owner",
+      projectId: "project-b",
+      importedCount: 10,
+      totalRows: 10,
+      changes: [],
+    });
+    const headers = new Headers({ "x-api-key": "project-a-key" });
+    const req = {
+      url: "http://localhost/api/import",
+      headers,
+      json: async () => ({
+        rows: [{ caseNo: "TC001", name: "Test", resultSummary: "PASS" }],
+        importType: "pre-analysis",
+        projectId: "project-b",
+        testStageId: "stage-b",
+        batchScopeId: "batch-b",
+        requestId: "d9428888-122b-4f41-9f94-3d36f7db9842",
+      }),
+    } as unknown as Request;
+
+    const response = await POST(req as never);
+
+    expect(response.status).toBe(403);
+    expect(prisma.importRecord.findUnique).not.toHaveBeenCalled();
+    expect(prisma.batchScope.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("rejects imports into an archived batch hierarchy", async () => {
+    (prisma.apiKey.findUnique as jest.Mock).mockResolvedValue({
+      id: "key-1",
+      projectId: "p1",
+      userId: "u-api",
+      scopes: ["IMPORT"],
+      expiresAt: null,
+      revokedAt: null,
+      project: { archived: false },
+    });
+    (prisma.batchScope.findUnique as jest.Mock).mockResolvedValue({
+      id: "b1",
+      testStageId: "s1",
+      projectId: "p1",
+      archived: true,
+      project: { archived: false },
+      stage: { archived: false },
+    });
+    const headers = new Headers({ "x-api-key": "valid-key" });
+    const req = {
+      url: "http://localhost/api/import",
+      headers,
+      json: async () => ({
+        rows: [{ caseNo: "TC001", name: "Test", resultSummary: "PASS" }],
+        importType: "pre-analysis",
+        projectId: "p1",
+        testStageId: "s1",
+        batchScopeId: "b1",
+      }),
+    } as unknown as Request;
+
+    const response = await POST(req as never);
+
+    expect(response.status).toBe(409);
+    expect(txMock).not.toHaveBeenCalled();
   });
 });

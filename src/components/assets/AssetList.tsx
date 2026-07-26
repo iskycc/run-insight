@@ -7,6 +7,7 @@ export type AssetItem = AssetDTO;
 
 const STATUS_LABELS = {
   DRAFT: '草稿',
+  REVIEW: '待审核',
   PUBLISHED: '已发布',
   ARCHIVED: '已归档',
 } as const;

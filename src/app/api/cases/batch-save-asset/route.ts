@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateRequest } from "@/lib/auth";
 import { internalError, jsonError } from "@/lib/api-helpers";
-import { buildAssetSnapshot } from "@/lib/assets";
+import { assetVersionSnapshot, buildAssetSnapshot } from "@/lib/assets";
 import { writeAuditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { getProjectAccess } from "@/lib/project-access";
 import type { BatchSaveAssetRequest, BatchSaveAssetResponse } from "@/types";
 
 export async function POST(request: NextRequest) {
-  const auth = authenticateRequest(request);
+  const auth = await authenticateRequest(request);
   if (auth instanceof NextResponse) return auth;
 
   try {
@@ -43,7 +43,17 @@ export async function POST(request: NextRequest) {
     }
 
     const savedAssets = await prisma.$transaction(async (tx) => {
-      const assets: Array<{ id: string; sourceCaseId: string | null }> = [];
+      const assets: Array<{
+        id: string;
+        sourceCaseId: string | null;
+        version: number;
+        title: string;
+        summary: string;
+        solution: string;
+        rootCauseText: string | null;
+        tags: unknown;
+        status: "DRAFT" | "REVIEW" | "PUBLISHED" | "ARCHIVED";
+      }> = [];
       for (const item of cases) {
         const snapshot = buildAssetSnapshot(item);
         const asset = await tx.asset.upsert({
@@ -62,7 +72,24 @@ export async function POST(request: NextRequest) {
             // Preserve manually curated knowledge when the source case is
             // saved again. There are no separate snapshot fields yet.
           },
-          select: { id: true, sourceCaseId: true },
+          select: {
+            id: true,
+            sourceCaseId: true,
+            version: true,
+            title: true,
+            summary: true,
+            solution: true,
+            rootCauseText: true,
+            tags: true,
+            status: true,
+          },
+        });
+        await tx.assetVersion.upsert({
+          where: {
+            assetId_version: { assetId: asset.id, version: asset.version },
+          },
+          create: assetVersionSnapshot(asset, auth.userId),
+          update: {},
         });
         assets.push(asset);
       }

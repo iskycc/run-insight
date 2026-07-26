@@ -19,12 +19,12 @@ import {
 } from '@/components/shared/BatchActionModal';
 import { useAuth } from '@/components/shared/AuthProvider';
 import { useToast } from '@/contexts/ToastContext';
+import { toDateInputValue } from '@/lib/date-time';
 import { fetchJson, ApiError } from '@/lib/fetch';
 import {
   CaretDown,
   DownloadSimple,
   HandWaving,
-  SquaresFour,
 } from '@phosphor-icons/react';
 import type {
   CaseResultDTO,
@@ -38,6 +38,10 @@ import type {
   BatchesResponse,
   SaveAssetResponse,
   BatchUpdateResponse,
+  SavedViewDTO,
+  SavedViewFilters,
+  SavedViewScope,
+  SavedViewsResponse,
 } from '@/types';
 
 const SORT_FIELDS: SortField[] = [
@@ -117,6 +121,15 @@ function WorkspaceContent() {
 
   // Metrics state
   const [metrics, setMetrics] = useState<DashboardStatsResponse | null>(null);
+
+  // Saved views state
+  const [savedViews, setSavedViews] = useState<SavedViewDTO[]>([]);
+  const [savedViewsLoading, setSavedViewsLoading] = useState(false);
+  const [savedViewSaving, setSavedViewSaving] = useState(false);
+  const [canShareViews, setCanShareViews] = useState(false);
+  const savedViewsRequestRef = useRef(0);
+  const defaultViewAppliedRef = useRef(false);
+  const hadInitialQueryRef = useRef(initialSearchParams.toString().length > 0);
 
   // Save asset modal state
   const [saveModalOpen, setSaveModalOpen] = useState(false);
@@ -325,6 +338,70 @@ function WorkspaceContent() {
     []
   );
 
+  const handleApplySavedView = useCallback((filters: SavedViewFilters) => {
+    handleFilterChange({
+      projectId: filters.projectId ?? '',
+      stageId: filters.stageId ?? '',
+      batchScopeId: filters.batchScopeId ?? '',
+      progressCategory: filters.progressCategory ?? '',
+      assetSaved: filters.assetSaved ?? '',
+      search: filters.search ?? '',
+      resultSummary: filters.resultSummary ?? '',
+      assignee: filters.assignee ?? '',
+      rootCause: filters.rootCause ?? '',
+      dateFrom: filters.dateFrom ?? '',
+      dateTo: filters.dateTo ?? '',
+    });
+  }, [handleFilterChange]);
+
+  const loadSavedViews = useCallback(async () => {
+    const requestId = ++savedViewsRequestRef.current;
+    setSavedViewsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (selectedProjectId) params.set('projectId', selectedProjectId);
+      const query = params.toString();
+      const data = await fetchJson<SavedViewsResponse>(
+        `/api/saved-views${query ? `?${query}` : ''}`,
+      );
+      if (requestId !== savedViewsRequestRef.current) return;
+      setSavedViews(data.views);
+      setCanShareViews(data.canShare);
+
+      if (!defaultViewAppliedRef.current) {
+        defaultViewAppliedRef.current = true;
+        if (!hadInitialQueryRef.current) {
+          const defaultView = data.views.find(
+            (view) => view.isDefault && view.isOwner,
+          );
+          if (defaultView) handleApplySavedView(defaultView.filters);
+        }
+      }
+    } catch (error) {
+      if (requestId !== savedViewsRequestRef.current) return;
+      const message =
+        error instanceof ApiError ? error.message : '加载保存视图失败';
+      showToast({ message, type: 'error' });
+      setSavedViews([]);
+      setCanShareViews(false);
+    } finally {
+      if (requestId === savedViewsRequestRef.current) {
+        setSavedViewsLoading(false);
+      }
+    }
+  }, [handleApplySavedView, selectedProjectId, showToast]);
+
+  useEffect(() => {
+    if (!user) return;
+    const timeout = window.setTimeout(() => {
+      void loadSavedViews();
+    }, 0);
+    return () => {
+      window.clearTimeout(timeout);
+      savedViewsRequestRef.current += 1;
+    };
+  }, [loadSavedViews, user]);
+
   // Save asset handlers
   const handleSaveAsset = useCallback((caseId: string) => {
     if (!canEdit) return;
@@ -438,7 +515,7 @@ function WorkspaceContent() {
       const blob = await res.blob();
       const disposition = res.headers.get('Content-Disposition') || '';
       const match = disposition.match(/filename="?([^";]+)"?/);
-      const filename = match?.[1] ?? `run-insight-${new Date().toISOString().slice(0, 10)}.${format}`;
+      const filename = match?.[1] ?? `run-insight-${toDateInputValue()}.${format}`;
 
       const url = URL.createObjectURL(blob);
       const anchor = exportAnchorRef.current ?? document.createElement('a');
@@ -508,12 +585,11 @@ function WorkspaceContent() {
     updatedAt: c.updatedAt,
   }));
 
-  const pendingCount = metrics
-    ? Math.max(0, metrics.failedCaseCount - metrics.analyzedCaseCount)
-    : 0;
-  const categoryCount = (label: string) =>
-    metrics?.progressDistribution.find((item) => item.category === label)?.count ?? 0;
+  const pendingCount =
+    metrics?.progressDistribution.find((item) => item.category === '待分析')?.count ?? 0;
   const now = new Date();
+  const greeting =
+    now.getHours() < 12 ? '早上好' : now.getHours() < 18 ? '下午好' : '晚上好';
   const greetingTime = [
     `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`,
     `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
@@ -536,6 +612,112 @@ function WorkspaceContent() {
     });
   };
 
+  const currentSavedFilters: SavedViewFilters = {
+    ...(selectedProjectId ? { projectId: selectedProjectId } : {}),
+    ...(selectedStageId ? { stageId: selectedStageId } : {}),
+    ...(selectedBatchScopeId ? { batchScopeId: selectedBatchScopeId } : {}),
+    ...(selectedProgressCategory
+      ? { progressCategory: selectedProgressCategory }
+      : {}),
+    ...(selectedAssetSaved ? { assetSaved: selectedAssetSaved } : {}),
+    ...(search ? { search } : {}),
+    ...(resultSummary ? { resultSummary } : {}),
+    ...(assignee ? { assignee } : {}),
+    ...(rootCause ? { rootCause } : {}),
+    ...(dateFrom ? { dateFrom } : {}),
+    ...(dateTo ? { dateTo } : {}),
+  };
+
+  const createSavedView = async (input: {
+    name: string;
+    scope: SavedViewScope;
+    isDefault: boolean;
+  }) => {
+    if (input.scope === 'PROJECT' && !selectedProjectId) {
+      showToast({ message: '请先选择要共享视图的项目', type: 'error' });
+      return false;
+    }
+    setSavedViewSaving(true);
+    try {
+      await fetchJson('/api/saved-views', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...input,
+          filters: currentSavedFilters,
+          projectId: input.scope === 'PROJECT' ? selectedProjectId : undefined,
+        }),
+      });
+      showToast({ message: '视图已保存', type: 'success' });
+      await loadSavedViews();
+      return true;
+    } catch (error) {
+      const message =
+        error instanceof ApiError ? error.message : '保存视图失败';
+      showToast({ message, type: 'error' });
+      return false;
+    } finally {
+      setSavedViewSaving(false);
+    }
+  };
+
+  const updateSavedView = async (id: string) => {
+    setSavedViewSaving(true);
+    try {
+      await fetchJson(`/api/saved-views/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filters: currentSavedFilters }),
+      });
+      showToast({ message: '视图已更新为当前筛选', type: 'success' });
+      await loadSavedViews();
+    } catch (error) {
+      const message =
+        error instanceof ApiError ? error.message : '更新视图失败';
+      showToast({ message, type: 'error' });
+    } finally {
+      setSavedViewSaving(false);
+    }
+  };
+
+  const setDefaultSavedView = async (id: string) => {
+    setSavedViewSaving(true);
+    try {
+      await fetchJson(`/api/saved-views/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isDefault: true }),
+      });
+      showToast({ message: '默认视图已更新', type: 'success' });
+      await loadSavedViews();
+    } catch (error) {
+      const message =
+        error instanceof ApiError ? error.message : '设置默认视图失败';
+      showToast({ message, type: 'error' });
+    } finally {
+      setSavedViewSaving(false);
+    }
+  };
+
+  const deleteSavedView = async (id: string) => {
+    const view = savedViews.find((item) => item.id === id);
+    if (!view || !window.confirm(`确定删除视图“${view.name}”吗？`)) return;
+    setSavedViewSaving(true);
+    try {
+      await fetchJson<{ deleted: boolean }>(`/api/saved-views/${id}`, {
+        method: 'DELETE',
+      });
+      showToast({ message: '视图已删除', type: 'success' });
+      await loadSavedViews();
+    } catch (error) {
+      const message =
+        error instanceof ApiError ? error.message : '删除视图失败';
+      showToast({ message, type: 'error' });
+    } finally {
+      setSavedViewSaving(false);
+    }
+  };
+
   return (
     <PageContainer
       title="工作台"
@@ -544,7 +726,7 @@ function WorkspaceContent() {
           ? (
             <span className="inline-flex items-center gap-1.5">
               <HandWaving size={16} weight="fill" className="text-warning" aria-hidden="true" />
-              下午好，{user.username}！截至 {greetingTime}，共{' '}
+              {greeting}，{user.username}！截至 {greetingTime}，共{' '}
               {metrics.totalCaseCount.toLocaleString()} 条用例，
               {metrics.analyzedCaseCount.toLocaleString()} 条已分析。
             </span>
@@ -554,8 +736,8 @@ function WorkspaceContent() {
       actions={
         <details className="group relative">
           <summary className="flex h-11 cursor-pointer list-none items-center gap-2 rounded-[10px] border border-border bg-surface-solid px-4 text-sm font-medium text-text-primary shadow-[0_4px_14px_rgba(38,57,88,0.045)] transition hover:border-accent/30 [&::-webkit-details-marker]:hidden">
-            <SquaresFour size={17} aria-hidden="true" />
-            自定义视图
+            <DownloadSimple size={17} aria-hidden="true" />
+            导出数据
             <CaretDown size={13} weight="bold" aria-hidden="true" />
           </summary>
           <div className="absolute right-0 z-20 mt-2 w-44 overflow-hidden rounded-[14px] border border-border/90 bg-surface-solid p-1.5 shadow-[0_18px_50px_rgba(38,57,88,0.14)]">
@@ -609,7 +791,6 @@ function WorkspaceContent() {
                 pendingCount,
                 analyzedCount: metrics.analyzedCaseCount,
                 assetCount: metrics.assetCount,
-                projectCount: metrics.projectCount,
               }}
               onContinue={() => applyQuickView({ progressCategory: 'PENDING' })}
             />
@@ -619,16 +800,17 @@ function WorkspaceContent() {
               data={metrics.progressDistribution}
             />
             <SavedViewsCard
-              pendingCount={pendingCount}
-              failedCount={metrics.failedCaseCount}
-              locatedCount={categoryCount('已定位')}
-              fixedCount={categoryCount('已修复')}
-              recentCount={Math.min(metrics.totalCaseCount, 60)}
-              onSelect={applyQuickView}
-              onViewAll={() => applyQuickView({
-                progressCategory: '',
-                resultSummary: '',
-              })}
+              views={savedViews}
+              loading={savedViewsLoading}
+              saving={savedViewSaving}
+              canShare={canShareViews}
+              currentProjectId={selectedProjectId}
+              onSelect={handleApplySavedView}
+              onQuickFilter={applyQuickView}
+              onCreate={createSavedView}
+              onUpdate={updateSavedView}
+              onSetDefault={setDefaultSavedView}
+              onDelete={deleteSavedView}
             />
           </div>
         )}

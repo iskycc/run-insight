@@ -8,6 +8,7 @@ import { EmptyState } from '@/components/shared/EmptyState';
 import { Button } from '@/components/shared/Button';
 import { useAuth } from '@/components/shared/AuthProvider';
 import { ApiError, fetchJson } from '@/lib/fetch';
+import { formatDate } from '@/lib/date-time';
 import { useToast } from '@/contexts/ToastContext';
 import { PROGRESS_CATEGORIES, PROGRESS_LABELS, type CasePriority, type CaseResultDTO } from '@/types';
 
@@ -164,7 +165,7 @@ export default function MyTasksPage() {
                       {task.priority ? priorityLabel[task.priority] : '—'}
                     </td>
                     <td className={`px-4 py-3 ${overdueTask ? 'font-medium text-danger' : 'text-text-secondary'}`}>
-                      {task.dueDate ? new Date(task.dueDate).toLocaleDateString('zh-CN') : '—'}
+                      {task.dueDate ? formatDate(task.dueDate) : '—'}
                     </td>
                   </tr>
                 );
@@ -195,7 +196,7 @@ export default function MyTasksPage() {
                       优先级 {task.priority ? priorityLabel[task.priority] : '—'}
                     </span>
                     <span className={overdueTask ? 'filter-chip text-danger' : 'filter-chip'}>
-                      {task.dueDate ? new Date(task.dueDate).toLocaleDateString('zh-CN') : '无截止日期'}
+                      {task.dueDate ? formatDate(task.dueDate) : '无截止日期'}
                     </span>
                   </div>
                 </Link>

@@ -8,9 +8,10 @@ jest.mock("@/lib/prisma", () => ({
     user: { findUnique: jest.fn() },
     caseResult: { updateMany: jest.fn(), findMany: jest.fn(), count: jest.fn() },
     projectMember: { findUnique: jest.fn() },
+    organizationMember: { findUnique: jest.fn() },
     caseActivity: { create: jest.fn() },
     auditLog: { create: jest.fn() },
-    project: { delete: jest.fn(), findUnique: jest.fn() },
+    project: { delete: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
   },
 }));
 jest.mock("@/lib/auth", () => ({
@@ -28,6 +29,8 @@ describe("Role-based access control", () => {
     (prisma.user.findUnique as jest.Mock).mockResolvedValue({ role: "VIEWER" });
 
     (prisma.projectMember.findUnique as jest.Mock).mockResolvedValue({ role: "VIEWER" });
+    (prisma.project.findUnique as jest.Mock).mockResolvedValue({ organizationId: "o1" });
+    (prisma.organizationMember.findUnique as jest.Mock).mockResolvedValue({ role: "MEMBER" });
     (prisma.caseResult.findMany as jest.Mock).mockResolvedValue([
       { id: "claaaaaaaaaaaaaaaaaaaaaa1", projectId: "p1" },
     ]);
@@ -41,6 +44,8 @@ describe("Role-based access control", () => {
     (authenticateRequest as jest.Mock).mockReturnValue({ userId: "u1", username: "editor" });
     (prisma.user.findUnique as jest.Mock).mockResolvedValue({ role: "EDITOR" });
     (prisma.projectMember.findUnique as jest.Mock).mockResolvedValue({ role: "EDITOR" });
+    (prisma.project.findUnique as jest.Mock).mockResolvedValue({ organizationId: "o1" });
+    (prisma.organizationMember.findUnique as jest.Mock).mockResolvedValue({ role: "MEMBER" });
     (prisma.caseResult.findMany as jest.Mock).mockResolvedValue([
       {
         id: "claaaaaaaaaaaaaaaaaaaaaa1",
@@ -58,17 +63,31 @@ describe("Role-based access control", () => {
   it("should reject EDITOR from DELETE project", async () => {
     (authenticateRequest as jest.Mock).mockReturnValue({ userId: "u1", username: "editor" });
     (prisma.user.findUnique as jest.Mock).mockResolvedValue({ role: "EDITOR" });
+    (prisma.projectMember.findUnique as jest.Mock).mockResolvedValue(null);
+    (prisma.project.findUnique as jest.Mock).mockResolvedValue({
+      id: "p1",
+      organizationId: "o1",
+      name: "Project",
+      archived: false,
+    });
+    (prisma.organizationMember.findUnique as jest.Mock).mockResolvedValue({ role: "MEMBER" });
 
     const req = { url: "http://localhost/api/projects/p1", headers: new Headers() } as unknown as Request;
     const res = await deleteProject(req as any, { params: Promise.resolve({ id: "p1" }) });
     expect(res.status).toBe(403);
   });
 
-  it("should allow ADMIN to DELETE project", async () => {
+  it("should allow ADMIN to move a project to the recycle bin", async () => {
     (authenticateRequest as jest.Mock).mockReturnValue({ userId: "u1", username: "admin" });
     (prisma.user.findUnique as jest.Mock).mockResolvedValue({ role: "ADMIN" });
-    (prisma.project.findUnique as jest.Mock).mockResolvedValue({ id: "p1" });
-    (prisma.project.delete as jest.Mock).mockResolvedValue({ id: "p1" });
+    (prisma.project.findUnique as jest.Mock).mockResolvedValue({
+      id: "p1",
+      organizationId: "o1",
+      name: "Project",
+      archived: false,
+    });
+    (prisma.organizationMember.findUnique as jest.Mock).mockResolvedValue({ role: "OWNER" });
+    (prisma.project.update as jest.Mock).mockResolvedValue({ id: "p1" });
 
     const req = { url: "http://localhost/api/projects/p1", headers: new Headers() } as unknown as Request;
     const res = await deleteProject(req as any, { params: Promise.resolve({ id: "p1" }) });

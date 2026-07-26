@@ -77,23 +77,19 @@ export function ChangePasswordModal({
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
+      try {
+        await onLogout();
+      } catch {
+        // The password endpoint already cleared the cookie and revoked every
+        // session. Keep presenting a successful password change if the
+        // follow-up client state refresh encounters a transient network error.
+      }
       setChanged(true);
-      showToast({ message: '密码修改成功', type: 'success' });
+      showToast({ message: '密码修改成功，请重新登录', type: 'success' });
     } catch (requestError) {
       const message = passwordErrorMessage(requestError);
       setError(message);
       showToast({ message, type: 'error' });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleLogout = async () => {
-    setIsSubmitting(true);
-    try {
-      await onLogout();
-      reset();
-      onClose();
     } finally {
       setIsSubmitting(false);
     }
@@ -106,14 +102,7 @@ export function ChangePasswordModal({
       title={changed ? '密码已修改' : '修改密码'}
       footer={
         changed ? (
-          <>
-            <Button variant="secondary" onClick={close} disabled={isSubmitting}>
-              继续使用
-            </Button>
-            <Button onClick={() => void handleLogout()} disabled={isSubmitting}>
-              {isSubmitting ? '退出中...' : '退出并重新登录'}
-            </Button>
-          </>
+          <Button onClick={close}>知道了</Button>
         ) : (
           <>
             <Button variant="secondary" onClick={close} disabled={isSubmitting}>
@@ -132,7 +121,7 @@ export function ChangePasswordModal({
     >
       {changed ? (
         <p className="text-sm text-text-secondary" role="status">
-          新密码已生效。你可以继续使用当前会话，或退出后使用新密码重新登录。
+          新密码已生效，所有登录会话均已注销。请使用新密码重新登录。
         </p>
       ) : (
         <form

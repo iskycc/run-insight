@@ -15,6 +15,7 @@ jest.mock("@/lib/prisma", () => ({
     caseResult: {
       findMany: jest.fn(),
     },
+    auditLog: { create: jest.fn() },
   },
 }));
 
@@ -66,7 +67,9 @@ describe("GET /api/export", () => {
     const res = await GET(req);
 
     expect(res.headers.get("content-type")).toContain("text/csv");
-    const text = await res.text();
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    expect(Array.from(bytes.slice(0, 3))).toEqual([0xef, 0xbb, 0xbf]);
+    const text = new TextDecoder().decode(bytes);
     expect(text).toContain("caseNo,name,resultSummary");
     expect(text).toContain("TC001,Test 1,PASS");
   });
@@ -81,6 +84,28 @@ describe("GET /api/export", () => {
     expect(res.headers.get("content-type")).toContain("application/json");
     const body = await res.json();
     expect(body.cases).toEqual([]);
+  });
+
+  it("streams JSON rows with the existing field format", async () => {
+    (mockPrisma.caseResult.findMany as jest.Mock).mockResolvedValue([
+      { ...sampleCase, assetSaved: true },
+    ]);
+
+    const req = createRequest("/api/export?format=json");
+    req.headers.set("cookie", authCookie());
+    const res = await GET(req);
+    const body = await res.json();
+
+    expect(body).toEqual({
+      cases: [
+        expect.objectContaining({
+          caseNo: "TC001",
+          name: "Test 1",
+          assetSaved: "是",
+          createdAt: "2026-07-01T00:00:00.000Z",
+        }),
+      ],
+    });
   });
 
   it("should filter by projectId", async () => {
@@ -185,13 +210,22 @@ describe("GET /api/export", () => {
     await GET(req);
 
     expect(mockPrisma.caseResult.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ orderBy: { caseNo: "asc" } })
+      expect.objectContaining({
+        orderBy: [{ caseNo: "asc" }, { id: "asc" }],
+        take: 500,
+      })
     );
   });
 
-  it("escapes formula-like values in CSV exports", async () => {
+  it("escapes all formula-like prefixes in CSV exports", async () => {
     (mockPrisma.caseResult.findMany as jest.Mock).mockResolvedValue([
-      { ...sampleCase, name: "=SUM(1,1)" },
+      {
+        ...sampleCase,
+        caseNo: "=cmd",
+        name: "+cmd",
+        logUrl: "-cmd",
+        assignee: "@cmd",
+      },
     ]);
     const req = createRequest("/api/export?format=csv");
     req.headers.set("cookie", authCookie());
@@ -199,7 +233,94 @@ describe("GET /api/export", () => {
     const res = await GET(req);
     const csv = await res.text();
 
-    expect(csv).toContain("'=SUM(1,1)");
+    expect(csv).toContain("'=cmd");
+    expect(csv).toContain("'+cmd");
+    expect(csv).toContain("'-cmd");
+    expect(csv).toContain("'@cmd");
+  });
+
+  it("reads CSV data in stable cursor batches and audits the streamed row count", async () => {
+    const firstPage = Array.from({ length: 500 }, (_, index) => ({
+      ...sampleCase,
+      id: `case-${index}`,
+      caseNo: `TC-${index}`,
+    }));
+    const finalCase = {
+      ...sampleCase,
+      id: "case-final",
+      caseNo: "TC-FINAL",
+    };
+    (mockPrisma.caseResult.findMany as jest.Mock)
+      .mockResolvedValueOnce(firstPage)
+      .mockResolvedValueOnce([finalCase]);
+
+    const req = createRequest("/api/export?format=csv&sortField=caseNo&sortOrder=asc");
+    req.headers.set("cookie", authCookie());
+    const res = await GET(req);
+    const csv = await res.text();
+
+    expect(csv).toContain("TC-0");
+    expect(csv).toContain("TC-FINAL");
+    expect(mockPrisma.caseResult.findMany).toHaveBeenCalledTimes(2);
+    expect((mockPrisma.caseResult.findMany as jest.Mock).mock.calls[1][0]).toEqual(
+      expect.objectContaining({
+        cursor: { id: "case-499" },
+        skip: 1,
+        take: 500,
+        orderBy: [{ caseNo: "asc" }, { id: "asc" }],
+      }),
+    );
+    expect(mockPrisma.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: "EXPORT",
+        changes: expect.objectContaining({ rowCount: 501 }),
+      }),
+    });
+  });
+
+  it("stops cursor reads and records cancellation when the client cancels", async () => {
+    const firstPage = Array.from({ length: 500 }, (_, index) => ({
+      ...sampleCase,
+      id: `cancel-${index}`,
+    }));
+    (mockPrisma.caseResult.findMany as jest.Mock).mockResolvedValue(firstPage);
+
+    const req = createRequest("/api/export?format=csv");
+    req.headers.set("cookie", authCookie());
+    const res = await GET(req);
+    const reader = res.body!.getReader();
+    const firstChunk = await reader.read();
+    expect(new TextDecoder().decode(firstChunk.value)).toContain("caseNo");
+
+    await reader.cancel();
+
+    expect(mockPrisma.caseResult.findMany).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        changes: expect.objectContaining({
+          rowCount: 0,
+          cancelled: true,
+        }),
+      }),
+    });
+  });
+
+  it("errors the stream and stops pagination when a later cursor query fails", async () => {
+    const firstPage = Array.from({ length: 500 }, (_, index) => ({
+      ...sampleCase,
+      id: `error-${index}`,
+    }));
+    (mockPrisma.caseResult.findMany as jest.Mock)
+      .mockResolvedValueOnce(firstPage)
+      .mockRejectedValueOnce(new Error("cursor query failed"));
+
+    const req = createRequest("/api/export?format=json");
+    req.headers.set("cookie", authCookie());
+    const res = await GET(req);
+
+    await expect(res.text()).rejects.toThrow("cursor query failed");
+    expect(mockPrisma.caseResult.findMany).toHaveBeenCalledTimes(2);
+    expect(mockPrisma.auditLog.create).not.toHaveBeenCalled();
   });
 
   it("should return 500 on database error", async () => {
@@ -238,6 +359,26 @@ describe("GET /api/export", () => {
     expect(sheet?.getRow(1).values).toEqual(
       expect.arrayContaining(["优先级", "截止日期", "根因分类", "备注"])
     );
+  });
+
+  it("rejects Excel exports above the safe row limit with a CSV hint", async () => {
+    (mockPrisma.caseResult.findMany as jest.Mock).mockResolvedValue(
+      Array(10_001).fill(sampleCase),
+    );
+
+    const req = createRequest("/api/export?format=xlsx");
+    req.headers.set("cookie", authCookie());
+    const res = await GET(req);
+
+    expect(res.status).toBe(413);
+    await expect(res.json()).resolves.toEqual({
+      error: "EXPORT_TOO_LARGE",
+      message: "Excel 导出最多支持 10000 行，请缩小筛选范围或改用 CSV 导出",
+    });
+    expect(mockPrisma.caseResult.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ take: 10_001 }),
+    );
+    expect(mockPrisma.auditLog.create).not.toHaveBeenCalled();
   });
 
   it("should accept format=excel as an alias for xlsx", async () => {

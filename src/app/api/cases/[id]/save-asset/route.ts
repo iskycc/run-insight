@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateRequest } from "@/lib/auth";
 import { internalError, jsonError } from "@/lib/api-helpers";
-import { assetInclude, buildAssetSnapshot, toAssetDTO } from "@/lib/assets";
+import {
+  assetInclude,
+  assetVersionSnapshot,
+  buildAssetSnapshot,
+  toAssetDTO,
+} from "@/lib/assets";
 import { writeAuditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { getProjectAccess } from "@/lib/project-access";
@@ -13,7 +18,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = authenticateRequest(request);
+  const auth = await authenticateRequest(request);
   if (auth instanceof NextResponse) return auth;
 
   try {
@@ -53,6 +58,13 @@ export async function PATCH(
         },
         include: assetInclude,
       });
+      await tx.assetVersion.upsert({
+        where: {
+          assetId_version: { assetId: asset.id, version: asset.version },
+        },
+        create: assetVersionSnapshot(asset, auth.userId),
+        update: {},
+      });
       const caseResult = await tx.caseResult.update({
         where: { id },
         data: { assetSaved: true },
@@ -74,7 +86,7 @@ export async function PATCH(
 
     return NextResponse.json<SaveAssetResponse>({
       case: toCaseDTO(result.caseResult),
-      asset: toAssetDTO(result.asset, true),
+      asset: toAssetDTO(result.asset, true, access.canAdmin),
     });
   } catch {
     return internalError("保存资产失败");

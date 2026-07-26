@@ -9,7 +9,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = authenticateRequest(request);
+  const auth = await authenticateRequest(request);
   if (auth instanceof NextResponse) return auth;
 
   try {
@@ -35,7 +35,7 @@ export async function POST(
     });
     await writeAuditLog({
       userId: auth.userId,
-      action: "UPDATE",
+      action: "REUSE",
       entityType: "asset",
       entityId: id,
       changes: { reused: true },

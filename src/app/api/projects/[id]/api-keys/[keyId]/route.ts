@@ -9,7 +9,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; keyId: string }> }
 ) {
-  const authResult = authenticateRequest(request);
+  const authResult = await authenticateRequest(request);
   if (authResult instanceof NextResponse) return authResult;
 
   try {
@@ -23,18 +23,42 @@ export async function DELETE(
     if (!record) {
       return jsonError("NOT_FOUND", "API Key 不存在", 404);
     }
+    if (record.revokedAt) {
+      return jsonError("CONFLICT", "API Key 已撤销", 409);
+    }
 
-    await prisma.apiKey.delete({ where: { id: keyId } });
+    const revokedAt = new Date();
+    const result = await prisma.apiKey.updateMany({
+      where: { id: keyId, projectId: id, revokedAt: null },
+      data: { revokedAt },
+    });
+    if (result.count !== 1) {
+      return jsonError("CONFLICT", "API Key 已撤销", 409);
+    }
     await writeAuditLog({
       userId: authResult.userId,
-      action: "DELETE",
+      action: "API_KEY_REVOKE",
       entityType: "apiKey",
       entityId: keyId,
-      changes: { projectId: id, description: record.description },
+      changes: {
+        projectId: id,
+        prefix: record.prefix,
+        description: record.description,
+        scopes: record.scopes,
+        revokedAt: revokedAt.toISOString(),
+      },
     });
 
-    return NextResponse.json({ deleted: true });
-  } catch {
-    return internalError("删除 API Key 失败");
+    return NextResponse.json({
+      revoked: true,
+      revokedAt: revokedAt.toISOString(),
+    });
+  } catch (error) {
+    return internalError("撤销 API Key 失败", {
+      request,
+      error,
+      event: "api_key.revoke_failed",
+      context: { userId: authResult.userId },
+    });
   }
 }

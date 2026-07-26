@@ -1,6 +1,5 @@
 'use client';
 
-import { CaretDown, TrendDown } from '@phosphor-icons/react';
 import { Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -42,24 +41,19 @@ export default function FailureQualityCard({
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-base font-semibold tracking-tight text-text-primary">
-            失败质量
+            质量概览
           </h2>
-          <p className="mt-2 text-[34px] font-bold leading-none tracking-[-0.04em] text-text-primary">
+          <p className="mt-3 text-xs font-medium text-text-secondary">失败用例</p>
+          <p className="mt-1 text-[34px] font-bold leading-none tracking-[-0.04em] text-text-primary">
             {failureCount.toLocaleString()}
           </p>
-          <p className="mt-2 inline-flex items-center gap-1 text-xs text-text-secondary">
-            较上一批改善
-            <span className="font-semibold text-success">12%</span>
-            <TrendDown size={14} weight="bold" className="text-success" aria-hidden="true" />
+          <p className="mt-2 text-xs text-text-secondary">
+            失败率 <span className="font-semibold text-text-primary">{failureRate.toFixed(1)}%</span>
           </p>
         </div>
-        <button
-          type="button"
-          className="inline-flex h-9 items-center gap-2 rounded-[9px] border border-border bg-surface-solid px-3 text-xs font-normal text-text-primary transition hover:border-accent/30"
-        >
-          全部项目
-          <CaretDown size={12} weight="bold" aria-hidden="true" />
-        </button>
+        <span className="rounded-full bg-bg px-2.5 py-1 text-[11px] font-medium text-text-secondary">
+          暂无历史对比数据
+        </span>
       </div>
 
       <div className="mt-1 grid items-center gap-5 sm:grid-cols-[155px_minmax(0,1fr)]">
@@ -89,9 +83,9 @@ export default function FailureQualityCard({
             </PieChart>
           </ResponsiveContainer>
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-xs text-text-secondary">失败率</span>
+            <span className="text-xs text-text-secondary">已分类</span>
             <strong className="mt-1 text-lg font-semibold text-text-primary">
-              {failureRate.toFixed(1)}%
+              {distributionTotal.toLocaleString()}
             </strong>
           </div>
         </div>

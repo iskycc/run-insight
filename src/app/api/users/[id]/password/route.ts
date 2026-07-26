@@ -12,7 +12,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const authResult = authenticateRequest(request);
+  const authResult = await authenticateRequest(request);
   if (authResult instanceof NextResponse) return authResult;
 
   const roleCheck = await requireRole(authResult.userId, ["ADMIN"], prisma);
@@ -46,13 +46,20 @@ export async function PATCH(
       return jsonError("NOT_FOUND", "用户不存在", 404);
     }
 
-    await prisma.user.update({
-      where: { id },
-      data: { password: await hashPassword(newPassword) },
+    const password = await hashPassword(newPassword);
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id },
+        data: { password },
+      });
+      await tx.session.updateMany({
+        where: { userId: id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
     });
     await writeAuditLog({
       userId: authResult.userId,
-      action: "UPDATE",
+      action: "PASSWORD_CHANGE",
       entityType: "user",
       entityId: id,
       changes: { passwordReset: true },

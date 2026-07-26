@@ -16,7 +16,7 @@ import { getProjectAccess } from "@/lib/project-access";
  * Sorted by failCount desc (assignees with no failures appear last).
  */
 export async function GET(request: NextRequest) {
-  const authResult = authenticateRequest(request);
+  const authResult = await authenticateRequest(request);
   if (authResult instanceof NextResponse) return authResult;
 
   try {

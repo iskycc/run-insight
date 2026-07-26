@@ -10,7 +10,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const authResult = authenticateRequest(request);
+  const authResult = await authenticateRequest(request);
   if (authResult instanceof NextResponse) return authResult;
 
   const roleCheck = await requireRole(authResult.userId, ["ADMIN"], prisma);
@@ -48,6 +48,10 @@ export async function PATCH(
         where: { id },
         data: { role },
         select: { id: true, username: true, role: true, createdAt: true, updatedAt: true },
+      });
+      await tx.session.updateMany({
+        where: { userId: id, revokedAt: null },
+        data: { revokedAt: new Date() },
       });
       return { status: "updated" as const, user };
     }, { isolationLevel: "Serializable" });

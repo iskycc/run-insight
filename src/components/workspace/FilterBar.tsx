@@ -51,7 +51,6 @@ type Chip = {
   key: keyof WorkspaceFilters;
   label: string;
   value: string;
-  defaultText: string;
 };
 
 export default function FilterBar({
@@ -156,7 +155,6 @@ export default function FilterBar({
       key: 'progressCategory',
       label: '进展',
       value: progressLabel,
-      defaultText: '全部进展',
     },
     {
       key: 'assetSaved',
@@ -164,36 +162,32 @@ export default function FilterBar({
       value:
         selectedAssetSaved === 'true'
           ? '已保存'
-          : selectedAssetSaved === 'false'
-            ? '未保存'
-            : '',
-      defaultText: '全部',
+            : selectedAssetSaved === 'false'
+              ? '未保存'
+              : '',
     },
     {
       key: 'stageId',
       label: '测试阶段',
       value: selectedStageName,
-      defaultText: '全部阶段',
     },
     {
       key: 'batchScopeId',
       label: '批跑范围',
       value: selectedBatchName,
-      defaultText: '全部范围',
     },
     {
       key: 'resultSummary',
       label: '结果概要',
       value: resultSummary,
-      defaultText: '全部结果',
     },
     {
       key: 'dateFrom',
       label: '创建日期',
       value: dateFrom || dateTo ? `${dateFrom || '不限'} ~ ${dateTo || '不限'}` : '',
-      defaultText: '不限日期',
     },
   ];
+  const activeChips = chips.filter((chip) => chip.value);
 
   const mainControl =
     'field-control h-12 w-full rounded-[10px] border-border bg-surface-solid px-4 text-sm shadow-none';
@@ -218,7 +212,7 @@ export default function FilterBar({
             type="search"
             value={search}
             onChange={(event) => emit({ search: event.target.value })}
-            placeholder="搜索用例、负责人或根因"
+            placeholder="搜索用例编号或名称"
             className={`${mainControl} pl-11 font-normal`}
           />
         </label>
@@ -264,7 +258,7 @@ export default function FilterBar({
             onChange={(event) => emit({ progressCategory: event.target.value })}
             className={`${mainControl} pl-11 font-semibold`}
           >
-            <option value="">我的视图</option>
+            <option value="">全部进展</option>
             {PROGRESS_CATEGORIES.map((category) => (
               <option key={category} value={category}>
                 {PROGRESS_LABELS[category]}
@@ -291,10 +285,14 @@ export default function FilterBar({
       </div>
 
       <div className="mt-5 flex flex-wrap items-center gap-2.5">
-        {chips.map((chip) => (
+        {activeChips.length === 0 && (
+          <span className="text-xs text-text-secondary">未启用附加筛选条件</span>
+        )}
+        {activeChips.map((chip) => (
           <button
             key={chip.key}
             type="button"
+            aria-label={`清除${chip.label}筛选`}
             onClick={() => {
               const patch: Partial<WorkspaceFilters> = { [chip.key]: '' };
               if (chip.key === 'stageId') patch.batchScopeId = '';
@@ -304,18 +302,20 @@ export default function FilterBar({
             className="inline-flex min-h-8 items-center gap-2 rounded-[8px] border border-border/80 bg-bg/55 px-3 text-xs font-normal text-text-secondary transition hover:border-accent/25 hover:bg-surface-solid"
           >
             <span>
-              {chip.label}：{chip.value || chip.defaultText}
+              {chip.label}：{chip.value}
             </span>
             <X size={12} weight="bold" aria-hidden="true" />
           </button>
         ))}
-        <button
-          type="button"
-          onClick={clearFilters}
-          className="ml-auto min-h-8 px-2 text-xs font-semibold text-accent hover:text-accent-hover"
-        >
-          清除筛选
-        </button>
+        {activeFilterCount > 0 && (
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="ml-auto min-h-8 px-2 text-xs font-semibold text-accent hover:text-accent-hover"
+          >
+            清除筛选
+          </button>
+        )}
       </div>
 
       <div
@@ -417,11 +417,11 @@ export default function FilterBar({
           <span className="text-xs font-medium text-text-secondary">创建日期从</span>
           <input
             aria-label="创建日期从"
-            type="text"
-            inputMode="numeric"
+            type="date"
+            lang="zh-CN"
             value={dateFrom}
+            max={dateTo || undefined}
             onChange={(event) => emit({ dateFrom: event.target.value })}
-            placeholder="YYYY-MM-DD"
             className={advancedControl}
           />
         </label>
@@ -430,11 +430,11 @@ export default function FilterBar({
           <span className="text-xs font-medium text-text-secondary">创建日期至</span>
           <input
             aria-label="创建日期至"
-            type="text"
-            inputMode="numeric"
+            type="date"
+            lang="zh-CN"
             value={dateTo}
+            min={dateFrom || undefined}
             onChange={(event) => emit({ dateTo: event.target.value })}
-            placeholder="YYYY-MM-DD"
             className={advancedControl}
           />
         </label>

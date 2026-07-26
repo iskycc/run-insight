@@ -133,6 +133,54 @@ function existingCase(caseNo = "TC-001") {
 
 describe("POST /api/import", () => {
   const requestId = "123e4567-e89b-42d3-a456-426614174000";
+
+  it("requires a valid worker secret and current owner permission", async () => {
+    const originalSecret = process.env.CRON_SECRET;
+    process.env.CRON_SECRET = "worker-secret";
+    try {
+      const invalidSecret = createRequest("/api/import", {
+        method: "POST",
+        body: JSON.stringify({ ...basePayload, rows: [validPreRow] }),
+        headers: {
+          "Content-Type": "application/json",
+          "x-import-worker-secret": "wrong",
+          "x-import-owner-id": "user_1",
+          cookie: authCookie(),
+        },
+      });
+      expect((await POST(invalidSecret)).status).toBe(401);
+
+      (mockPrisma.user.findUnique as jest.Mock).mockResolvedValueOnce(null);
+      const missingOwner = createRequest("/api/import", {
+        method: "POST",
+        body: JSON.stringify({ ...basePayload, rows: [validPreRow] }),
+        headers: {
+          "Content-Type": "application/json",
+          "x-import-worker-secret": "worker-secret",
+          "x-import-owner-id": "missing",
+        },
+      });
+      expect((await POST(missingOwner)).status).toBe(401);
+
+      (mockPrisma.user.findUnique as jest.Mock)
+        .mockResolvedValueOnce({ id: "user_1", username: "viewer" })
+        .mockResolvedValueOnce({ role: "VIEWER" });
+      const forbiddenOwner = createRequest("/api/import", {
+        method: "POST",
+        body: JSON.stringify({ ...basePayload, rows: [validPreRow] }),
+        headers: {
+          "Content-Type": "application/json",
+          "x-import-worker-secret": "worker-secret",
+          "x-import-owner-id": "user_1",
+        },
+      });
+      expect((await POST(forbiddenOwner)).status).toBe(403);
+    } finally {
+      if (originalSecret === undefined) delete process.env.CRON_SECRET;
+      else process.env.CRON_SECRET = originalSecret;
+    }
+  });
+
   it("should return 401 without auth", async () => {
     const req = createRequest("/api/import", {
       method: "POST",
@@ -218,7 +266,7 @@ describe("POST /api/import", () => {
   });
 
   it("should return 400 if rows exceed the import limit", async () => {
-    const rows = Array.from({ length: 100_001 }, (_, index) => ({
+    const rows = Array.from({ length: 10_001 }, (_, index) => ({
       ...validPreRow,
       caseNo: `TC-${index}`,
     }));
@@ -232,7 +280,7 @@ describe("POST /api/import", () => {
     expect(res.status).toBe(400);
 
     const body = await res.json();
-    expect(body.message).toContain("超过上限 100000");
+    expect(body.message).toContain("超过上限 10000");
     expect(txMock).not.toHaveBeenCalled();
     expect(txUpsert).not.toHaveBeenCalled();
   });
@@ -476,6 +524,34 @@ describe("POST /api/import", () => {
     expect(txImportCreate).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps a successful import when the best-effort audit write fails", async () => {
+    const consoleError = jest.spyOn(console, "error").mockImplementation(() => undefined);
+    txAuditCreate.mockRejectedValueOnce(new Error("audit unavailable"));
+
+    const req = createRequest("/api/import", {
+      method: "POST",
+      body: JSON.stringify({ ...basePayload, rows: [validPreRow] }),
+      headers: { "Content-Type": "application/json" },
+    });
+    req.headers.set("cookie", authCookie());
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(201);
+    expect(txImportUpdate).toHaveBeenCalled();
+    expect(JSON.parse(consoleError.mock.calls[0][0])).toEqual(
+      expect.objectContaining({
+        level: "error",
+        event: "audit.write_failed",
+        context: expect.objectContaining({
+          action: "IMPORT",
+          entityType: "import",
+        }),
+      }),
+    );
+    consoleError.mockRestore();
+  });
+
   it("should count a row as created when its compound key did not exist", async () => {
     txFindMany.mockResolvedValue([]);
     txUpsert.mockResolvedValue({});
@@ -489,6 +565,8 @@ describe("POST /api/import", () => {
     await POST(req);
 
     const auditCall = txAuditCreate.mock.calls[0][0];
+    expect(auditCall.data.action).toBe("IMPORT");
+    expect(auditCall.data.entityType).toBe("import");
     expect(auditCall.data.changes.created).toBe(1);
     expect(auditCall.data.changes.updated).toBe(0);
     expect(auditCall.data.changes.imported).toBe(1);

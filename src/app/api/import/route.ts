@@ -5,7 +5,9 @@ import { authenticateRequest, requireRole, authenticateApiKey } from "@/lib/auth
 import type { TokenPayload } from "@/lib/auth";
 import { validateImportData, type ImportType, type ValidationError } from "@/lib/validations";
 import { internalError, jsonError } from "@/lib/api-helpers";
-import { checkRateLimit, getClientIp, importRateLimiter } from "@/lib/rate-limiter";
+import {
+  checkImportRateLimit,
+} from "@/lib/rate-limiter";
 import { PROGRESS_CATEGORIES } from "@/types";
 import type {
   ImportPreviewResponse,
@@ -13,8 +15,11 @@ import type {
   ImportValidationErrorResponse,
 } from "@/types";
 import { getProjectAccess } from "@/lib/project-access";
+import { writeAuditLog } from "@/lib/audit";
+import { secretsEqual } from "@/lib/secrets";
+import { emitWebhookEvent } from "@/lib/webhooks";
 
-const MAX_IMPORT_ROWS = 100_000;
+const MAX_IMPORT_ROWS = 10_000;
 const DEFAULT_FILE_NAME = "unknown";
 const PREVIEW_SAMPLE_LIMIT = 5;
 const EXISTING_ROW_QUERY_CHUNK_SIZE = 5_000;
@@ -145,22 +150,35 @@ function toBeforeSnapshot(row: ExistingCaseSnapshot): Prisma.InputJsonValue {
 }
 
 export async function POST(request: NextRequest) {
-  const rateLimit = await checkRateLimit(importRateLimiter, getClientIp(request));
-  if (rateLimit) return rateLimit;
-
   // An explicitly supplied API key is authoritative. Never fall back to a
   // cookie when that credential is invalid, otherwise a bad key can be masked
   // by an unrelated browser session.
+  const workerOwnerId = request.headers.get("x-import-owner-id");
+  const workerSecret = request.headers.get("x-import-worker-secret");
+  const hasWorkerCredentials = workerOwnerId !== null || workerSecret !== null;
+  const isWorker =
+    secretsEqual(process.env.CRON_SECRET, workerSecret) &&
+    Boolean(workerOwnerId);
+  if (hasWorkerCredentials && !isWorker) {
+    return jsonError("UNAUTHORIZED", "导入任务处理凭据无效", 401);
+  }
   const hasApiKey = request.headers.has("x-api-key");
-  const apiKeyResult = await authenticateApiKey(request, prisma);
+  const apiKeyResult = await authenticateApiKey(request, prisma, "IMPORT");
   let authResult: TokenPayload;
 
-  if (apiKeyResult) {
+  if (isWorker) {
+    const owner = await prisma.user.findUnique({
+      where: { id: workerOwnerId! },
+      select: { id: true, username: true },
+    });
+    if (!owner) return jsonError("UNAUTHORIZED", "导入任务所有者不存在", 401);
+    authResult = { userId: owner.id, username: owner.username };
+  } else if (apiKeyResult) {
     authResult = { userId: apiKeyResult.userId, username: "api-key" };
   } else if (hasApiKey) {
     return jsonError("UNAUTHORIZED", "API Key 无效", 401);
   } else {
-    const jwtResult = authenticateRequest(request);
+    const jwtResult = await authenticateRequest(request);
     if (jwtResult instanceof NextResponse) return jwtResult;
     authResult = jwtResult;
 
@@ -168,11 +186,15 @@ export async function POST(request: NextRequest) {
     if (roleCheck) return roleCheck;
   }
 
+  const rateLimit = await checkImportRateLimit(request, authResult.userId);
+  if (rateLimit) return rateLimit;
+
   let idempotencyContext: {
     requestId: string;
     projectId: string;
     userId: string;
   } | null = null;
+  let webhookProjectId: string | null = null;
 
   try {
     const body = await request.json();
@@ -211,11 +233,48 @@ export async function POST(request: NextRequest) {
     if (!projectId || !testStageId || !batchScopeId) {
       return jsonError("VALIDATION_ERROR", "项目、阶段和批跑范围为必填");
     }
+    webhookProjectId = projectId;
 
     if (!isPreview && requestId !== undefined && requestId !== null && !isUuid(requestId)) {
       return jsonError("VALIDATION_ERROR", "requestId 必须为有效 UUID");
     }
 
+    if (apiKeyResult && apiKeyResult.projectId !== projectId) {
+      return jsonError("FORBIDDEN", "API Key 无权访问该项目", 403);
+    }
+    if (!apiKeyResult) {
+      const access = await getProjectAccess(prisma, authResult.userId, projectId);
+      if (!access?.canEdit) return jsonError("FORBIDDEN", "无权导入到该项目", 403);
+    }
+
+    // Validate batchScope exists and matches testStageId/projectId
+    const batchRecord = await prisma.batchScope.findUnique({
+      where: { id: batchScopeId },
+      include: {
+        project: { select: { archived: true } },
+        stage: { select: { archived: true } },
+      },
+    });
+    if (!batchRecord) {
+      return jsonError("VALIDATION_ERROR", "批跑范围不存在");
+    }
+    if (batchRecord.testStageId !== testStageId) {
+      return jsonError("VALIDATION_ERROR", "批跑范围与阶段不匹配");
+    }
+    if (batchRecord.projectId !== projectId) {
+      return jsonError("VALIDATION_ERROR", "批跑范围与项目不匹配");
+    }
+    if (
+      batchRecord.archived ||
+      batchRecord.project?.archived ||
+      batchRecord.stage?.archived
+    ) {
+      return jsonError("CONFLICT", "不能向已归档的项目、阶段或批跑导入数据", 409);
+    }
+
+    // Authorization and active-resource checks must run before idempotency
+    // replay, otherwise a key scoped to another project could retrieve a
+    // previous import result by supplying a known requestId.
     if (!isPreview && isUuid(requestId)) {
       idempotencyContext = {
         requestId,
@@ -239,26 +298,6 @@ export async function POST(request: NextRequest) {
           errors: [],
         });
       }
-    }
-
-    if (apiKeyResult && apiKeyResult.projectId !== projectId) {
-      return jsonError("FORBIDDEN", "API Key 无权访问该项目", 403);
-    }
-    if (!apiKeyResult) {
-      const access = await getProjectAccess(prisma, authResult.userId, projectId);
-      if (!access?.canEdit) return jsonError("FORBIDDEN", "无权导入到该项目", 403);
-    }
-
-    // Validate batchScope exists and matches testStageId/projectId
-    const batchRecord = await prisma.batchScope.findUnique({ where: { id: batchScopeId } });
-    if (!batchRecord) {
-      return jsonError("VALIDATION_ERROR", "批跑范围不存在");
-    }
-    if (batchRecord.testStageId !== testStageId) {
-      return jsonError("VALIDATION_ERROR", "批跑范围与阶段不匹配");
-    }
-    if (batchRecord.projectId !== projectId) {
-      return jsonError("VALIDATION_ERROR", "批跑范围与项目不匹配");
     }
 
     if (!rows || !Array.isArray(rows) || rows.length === 0) {
@@ -394,8 +433,8 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Run upserts + import record + audit log inside a single transaction
-    // so that partial failures roll back together.
+    // Run domain writes in one transaction. The audit write is best-effort
+    // inside that request and cannot roll back a successful import.
     const result = await prisma.$transaction(async (tx) => {
       let createdCount = 0;
       let updatedCount = 0;
@@ -504,20 +543,21 @@ export async function POST(request: NextRequest) {
         data: { importedCount: createdCount + updatedCount },
       });
 
-      await tx.auditLog.create({
-        data: {
-          userId: authResult.userId,
-          action: "CREATE",
-          entityType: "case",
-          entityId: batchScopeId,
-          changes: {
-            imported: createdCount + updatedCount,
-            created: createdCount,
-            updated: updatedCount,
-            fileName: importFileName,
-          } as Prisma.InputJsonValue,
+      await writeAuditLog({
+        userId: authResult.userId,
+        action: "IMPORT",
+        entityType: "import",
+        entityId: importRecord.id,
+        changes: {
+          projectId,
+          testStageId,
+          batchScopeId,
+          imported: createdCount + updatedCount,
+          created: createdCount,
+          updated: updatedCount,
+          fileName: importFileName,
         },
-      });
+      }, tx);
 
       return {
         imported: createdCount + updatedCount,
@@ -527,6 +567,19 @@ export async function POST(request: NextRequest) {
       };
     }, { timeout: 60_000 });
 
+    await emitWebhookEvent({
+      projectId,
+      event: "IMPORT_COMPLETED",
+      data: {
+        importType,
+        testStageId,
+        batchScopeId,
+        imported: result.imported,
+        created: result.created,
+        updated: result.updated,
+        unchanged: result.unchanged,
+      },
+    });
     return NextResponse.json<ImportResponse>(
       { ...result, errors: [] },
       { status: 201 }
@@ -561,6 +614,18 @@ export async function POST(request: NextRequest) {
       }
       return jsonError("CONFLICT", "存在重复的用例编号", 409);
     }
-    return internalError("导入失败");
+    if (webhookProjectId && !isWorker) {
+      await emitWebhookEvent({
+        projectId: webhookProjectId,
+        event: "IMPORT_FAILED",
+        data: { reason: "INTERNAL_ERROR" },
+      });
+    }
+    return internalError("导入失败", {
+      request,
+      error,
+      event: "import.execute_failed",
+      context: { userId: authResult.userId },
+    });
   }
 }

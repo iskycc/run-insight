@@ -26,8 +26,16 @@ export const RESULT_SUMMARIES = ["PASS", "FAIL", "BLOCK", "SKIP"] as const;
 
 export type ResultSummary = (typeof RESULT_SUMMARIES)[number];
 export type ProjectRole = "ADMIN" | "EDITOR" | "VIEWER";
+export type OrganizationRole = "OWNER" | "ADMIN" | "MEMBER";
 export type CasePriority = "HIGH" | "MEDIUM" | "LOW";
-export type AssetStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
+export type AssetStatus = "DRAFT" | "REVIEW" | "PUBLISHED" | "ARCHIVED";
+export type NotificationType =
+  | "ASSIGNMENT"
+  | "MENTION"
+  | "WATCHED_COMMENT"
+  | "WATCHED_UPDATE"
+  | "DUE_SOON"
+  | "OVERDUE";
 
 // ============ 数据模型类型（与 Prisma 生成的类型对齐） ============
 
@@ -40,6 +48,7 @@ export interface UserDTO {
 
 export interface ProjectDTO {
   id: string;
+  organizationId?: string;
   name: string;
   createdAt: string;
   updatedAt: string;
@@ -65,6 +74,13 @@ export interface BatchScopeDTO {
   testStageId: string;
   name: string;
   archived: boolean;
+  executedAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  environment: string | null;
+  buildVersion: string | null;
+  commitSha: string | null;
+  pipelineUrl: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -148,6 +164,23 @@ export interface MeResponse {
   user: UserDTO | null;
 }
 
+export type SessionStatus = "ACTIVE" | "EXPIRED" | "REVOKED";
+
+export interface SessionDTO {
+  id: string;
+  deviceInfo: string;
+  status: SessionStatus;
+  isCurrent: boolean;
+  createdAt: string;
+  expiresAt: string;
+  revokedAt: string | null;
+  lastSeenAt: string;
+}
+
+export interface SessionsResponse {
+  sessions: SessionDTO[];
+}
+
 // --- 项目 ---
 export interface CreateProjectRequest {
   name: string;
@@ -155,6 +188,28 @@ export interface CreateProjectRequest {
 
 export interface ProjectsResponse {
   projects: ProjectWithStats[];
+}
+
+export interface OrganizationDTO {
+  id: string;
+  name: string;
+  archived: boolean;
+  role: OrganizationRole;
+  createdAt: string;
+}
+
+export interface OrganizationsResponse {
+  organizations: OrganizationDTO[];
+  currentOrganizationId: string | null;
+}
+
+export interface OrganizationMemberDTO {
+  id: string;
+  organizationId: string;
+  userId: string;
+  username: string;
+  role: OrganizationRole;
+  createdAt: string;
 }
 
 // --- 阶段 ---
@@ -169,6 +224,13 @@ export interface StagesResponse {
 // --- 批跑 ---
 export interface CreateBatchRequest {
   name: string;
+  executedAt?: string;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  environment?: string | null;
+  buildVersion?: string | null;
+  commitSha?: string | null;
+  pipelineUrl?: string | null;
 }
 
 export interface BatchesResponse {
@@ -211,6 +273,34 @@ export interface CaseActivityDTO {
   comment: string | null;
   user: { id: string; username: string };
   createdAt: string;
+  canManage?: boolean;
+}
+
+export interface NotificationDTO {
+  id: string;
+  type: NotificationType | "REPORT_GENERATED";
+  readAt: string | null;
+  createdAt: string;
+  link: string;
+  actor: { id: string; username: string } | null;
+  project: { id: string; name: string };
+  case: { id: string; caseNo: string; name: string };
+}
+
+export interface NotificationsResponse {
+  notifications: NotificationDTO[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface NotificationPreferencesDTO {
+  assignmentEnabled: boolean;
+  mentionEnabled: boolean;
+  watchedEnabled: boolean;
+  dueSoonEnabled: boolean;
+  overdueEnabled: boolean;
+  dueSoonHours: number;
 }
 
 export interface CasesQueryParams {
@@ -236,6 +326,46 @@ export interface CasesResponse {
   total: number;
   page: number;
   pageSize: number;
+}
+
+export type SavedViewScope = "PERSONAL" | "PROJECT";
+
+export interface SavedViewFilters {
+  projectId?: string;
+  stageId?: string;
+  batchScopeId?: string;
+  progressCategory?: string;
+  assetSaved?: string;
+  search?: string;
+  resultSummary?: string;
+  assignee?: string;
+  rootCause?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+export interface SavedViewDTO {
+  id: string;
+  ownerId: string;
+  ownerName: string;
+  projectId: string | null;
+  name: string;
+  filters: SavedViewFilters;
+  scope: SavedViewScope;
+  isDefault: boolean;
+  isOwner: boolean;
+  canManage: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SavedViewsResponse {
+  views: SavedViewDTO[];
+  canShare: boolean;
+}
+
+export interface SavedViewResponse {
+  view: SavedViewDTO;
 }
 
 export interface CaseDetailResponse {
@@ -301,6 +431,7 @@ export interface AssetDTO {
   createdAt: string;
   updatedAt: string;
   canEdit: boolean;
+  canReview: boolean;
   project: { id: string; name: string };
   rootCauseCategory: { id: string; name: string } | null;
   sourceCase: {
@@ -318,6 +449,50 @@ export interface AssetsResponse {
   total: number;
   page: number;
   pageSize: number;
+}
+
+export interface AssetVersionDTO {
+  id: string;
+  assetId: string;
+  version: number;
+  title: string;
+  summary: string;
+  solution: string;
+  rootCauseText: string | null;
+  tags: string[];
+  status: AssetStatus;
+  changedBy: string | null;
+  author: { username: string } | null;
+  createdAt: string;
+}
+
+export interface AssetVersionsResponse {
+  versions: AssetVersionDTO[];
+  canRollback: boolean;
+}
+
+export interface AssetVersionDiffChange {
+  field: "title" | "summary" | "solution" | "rootCauseText" | "tags" | "status";
+  label: string;
+  before: string | string[] | null;
+  after: string | string[] | null;
+}
+
+export interface AssetVersionDetailResponse {
+  version: AssetVersionDTO;
+  compareTo: AssetVersionDTO | null;
+  changes: AssetVersionDiffChange[];
+  canRollback: boolean;
+}
+
+export interface CreateAssetRequest {
+  projectId: string;
+  title: string;
+  summary: string;
+  solution: string;
+  rootCauseCategoryId?: string | null;
+  rootCauseText?: string | null;
+  tags?: string[];
 }
 
 export interface UpdateAssetRequest {
@@ -348,7 +523,9 @@ export interface DashboardStatsResponse {
 }
 
 export interface TrendDataPoint {
+  batchId: string;
   batch: string;
+  executedAt: string;
   total: number;
   passed: number;
   failed: number;
@@ -363,8 +540,88 @@ export interface TrendResponse {
   trends: TrendDataPoint[];
 }
 
+export type QualityGateMetric =
+  | "minPassRate"
+  | "maxFailCount"
+  | "maxBlockCount"
+  | "maxPendingCount";
+
+export interface QualityGateCheck {
+  metric: QualityGateMetric;
+  label: string;
+  actual: number;
+  threshold: number;
+  passed: boolean;
+  reason: string;
+}
+
+export interface QualityGateResponse {
+  passed: boolean;
+  reasons: string[];
+  thresholds: Record<QualityGateMetric, number>;
+  batch: {
+    id: string;
+    name: string;
+    projectId: string;
+    testStageId: string;
+    executedAt: string;
+  };
+  metrics: {
+    totalCount: number;
+    passCount: number;
+    failCount: number;
+    blockCount: number;
+    pendingCount: number;
+    passRate: number;
+  };
+  checks: QualityGateCheck[];
+  comparison: {
+    baselineBatchId: string;
+    baselineBatchName: string;
+    baselinePassRate: number;
+    delta: number;
+    regression: boolean;
+  } | null;
+}
+
 // --- 导入 ---
 export type ImportType = "pre-analysis" | "post-analysis";
+export type ImportMappingTemplateScope = "PERSONAL" | "PROJECT";
+
+export interface ImportFieldMapping {
+  caseNo?: string;
+  name?: string;
+  resultSummary?: string;
+  logUrl?: string;
+  progressCategory?: string;
+  assignee?: string;
+  rootCause?: string;
+  mrOrTicket?: string;
+}
+
+export interface ImportMappingTemplateDTO {
+  id: string;
+  ownerId: string;
+  ownerName: string;
+  projectId: string | null;
+  name: string;
+  importType: ImportType;
+  mapping: ImportFieldMapping;
+  scope: ImportMappingTemplateScope;
+  isOwner: boolean;
+  canManage: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ImportMappingTemplatesResponse {
+  templates: ImportMappingTemplateDTO[];
+  canShare: boolean;
+}
+
+export interface ImportMappingTemplateResponse {
+  template: ImportMappingTemplateDTO;
+}
 
 export interface ValidationError {
   row: number;
@@ -493,12 +750,102 @@ export interface UserWithRole extends UserDTO {
 
 // ============ 审计日志 ============
 
+export const AUDIT_ACTIONS = [
+  "CREATE",
+  "UPDATE",
+  "DELETE",
+  "LOGIN",
+  "LOGOUT",
+  "IMPORT",
+  "EXPORT",
+  "ROLLBACK",
+  "REUSE",
+  "ARCHIVE",
+  "UNARCHIVE",
+  "API_KEY_CREATE",
+  "API_KEY_REVOKE",
+  "WEBHOOK_CREATE",
+  "WEBHOOK_UPDATE",
+  "WEBHOOK_DELETE",
+  "WEBHOOK_SECRET_ROTATE",
+  "WEBHOOK_RETRY",
+  "PASSWORD_CHANGE",
+] as const;
+
+export type AuditAction = (typeof AUDIT_ACTIONS)[number];
+
+export const AUDIT_ENTITY_TYPES = [
+  "project",
+  "organization",
+  "organizationMember",
+  "stage",
+  "batch",
+  "case",
+  "caseActivity",
+  "user",
+  "member",
+  "apiKey",
+  "webhook",
+  "webhookDelivery",
+  "asset",
+  "rootCauseCategory",
+  "import",
+  "export",
+  "session",
+  "auditLog",
+] as const;
+
+export type AuditEntityType = (typeof AUDIT_ENTITY_TYPES)[number];
+
+export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
+  CREATE: "创建",
+  UPDATE: "更新",
+  DELETE: "删除",
+  LOGIN: "登录",
+  LOGOUT: "退出登录",
+  IMPORT: "导入",
+  EXPORT: "导出",
+  ROLLBACK: "回滚",
+  REUSE: "复用",
+  ARCHIVE: "归档",
+  UNARCHIVE: "取消归档",
+  API_KEY_CREATE: "创建 API Key",
+  API_KEY_REVOKE: "撤销 API Key",
+  WEBHOOK_CREATE: "创建 Webhook",
+  WEBHOOK_UPDATE: "更新 Webhook",
+  WEBHOOK_DELETE: "删除 Webhook",
+  WEBHOOK_SECRET_ROTATE: "轮换 Webhook 密钥",
+  WEBHOOK_RETRY: "重试 Webhook 投递",
+  PASSWORD_CHANGE: "修改密码",
+};
+
+export const AUDIT_ENTITY_TYPE_LABELS: Record<AuditEntityType, string> = {
+  project: "项目",
+  organization: "组织",
+  organizationMember: "组织成员",
+  stage: "测试阶段",
+  batch: "批跑",
+  case: "用例",
+  caseActivity: "用例动态",
+  user: "用户",
+  member: "项目成员",
+  apiKey: "API Key",
+  webhook: "Webhook",
+  webhookDelivery: "Webhook 投递",
+  asset: "知识资产",
+  rootCauseCategory: "根因分类",
+  import: "导入记录",
+  export: "数据导出",
+  session: "登录会话",
+  auditLog: "审计日志",
+};
+
 export interface AuditLogDTO {
   id: string;
   userId: string;
   username: string;
-  action: string;
-  entityType: string;
+  action: AuditAction;
+  entityType: AuditEntityType;
   entityId: string;
   changes: unknown;
   createdAt: string;
@@ -529,10 +876,20 @@ export interface UsersResponse {
 
 // ============ API Key ============
 
+export type ApiKeyScope = "IMPORT";
+export type ApiKeyStatus = "ACTIVE" | "EXPIRED" | "REVOKED";
+
 export interface ApiKeyResponse {
   id: string;
+  prefix: string;
   description: string;
+  scopes: ApiKeyScope[];
+  status: ApiKeyStatus;
+  expiresAt: string | null;
+  revokedAt: string | null;
+  lastUsedAt: string | null;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface ApiKeyCreateResponse extends ApiKeyResponse {
@@ -541,6 +898,60 @@ export interface ApiKeyCreateResponse extends ApiKeyResponse {
 
 export interface ApiKeysListResponse {
   keys: ApiKeyResponse[];
+}
+
+// ============ Webhook ============
+
+export type WebhookEventType =
+  | "IMPORT_COMPLETED"
+  | "IMPORT_FAILED"
+  | "QUALITY_GATE_FAILED"
+  | "REPORT_GENERATED";
+
+export type WebhookDeliveryStatus =
+  | "PENDING"
+  | "PROCESSING"
+  | "SUCCEEDED"
+  | "FAILED";
+
+export interface WebhookEndpointDTO {
+  id: string;
+  projectId: string;
+  url: string;
+  active: boolean;
+  events: WebhookEventType[];
+  secretPrefix: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WebhookEndpointCreateResponse {
+  webhook: WebhookEndpointDTO;
+  secret: string;
+}
+
+export interface WebhookEndpointsResponse {
+  webhooks: WebhookEndpointDTO[];
+}
+
+export interface WebhookDeliveryDTO {
+  id: string;
+  eventId: string;
+  event: WebhookEventType;
+  status: WebhookDeliveryStatus;
+  attempts: number;
+  maxAttempts: number;
+  nextAttemptAt: string | null;
+  responseStatus: number | null;
+  responseBody: string | null;
+  errorCode: string | null;
+  deliveredAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WebhookDeliveriesResponse {
+  deliveries: WebhookDeliveryDTO[];
 }
 
 // ============ 责任人统计 ============

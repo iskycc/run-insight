@@ -4,9 +4,9 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { CaseDetail, type CaseDetailData } from '@/components/case/CaseDetail';
+import { ActivityTimeline } from '@/components/case/ActivityTimeline';
 import { EditAnalysisModal } from '@/components/case/EditAnalysisModal';
 import { SaveAssetModal } from '@/components/shared/SaveAssetModal';
-import { Button } from '@/components/shared/Button';
 import { useAuth } from '@/components/shared/AuthProvider';
 import type {
   CaseActivityDTO,
@@ -17,6 +17,15 @@ import type {
   RootCauseCategoryDTO,
 } from '@/types';
 
+async function responseError(response: Response, fallback: string) {
+  try {
+    const body = await response.json() as { message?: unknown };
+    return typeof body.message === 'string' ? body.message : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export default function CaseDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -24,14 +33,18 @@ export default function CaseDetailPage() {
   const [canEditProject, setCanEditProject] = useState(false);
   const [members, setMembers] = useState<ProjectMemberDTO[]>([]);
   const [activities, setActivities] = useState<CaseActivityDTO[]>([]);
+  const [canComment, setCanComment] = useState(false);
   const [rootCauseCategories, setRootCauseCategories] = useState<RootCauseCategoryDTO[]>([]);
   const [comment, setComment] = useState('');
   const [commenting, setCommenting] = useState(false);
+  const [activityError, setActivityError] = useState('');
   const [caseData, setCaseData] = useState<CaseDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [editOpen, setEditOpen] = useState(false);
   const [saveAssetOpen, setSaveAssetOpen] = useState(false);
+  const [watching, setWatching] = useState(false);
+  const [watchBusy, setWatchBusy] = useState(false);
 
   const caseId = params.id as string;
   const canEdit = user?.role === 'ADMIN' || canEditProject;
@@ -61,24 +74,42 @@ export default function CaseDetailPage() {
   }, [getCase]);
 
   const loadCollaboration = useCallback(async (projectId: string) => {
-    const [membersResponse, activitiesResponse, categoriesResponse] = await Promise.all([
-      fetch(`/api/projects/${projectId}/members`),
-      fetch(`/api/cases/${caseId}/activities`),
-      fetch(`/api/root-cause-categories?projectId=${encodeURIComponent(projectId)}`),
-    ]);
-    if (membersResponse.ok) {
-      const data = await membersResponse.json() as ProjectMembersResponse;
-      setMembers(data.members);
-      const membership = data.members.find((member) => member.userId === user?.id);
-      setCanEditProject(membership?.role === 'ADMIN' || membership?.role === 'EDITOR');
-    }
-    if (activitiesResponse.ok) {
-      const data = await activitiesResponse.json() as { activities: CaseActivityDTO[] };
-      setActivities(data.activities);
-    }
-    if (categoriesResponse.ok) {
-      const data = await categoriesResponse.json() as RootCauseCategoriesResponse;
-      setRootCauseCategories(data.categories);
+    try {
+      const [membersResponse, activitiesResponse, categoriesResponse, watchResponse] = await Promise.all([
+        fetch(`/api/projects/${projectId}/members`),
+        fetch(`/api/cases/${caseId}/activities`),
+        fetch(`/api/root-cause-categories?projectId=${encodeURIComponent(projectId)}`),
+        fetch(`/api/cases/${caseId}/watch`),
+      ]);
+      if (membersResponse.ok) {
+        const data = await membersResponse.json() as ProjectMembersResponse;
+        setMembers(data.members);
+        const membership = data.members.find((member) => member.userId === user?.id);
+        setCanEditProject(membership?.role === 'ADMIN' || membership?.role === 'EDITOR');
+      }
+      if (activitiesResponse.ok) {
+        const data = await activitiesResponse.json() as {
+          activities: CaseActivityDTO[];
+          canComment: boolean;
+        };
+        setActivities(data.activities);
+        setCanComment(data.canComment);
+        setActivityError('');
+      } else {
+        setCanComment(false);
+        setActivityError(await responseError(activitiesResponse, '加载分析动态失败'));
+      }
+      if (categoriesResponse.ok) {
+        const data = await categoriesResponse.json() as RootCauseCategoriesResponse;
+        setRootCauseCategories(data.categories);
+      }
+      if (watchResponse.ok) {
+        const data = await watchResponse.json() as { watching: boolean };
+        setWatching(data.watching);
+      }
+    } catch {
+      setCanComment(false);
+      setActivityError('加载协作信息失败，请稍后重试');
     }
   }, [caseId, user?.id]);
 
@@ -149,7 +180,8 @@ export default function CaseDetailPage() {
   };
 
   const handleComment = async () => {
-    if (!canEdit || !comment.trim()) return;
+    if (!canComment || !comment.trim()) return;
+    setActivityError('');
     setCommenting(true);
     try {
       const response = await fetch(`/api/cases/${caseId}/activities`, {
@@ -157,12 +189,68 @@ export default function CaseDetailPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ comment }),
       });
-      if (response.ok && caseData) {
+      if (response.ok) {
+        const data = await response.json() as { activity: CaseActivityDTO };
         setComment('');
-        await loadCollaboration(caseData.projectId);
+        setActivities((current) => [data.activity, ...current]);
+      } else {
+        setActivityError(await responseError(response, '发表评论失败'));
       }
+    } catch {
+      setActivityError('网络错误，请稍后重试');
     } finally {
       setCommenting(false);
+    }
+  };
+
+  const handleEditComment = async (activityId: string, nextComment: string) => {
+    setActivityError('');
+    try {
+      const response = await fetch(
+        `/api/cases/${caseId}/activities/${activityId}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ comment: nextComment }),
+        },
+      );
+      if (!response.ok) {
+        setActivityError(await responseError(response, '编辑评论失败'));
+        return false;
+      }
+
+      const data = await response.json() as { activity: CaseActivityDTO };
+      setActivities((current) =>
+        current.map((activity) =>
+          activity.id === activityId ? data.activity : activity,
+        ),
+      );
+      return true;
+    } catch {
+      setActivityError('网络错误，请稍后重试');
+      return false;
+    }
+  };
+
+  const handleDeleteComment = async (activityId: string) => {
+    setActivityError('');
+    try {
+      const response = await fetch(
+        `/api/cases/${caseId}/activities/${activityId}`,
+        { method: 'DELETE' },
+      );
+      if (!response.ok) {
+        setActivityError(await responseError(response, '删除评论失败'));
+        return false;
+      }
+
+      setActivities((current) =>
+        current.filter((activity) => activity.id !== activityId),
+      );
+      return true;
+    } catch {
+      setActivityError('网络错误，请稍后重试');
+      return false;
     }
   };
 
@@ -176,6 +264,27 @@ export default function CaseDetailPage() {
       }
     } catch {
       // 静默处理
+    }
+  };
+
+  const toggleWatch = async () => {
+    if (watchBusy) return;
+    setWatchBusy(true);
+    setActivityError('');
+    try {
+      const response = await fetch(`/api/cases/${caseId}/watch`, {
+        method: watching ? 'DELETE' : 'POST',
+      });
+      if (!response.ok) {
+        setActivityError(await responseError(response, '更新关注状态失败'));
+        return;
+      }
+      const data = await response.json() as { watching: boolean };
+      setWatching(data.watching);
+    } catch {
+      setActivityError('网络错误，请稍后重试');
+    } finally {
+      setWatchBusy(false);
     }
   };
 
@@ -206,7 +315,25 @@ export default function CaseDetailPage() {
   }
 
   return (
-    <PageContainer title="用例明细" subtitle={caseData.caseNo}>
+    <PageContainer
+      title="用例明细"
+      subtitle={caseData.caseNo}
+      actions={
+        <button
+          type="button"
+          onClick={() => void toggleWatch()}
+          disabled={watchBusy}
+          aria-pressed={watching}
+          className={`h-10 rounded-[10px] border px-4 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+            watching
+              ? 'border-accent/25 bg-accent/10 text-accent'
+              : 'border-border bg-surface-solid text-text-secondary hover:text-text-primary'
+          }`}
+        >
+          {watchBusy ? '处理中…' : watching ? '已关注' : '关注用例'}
+        </button>
+      }
+    >
       <CaseDetail
         canEdit={canEdit}
         caseData={caseData}
@@ -244,56 +371,18 @@ export default function CaseDetailPage() {
         </>
       )}
 
-      <section className="panel mt-6 p-6" aria-label="分析时间线">
-        <h2 className="mb-4 text-sm font-semibold text-text-primary">分析时间线</h2>
-        {canEdit && (
-          <div className="mb-6 flex flex-col gap-2">
-            <textarea
-              aria-label="发表评论"
-              value={comment}
-              maxLength={5000}
-              rows={3}
-              onChange={(event) => setComment(event.target.value)}
-              placeholder="记录分析过程或补充说明"
-              className="field-control w-full resize-y px-3 py-2 text-sm"
-            />
-            <div className="flex justify-end">
-              <Button size="sm" onClick={handleComment} disabled={commenting || !comment.trim()}>
-                {commenting ? '发表中...' : '发表评论'}
-              </Button>
-            </div>
-          </div>
-        )}
-        {activities.length ? (
-          <ol className="space-y-3">
-            {activities.map((activity) => (
-              <li key={activity.id} className="border-l-2 border-border pl-4">
-                <div className="flex flex-wrap items-center gap-2 text-xs text-text-secondary">
-                  <span className="font-medium text-text-primary">{activity.user.username}</span>
-                  <span>{activity.type === 'COMMENT' ? '发表了评论' : '更新了分析信息'}</span>
-                  <time>{new Date(activity.createdAt).toLocaleString('zh-CN')}</time>
-                </div>
-                {activity.comment && (
-                  <p className="mt-2 whitespace-pre-wrap break-words text-sm text-text-primary">
-                    {activity.comment}
-                  </p>
-                )}
-                {activity.changes && (
-                  <ul className="mt-2 space-y-1 text-xs text-text-secondary">
-                    {Object.entries(activity.changes).map(([field, value]) => (
-                      <li key={field}>
-                        {field}：{String(value.from ?? '—')} → {String(value.to ?? '—')}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </li>
-            ))}
-          </ol>
-        ) : (
-          <p className="text-sm text-text-secondary">暂无分析动态</p>
-        )}
-      </section>
+      <ActivityTimeline
+        activities={activities}
+        canComment={canComment}
+        comment={comment}
+        commenting={commenting}
+        error={activityError}
+        onCommentChange={setComment}
+        onSubmitComment={handleComment}
+        onEditComment={handleEditComment}
+        onDeleteComment={handleDeleteComment}
+        mentionUsernames={members.map((member) => member.username)}
+      />
     </PageContainer>
   );
 }

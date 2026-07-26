@@ -78,6 +78,25 @@ describe("PATCH /api/stages/[id]", () => {
     expect(body.archived).toBe(true);
   });
 
+  it("does not restore or mutate a stage while its project is archived", async () => {
+    (mockPrisma.testStage.findUnique as jest.Mock).mockResolvedValue({
+      id: "s1",
+      projectId: "p1",
+      archived: true,
+      project: { archived: true },
+    });
+    const req = createRequest("/api/stages/s1", {
+      method: "PATCH",
+      body: JSON.stringify({ archived: false }),
+      headers: { "Content-Type": "application/json", cookie: authCookie() },
+    });
+
+    const res = await PATCH(req, { params: Promise.resolve({ id: "s1" }) });
+
+    expect(res.status).toBe(409);
+    expect(mockPrisma.testStage.update).not.toHaveBeenCalled();
+  });
+
   it("returns 500 on database error", async () => {
     (mockPrisma.testStage.findUnique as jest.Mock).mockRejectedValue(new Error("DB error"));
     const req = createRequest("/api/stages/s1", {
@@ -127,9 +146,14 @@ describe("DELETE /api/stages/[id]", () => {
     expect(res.status).toBe(404);
   });
 
-  it("deletes a stage and writes an audit log", async () => {
-    (mockPrisma.testStage.findUnique as jest.Mock).mockResolvedValue({ id: "s1" });
-    (mockPrisma.testStage.delete as jest.Mock).mockResolvedValue({});
+  it("moves a stage to trash without physically deleting it", async () => {
+    (mockPrisma.testStage.findUnique as jest.Mock).mockResolvedValue({
+      id: "s1",
+      projectId: "p1",
+      name: "SIT-1",
+      archived: false,
+    });
+    (mockPrisma.testStage.update as jest.Mock).mockResolvedValue({});
     (mockPrisma.auditLog.create as jest.Mock).mockResolvedValue({});
 
     const req = createRequest("/api/stages/s1", {
@@ -139,7 +163,104 @@ describe("DELETE /api/stages/[id]", () => {
     const res = await DELETE(req, { params: Promise.resolve({ id: "s1" }) });
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.deleted).toBe(true);
+    expect(body).toEqual({
+      deleted: true,
+      archived: true,
+      permanent: false,
+    });
+    expect(mockPrisma.testStage.update).toHaveBeenCalledWith({
+      where: { id: "s1" },
+      data: { archived: true },
+    });
+    expect(mockPrisma.testStage.delete).not.toHaveBeenCalled();
+    expect(mockPrisma.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ action: "ARCHIVE" }),
+    });
+  });
+
+  it("allows a project editor to move a stage to trash", async () => {
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue({ role: "EDITOR" });
+    (mockPrisma.projectMember.findUnique as jest.Mock).mockResolvedValue({
+      role: "EDITOR",
+    });
+    (mockPrisma.testStage.findUnique as jest.Mock).mockResolvedValue({
+      id: "s1",
+      projectId: "p1",
+      name: "SIT-1",
+      archived: false,
+    });
+    const req = createRequest("/api/stages/s1", {
+      method: "DELETE",
+      headers: { cookie: authCookie() },
+    });
+
+    const res = await DELETE(req, { params: Promise.resolve({ id: "s1" }) });
+
+    expect(res.status).toBe(200);
+    expect(mockPrisma.testStage.update).toHaveBeenCalled();
+    expect(mockPrisma.testStage.delete).not.toHaveBeenCalled();
+  });
+
+  it("rejects permanent deletion of an active stage", async () => {
+    (mockPrisma.testStage.findUnique as jest.Mock).mockResolvedValue({
+      id: "s1",
+      projectId: "p1",
+      name: "SIT-1",
+      archived: false,
+    });
+    const req = createRequest("/api/stages/s1?permanent=true", {
+      method: "DELETE",
+      headers: { cookie: authCookie() },
+    });
+
+    const res = await DELETE(req, { params: Promise.resolve({ id: "s1" }) });
+
+    expect(res.status).toBe(409);
+    expect(mockPrisma.testStage.delete).not.toHaveBeenCalled();
+  });
+
+  it("permanently deletes an archived stage for a project admin", async () => {
+    (mockPrisma.testStage.findUnique as jest.Mock).mockResolvedValue({
+      id: "s1",
+      projectId: "p1",
+      name: "SIT-1",
+      archived: true,
+    });
+    const req = createRequest("/api/stages/s1?permanent=true", {
+      method: "DELETE",
+      headers: { cookie: authCookie() },
+    });
+
+    const res = await DELETE(req, { params: Promise.resolve({ id: "s1" }) });
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ deleted: true, permanent: true });
+    expect(mockPrisma.testStage.delete).toHaveBeenCalledWith({ where: { id: "s1" } });
+    expect(mockPrisma.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ action: "DELETE" }),
+    });
+  });
+
+  it("rejects permanent deletion of a stage by a project editor", async () => {
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue({ role: "EDITOR" });
+    (mockPrisma.projectMember.findUnique as jest.Mock).mockResolvedValue({
+      role: "EDITOR",
+    });
+    (mockPrisma.testStage.findUnique as jest.Mock).mockResolvedValue({
+      id: "s1",
+      projectId: "p1",
+      name: "SIT-1",
+      archived: true,
+    });
+    const req = createRequest("/api/stages/s1?permanent=true", {
+      method: "DELETE",
+      headers: { cookie: authCookie() },
+    });
+
+    const res = await DELETE(req, { params: Promise.resolve({ id: "s1" }) });
+
+    expect(res.status).toBe(403);
+    expect(mockPrisma.testStage.delete).not.toHaveBeenCalled();
   });
 
   it("returns 500 on database error", async () => {

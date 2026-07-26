@@ -4,7 +4,7 @@ import type { ProgressCategory, ResultSummary, Role } from "@/types";
 const ROLES: readonly Role[] = ["ADMIN", "EDITOR", "VIEWER"];
 const PROJECT_ROLES = ["ADMIN", "EDITOR", "VIEWER"] as const;
 const CASE_PRIORITIES = ["HIGH", "MEDIUM", "LOW"] as const;
-const ASSET_STATUSES = ["DRAFT", "PUBLISHED", "ARCHIVED"] as const;
+const ASSET_STATUSES = ["DRAFT", "REVIEW", "PUBLISHED", "ARCHIVED"] as const;
 
 export function isValidRole(value: unknown): value is Role {
   return typeof value === "string" && ROLES.some((role) => role === value);
@@ -197,7 +197,7 @@ export function validateImportData(
 
 // ============ 客户端预校验 ============
 
-const MAX_IMPORT_ROWS = 100_000;
+const MAX_IMPORT_ROWS = 10_000;
 
 export function validateResultSummary(value: string): string | null {
   if (!value || value.trim().length === 0) {

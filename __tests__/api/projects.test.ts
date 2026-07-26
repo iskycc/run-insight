@@ -14,6 +14,10 @@ jest.mock("@/lib/prisma", () => ({
     caseResult: {
       groupBy: jest.fn(),
     },
+    organizationMember: {
+      findUnique: jest.fn(),
+      findFirst: jest.fn(),
+    },
   },
 }));
 
@@ -34,6 +38,10 @@ function authCookie(): Record<string, string> {
 describe("GET /api/projects", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (mockPrisma.organizationMember.findFirst as jest.Mock).mockResolvedValue({
+      role: "OWNER",
+      organization: { id: "o1", name: "默认组织", archived: false },
+    });
   });
 
   it("should return empty list when no projects", async () => {
@@ -52,7 +60,10 @@ describe("GET /api/projects", () => {
   it("should return projects with stats", async () => {
     const mockProject = {
       id: "clxxxxxxxxxxxxxxxxxxxxxx1",
+      organizationId: "o1",
       name: "测试项目",
+      archived: false,
+      members: [],
       createdAt: new Date("2026-01-01"),
       updatedAt: new Date("2026-01-01"),
       _count: { stages: 2, cases: 10 },
@@ -72,10 +83,15 @@ describe("GET /api/projects", () => {
   });
 
   it("limits non-admin users to memberships and returns project capabilities", async () => {
+    (mockPrisma.organizationMember.findFirst as jest.Mock).mockResolvedValueOnce({
+      role: "MEMBER",
+      organization: { id: "o1", name: "默认组织", archived: false },
+    });
     (mockPrisma.user.findUnique as jest.Mock).mockResolvedValueOnce({ role: "VIEWER" });
     (mockPrisma.project.findMany as jest.Mock).mockResolvedValue([
       {
         id: "p1",
+        organizationId: "o1",
         name: "成员项目",
         archived: false,
         createdAt: new Date("2026-01-01"),
@@ -115,6 +131,10 @@ describe("GET /api/projects", () => {
 describe("POST /api/projects", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (mockPrisma.organizationMember.findFirst as jest.Mock).mockResolvedValue({
+      role: "OWNER",
+      organization: { id: "o1", name: "默认组织", archived: false },
+    });
   });
 
   it("should return 400 if name is missing", async () => {
@@ -130,7 +150,9 @@ describe("POST /api/projects", () => {
   it("should create a project and return it", async () => {
     const created = {
       id: "clxxxxxxxxxxxxxxxxxxxxxx2",
+      organizationId: "o1",
       name: "新项目",
+      archived: false,
       createdAt: new Date("2026-01-01"),
       updatedAt: new Date("2026-01-01"),
     };
@@ -191,7 +213,10 @@ describe("POST /api/projects", () => {
   it("should return projects with zero pass/fail counts when groupBy has no entry for the project", async () => {
     const mockProject = {
       id: "clxxxxxxxxxxxxxxxxxxxxxx9",
+      organizationId: "o1",
       name: "空项目",
+      archived: false,
+      members: [],
       createdAt: new Date("2026-01-01"),
       updatedAt: new Date("2026-01-01"),
       _count: { stages: 0, cases: 0 },

@@ -196,8 +196,8 @@ describe("GET /api/stats/trend", () => {
   it("should return trend data with limit", async () => {
     // findMany with orderBy desc returns newest first: Batch2 (Jan 2), then Batch1 (Jan 1)
     const batches = [
-      { id: "b2", name: "Batch2", createdAt: new Date("2026-01-02") },
-      { id: "b1", name: "Batch1", createdAt: new Date("2026-01-01") },
+      { id: "b2", name: "Batch2", executedAt: new Date("2026-01-02"), createdAt: new Date("2026-01-02") },
+      { id: "b1", name: "Batch1", executedAt: new Date("2026-01-01"), createdAt: new Date("2026-01-01") },
     ];
     (mockPrisma.batchScope.findMany as jest.Mock).mockResolvedValue(batches);
     (mockPrisma.caseResult.groupBy as jest.Mock)
@@ -254,7 +254,7 @@ describe("GET /api/stats/trend", () => {
 
   it("should return trend data with zero counts when groupBy has no entry for a batch", async () => {
     const batches = [
-      { id: "b3", name: "EmptyBatch", createdAt: new Date("2026-01-03") },
+      { id: "b3", name: "EmptyBatch", executedAt: new Date("2026-01-03"), createdAt: new Date("2026-01-03") },
     ];
     (mockPrisma.batchScope.findMany as jest.Mock).mockResolvedValue(batches);
     // Return empty groupBy results → triggers Map.get() ?? 0 fallback for all trend fields

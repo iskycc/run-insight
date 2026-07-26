@@ -97,6 +97,7 @@ describe('ImportHistoryPage', () => {
     expect(screen.getAllByText('Demo')).toHaveLength(2);
     expect(screen.getByText('admin')).toBeInTheDocument();
     expect(screen.getAllByText('部分成功')).toHaveLength(2);
+    expect(screen.getByText('2026年7月20日 16:30')).toBeInTheDocument();
     expect(
       (globalThis.fetch as jest.Mock).mock.calls.some(([url]) =>
         String(url).includes('/api/projects')

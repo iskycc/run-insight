@@ -12,6 +12,7 @@ import { internalError, jsonError } from "@/lib/api-helpers";
 import { toCaseDTO } from "@/lib/serializers";
 import { writeAuditLog } from "@/lib/audit";
 import { getProjectAccess } from "@/lib/project-access";
+import { notifyCaseUpdatesBestEffort } from "@/lib/notifications";
 import type { Prisma } from "@/generated/prisma/client";
 import type {
   CaseDetailResponse,
@@ -22,7 +23,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const authResult = authenticateRequest(request);
+  const authResult = await authenticateRequest(request);
   if (authResult instanceof NextResponse) return authResult;
 
   try {
@@ -68,7 +69,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const authResult = authenticateRequest(request);
+  const authResult = await authenticateRequest(request);
   if (authResult instanceof NextResponse) return authResult;
 
   try {
@@ -216,6 +217,23 @@ export async function PATCH(
       entityType: "case",
       entityId: id,
       changes: body,
+    });
+    await notifyCaseUpdatesBestEffort({
+      actorId: authResult.userId,
+      updates: [
+        {
+          caseResultId: id,
+          projectId: existing.projectId,
+          assigneeId: updated.assigneeId,
+          assigneeChanged: "assigneeId" in changes,
+          watchedChanged: [
+            "assigneeId",
+            "priority",
+            "dueDate",
+            "progressCategory",
+          ].some((field) => field in changes),
+        },
+      ],
     });
 
     return NextResponse.json<CaseDetailResponse>({

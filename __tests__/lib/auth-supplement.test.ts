@@ -8,6 +8,15 @@ import {
 } from "@/lib/auth";
 import { NextRequest } from "next/server";
 
+jest.mock("@/lib/prisma", () => ({
+  prisma: {
+    session: {
+      findUnique: jest.fn(),
+      updateMany: jest.fn(),
+    },
+  },
+}));
+
 function createRequest(url: string, options?: Record<string, unknown>): NextRequest {
   return new NextRequest(
     new URL(url, "http://localhost:3000"),
@@ -23,7 +32,7 @@ function authCookie(): string {
 describe("authenticateRequest", () => {
   it("should return 401 when no cookie header", async () => {
     const req = createRequest("/api/test");
-    const result = authenticateRequest(req);
+    const result = await authenticateRequest(req);
     expect(result).toBeInstanceOf(Response);
     const res = result as Response;
     expect(res.status).toBe(401);
@@ -34,7 +43,7 @@ describe("authenticateRequest", () => {
   it("should return 401 when token is invalid", async () => {
     const req = createRequest("/api/test");
     req.headers.set("cookie", "run_insight_token=invalid.token.value");
-    const result = authenticateRequest(req);
+    const result = await authenticateRequest(req);
     expect(result).toBeInstanceOf(Response);
     const res = result as Response;
     expect(res.status).toBe(401);
@@ -42,10 +51,10 @@ describe("authenticateRequest", () => {
     expect(body.error).toBe("UNAUTHORIZED");
   });
 
-  it("should return token payload for valid token", () => {
+  it("should return token payload for valid token", async () => {
     const req = createRequest("/api/test");
     req.headers.set("cookie", authCookie());
-    const result = authenticateRequest(req);
+    const result = await authenticateRequest(req);
     expect(result).not.toBeInstanceOf(Response);
     const payload = result as { userId: string; username: string };
     expect(payload.userId).toBe("user_1");

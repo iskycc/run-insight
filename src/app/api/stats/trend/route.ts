@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { internalError } from "@/lib/api-helpers";
+import { internalError, jsonError } from "@/lib/api-helpers";
 import type { TrendResponse } from "@/types";
 
 function percentage(part: number, total: number) {
@@ -8,10 +8,20 @@ function percentage(part: number, total: number) {
   return Number(((part / total) * 100).toFixed(1));
 }
 
+function parseLimit(value: string | null): number | null {
+  if (value === null) return 10;
+  if (!/^[1-9]\d*$/.test(value)) return null;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed <= 30 ? parsed : null;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const limit = Math.min(30, Math.max(1, Number(searchParams.get("limit")) || 10));
+    const limit = parseLimit(searchParams.get("limit"));
+    if (limit === null) {
+      return jsonError("VALIDATION_ERROR", "趋势数量必须为 1 到 30 的整数");
+    }
     const projectId = searchParams.get("projectId") || undefined;
 
     const batchWhere: Record<string, unknown> = {};
@@ -19,7 +29,7 @@ export async function GET(request: NextRequest) {
 
     const recentBatches = await prisma.batchScope.findMany({
       where: batchWhere,
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ executedAt: "desc" }, { createdAt: "desc" }],
       take: limit,
     });
 
@@ -72,13 +82,17 @@ export async function GET(request: NextRequest) {
     const skippedMap = new Map(skippedCounts.map((r) => [r.batchScopeId, r._count._all]));
     const analyzedMap = new Map(analyzedCounts.map((r) => [r.batchScopeId, r._count._all]));
 
-    const trends = recentBatches.map((batch) => {
+    // The database query selects the newest N runs. Reverse that stable
+    // executedAt/createdAt order for a left-to-right chronological chart.
+    const trends = [...recentBatches].reverse().map((batch) => {
       const total = totalMap.get(batch.id) ?? 0;
       const passed = passedMap.get(batch.id) ?? 0;
       const failed = failedMap.get(batch.id) ?? 0;
 
       return {
+        batchId: batch.id,
         batch: batch.name,
+        executedAt: batch.executedAt.toISOString(),
         total,
         passed,
         failed,
@@ -89,9 +103,6 @@ export async function GET(request: NextRequest) {
         analyzed: analyzedMap.get(batch.id) ?? 0,
       };
     });
-
-    // Return in chronological order (oldest first for chart)
-    trends.reverse();
 
     return NextResponse.json<TrendResponse>({ trends });
   } catch {

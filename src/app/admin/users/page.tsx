@@ -8,6 +8,7 @@ import { Modal } from '@/components/shared/Modal';
 import { Select } from '@/components/shared/Select';
 import { useAuth } from '@/components/shared/AuthProvider';
 import { useToast } from '@/contexts/ToastContext';
+import { formatDateTime } from '@/lib/date-time';
 import { ApiError, fetchJson } from '@/lib/fetch';
 import type { Role, UserWithRole, UsersResponse } from '@/types';
 
@@ -16,10 +17,6 @@ const ROLE_OPTIONS: { value: Role; label: string }[] = [
   { value: 'EDITOR', label: '编辑者' },
   { value: 'VIEWER', label: '查看者' },
 ];
-
-function formatDateTime(iso: string) {
-  return new Date(iso).toLocaleString('zh-CN');
-}
 
 interface CreateForm {
   username: string;

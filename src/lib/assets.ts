@@ -1,4 +1,9 @@
-import type { AssetDTO, AssetStatus } from "@/types";
+import type {
+  AssetDTO,
+  AssetStatus,
+  AssetVersionDTO,
+  AssetVersionDiffChange,
+} from "@/types";
 
 export type AssetRow = {
   id: string;
@@ -45,14 +50,134 @@ export function readAssetTags(value: unknown): string[] {
   return value.filter((tag): tag is string => typeof tag === "string");
 }
 
-export function toAssetDTO(asset: AssetRow, canEdit: boolean): AssetDTO {
+export function toAssetDTO(
+  asset: AssetRow,
+  canEdit: boolean,
+  canReview = false,
+): AssetDTO {
   return {
     ...asset,
     tags: readAssetTags(asset.tags),
     canEdit,
+    canReview,
     createdAt: asset.createdAt.toISOString(),
     updatedAt: asset.updatedAt.toISOString(),
   };
+}
+
+export const assetVersionInclude = {
+  author: { select: { username: true } },
+} as const;
+
+export type AssetVersionRow = {
+  id: string;
+  assetId: string;
+  version: number;
+  title: string;
+  summary: string;
+  solution: string;
+  rootCauseText: string | null;
+  tags: unknown;
+  status: AssetStatus;
+  changedBy: string | null;
+  author: { username: string } | null;
+  createdAt: Date;
+};
+
+export function toAssetVersionDTO(version: AssetVersionRow): AssetVersionDTO {
+  return {
+    ...version,
+    tags: readAssetTags(version.tags),
+    createdAt: version.createdAt.toISOString(),
+  };
+}
+
+export function assetVersionSnapshot(
+  asset: {
+    id: string;
+    version: number;
+    title: string;
+    summary: string;
+    solution: string;
+    rootCauseText: string | null;
+    tags: unknown;
+    status: AssetStatus;
+  },
+  changedBy: string,
+) {
+  return {
+    assetId: asset.id,
+    version: asset.version,
+    title: asset.title,
+    summary: asset.summary,
+    solution: asset.solution,
+    rootCauseText: asset.rootCauseText,
+    tags: readAssetTags(asset.tags),
+    status: asset.status,
+    changedBy,
+  };
+}
+
+const VERSION_FIELD_LABELS = {
+  title: "标题",
+  summary: "摘要",
+  solution: "解决方案",
+  rootCauseText: "根因说明",
+  tags: "标签",
+  status: "状态",
+} as const;
+
+export function buildAssetVersionDiff(
+  before: AssetVersionDTO | null,
+  after: AssetVersionDTO,
+): AssetVersionDiffChange[] {
+  if (!before) return [];
+  const changes: AssetVersionDiffChange[] = [];
+  for (const field of Object.keys(VERSION_FIELD_LABELS) as Array<
+    keyof typeof VERSION_FIELD_LABELS
+  >) {
+    const beforeValue = before[field];
+    const afterValue = after[field];
+    const equal = Array.isArray(beforeValue) && Array.isArray(afterValue)
+      ? beforeValue.length === afterValue.length
+        && beforeValue.every((value, index) => value === afterValue[index])
+      : beforeValue === afterValue;
+    if (!equal) {
+      changes.push({
+        field,
+        label: VERSION_FIELD_LABELS[field],
+        before: beforeValue,
+        after: afterValue,
+      });
+    }
+  }
+  return changes;
+}
+
+export function canTransitionAssetStatus(
+  from: AssetStatus,
+  to: AssetStatus,
+  access: { canEdit: boolean; canAdmin: boolean },
+): boolean {
+  if (from === to) return false;
+  if (from === "DRAFT" && to === "REVIEW") return access.canEdit;
+  if (
+    from === "REVIEW"
+    && (to === "DRAFT" || to === "PUBLISHED")
+  ) {
+    return access.canAdmin;
+  }
+  if (to === "ARCHIVED" && from !== "ARCHIVED") return access.canAdmin;
+  if (from === "ARCHIVED" && to === "DRAFT") return access.canAdmin;
+  return false;
+}
+
+export function canRollbackAsset(
+  status: AssetStatus,
+  access: { canEdit: boolean; canAdmin: boolean },
+): boolean {
+  return access.canAdmin
+    || (access.canEdit && (status === "DRAFT" || status === "REVIEW"));
 }
 
 export function buildAssetSnapshot(caseResult: {

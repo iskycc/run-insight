@@ -6,7 +6,7 @@ import type { MatrixResponse, MatrixRow } from "@/types";
 import { getProjectAccess } from "@/lib/project-access";
 
 export async function GET(request: NextRequest) {
-  const authResult = authenticateRequest(request);
+  const authResult = await authenticateRequest(request);
   if (authResult instanceof NextResponse) return authResult;
 
   try {

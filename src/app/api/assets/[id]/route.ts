@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import type { Prisma } from "@/generated/prisma/client";
 import { authenticateRequest } from "@/lib/auth";
 import { internalError, jsonError } from "@/lib/api-helpers";
-import { assetInclude, toAssetDTO } from "@/lib/assets";
+import {
+  assetInclude,
+  assetVersionSnapshot,
+  canTransitionAssetStatus,
+  toAssetDTO,
+} from "@/lib/assets";
 import { writeAuditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { getProjectAccess } from "@/lib/project-access";
@@ -16,7 +21,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = authenticateRequest(request);
+  const auth = await authenticateRequest(request);
   if (auth instanceof NextResponse) return auth;
 
   try {
@@ -33,13 +38,8 @@ export async function GET(
       return jsonError("FORBIDDEN", "无权查看未发布或已归档资产", 403);
     }
 
-    const updated = await prisma.asset.update({
-      where: { id },
-      data: { viewCount: { increment: 1 } },
-      include: assetInclude,
-    });
     return NextResponse.json({
-      asset: toAssetDTO(updated, access.canEdit),
+      asset: toAssetDTO(existing, access.canEdit, access.canAdmin),
     });
   } catch {
     return internalError("获取资产详情失败");
@@ -50,7 +50,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = authenticateRequest(request);
+  const auth = await authenticateRequest(request);
   if (auth instanceof NextResponse) return auth;
 
   try {
@@ -66,6 +66,34 @@ export async function PATCH(
     }
     const body = rawBody as Record<string, unknown>;
     const data: Prisma.AssetUpdateInput = {};
+    const contentFields = [
+      "title",
+      "summary",
+      "solution",
+      "rootCauseText",
+      "rootCauseCategoryId",
+      "tags",
+    ] as const;
+    const unknownField = Object.keys(body).find(
+      (field) => !contentFields.includes(
+        field as (typeof contentFields)[number],
+      ) && field !== "status",
+    );
+    if (unknownField) {
+      return jsonError("VALIDATION_ERROR", `不支持的字段：${unknownField}`);
+    }
+    const hasContentUpdate = contentFields.some(
+      (field) => body[field] !== undefined,
+    );
+    if (body.status !== undefined && hasContentUpdate) {
+      return jsonError(
+        "VALIDATION_ERROR",
+        "内容编辑与审核状态流转必须分别提交",
+      );
+    }
+    if (hasContentUpdate && existing.status !== "DRAFT") {
+      return jsonError("CONFLICT", "仅草稿状态可以编辑内容", 409);
+    }
 
     for (const [field, label, maxLength] of [
       ["title", "资产标题", 200],
@@ -137,6 +165,18 @@ export async function PATCH(
       if (!isValidAssetStatus(body.status)) {
         return jsonError("VALIDATION_ERROR", "资产状态不合法");
       }
+      if (
+        !canTransitionAssetStatus(existing.status, body.status, access)
+      ) {
+        const needsAdmin =
+          body.status === "PUBLISHED"
+          || body.status === "ARCHIVED"
+          || (existing.status === "REVIEW" && body.status === "DRAFT")
+          || existing.status === "ARCHIVED";
+        return needsAdmin && !access.canAdmin
+          ? jsonError("FORBIDDEN", "仅项目管理员可以执行该审核操作", 403)
+          : jsonError("CONFLICT", "资产状态流转不合法", 409);
+      }
       data.status = body.status;
     }
 
@@ -146,19 +186,31 @@ export async function PATCH(
     data.updater = { connect: { id: auth.userId } };
     data.version = { increment: 1 };
 
-    const asset = await prisma.asset.update({
-      where: { id },
-      data,
-      include: assetInclude,
+    const asset = await prisma.$transaction(async (tx) => {
+      const updated = await tx.asset.update({
+        where: { id },
+        data,
+        include: assetInclude,
+      });
+      await tx.assetVersion.create({
+        data: assetVersionSnapshot(updated, auth.userId),
+      });
+      return updated;
     });
     await writeAuditLog({
       userId: auth.userId,
-      action: "UPDATE",
+      action: body.status === "ARCHIVED"
+        ? "ARCHIVE"
+        : existing.status === "ARCHIVED" && body.status !== undefined
+          ? "UNARCHIVE"
+          : "UPDATE",
       entityType: "asset",
       entityId: id,
       changes: body,
     });
-    return NextResponse.json({ asset: toAssetDTO(asset, true) });
+    return NextResponse.json({
+      asset: toAssetDTO(asset, true, access.canAdmin),
+    });
   } catch {
     return internalError("更新资产失败");
   }

@@ -96,9 +96,13 @@ describe("Archive API", () => {
     expect(res.status).toBe(500);
   });
 
-  it("should delete a project and write an audit log", async () => {
-    (mockPrisma.project.findUnique as jest.Mock).mockResolvedValue({ id: "p1" });
-    (mockPrisma.project.delete as jest.Mock).mockResolvedValue({});
+  it("should move a project to the recycle bin and write an audit log", async () => {
+    (mockPrisma.project.findUnique as jest.Mock).mockResolvedValue({
+      id: "p1",
+      name: "Proj",
+      archived: false,
+    });
+    (mockPrisma.project.update as jest.Mock).mockResolvedValue({});
     (mockPrisma.auditLog.create as jest.Mock).mockResolvedValue({});
 
     const req = new NextRequest(new URL("http://localhost/api/projects/p1"), {
@@ -110,6 +114,12 @@ describe("Archive API", () => {
 
     expect(res.status).toBe(200);
     expect(body.deleted).toBe(true);
+    expect(body.archived).toBe(true);
+    expect(body.permanent).toBe(false);
+    expect(mockPrisma.project.update).toHaveBeenCalledWith({
+      where: { id: "p1" },
+      data: { archived: true },
+    });
   });
 
   it("should return 404 when deleting a non-existent project", async () => {
@@ -123,9 +133,13 @@ describe("Archive API", () => {
     expect(res.status).toBe(404);
   });
 
-  it("should return 500 when delete fails", async () => {
-    (mockPrisma.project.findUnique as jest.Mock).mockResolvedValue({ id: "p1" });
-    (mockPrisma.project.delete as jest.Mock).mockRejectedValue(new Error("DB error"));
+  it("should return 500 when moving to the recycle bin fails", async () => {
+    (mockPrisma.project.findUnique as jest.Mock).mockResolvedValue({
+      id: "p1",
+      name: "Proj",
+      archived: false,
+    });
+    (mockPrisma.project.update as jest.Mock).mockRejectedValue(new Error("DB error"));
 
     const req = new NextRequest(new URL("http://localhost/api/projects/p1"), {
       method: "DELETE",

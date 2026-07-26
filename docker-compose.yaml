@@ -5,10 +5,10 @@ services:
     image: mariadb:11.4
     container_name: run-insight-db
     environment:
-      MARIADB_DATABASE: run_insight
-      MARIADB_USER: run_insight
-      MARIADB_PASSWORD: run_insight_password
-      MARIADB_ROOT_PASSWORD: root_password
+      MARIADB_DATABASE: ${MARIADB_DATABASE:-run_insight}
+      MARIADB_USER: ${MARIADB_USER:-run_insight}
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD:?MARIADB_PASSWORD must be set}
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:?MARIADB_ROOT_PASSWORD must be set}
     ports:
       - "3307:3306"
     volumes:
@@ -25,8 +25,8 @@ services:
     image: iskycc/run-insight:latest
     container_name: run-insight-migrate
     environment:
-      DATABASE_URL: mysql://run_insight:run_insight_password@db:3306/run_insight
-      JWT_SECRET: ${JWT_SECRET:-run-insight-local-dev-secret}
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
     depends_on:
       db:
         condition: service_healthy
@@ -37,8 +37,11 @@ services:
     image: iskycc/run-insight:latest
     container_name: run-insight-app
     environment:
-      DATABASE_URL: mysql://run_insight:run_insight_password@db:3306/run_insight
-      JWT_SECRET: ${JWT_SECRET:-run-insight-local-dev-secret}
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
+      CRON_SECRET: ${CRON_SECRET:?CRON_SECRET must be set}
+      WEBHOOK_ENCRYPTION_KEY: ${WEBHOOK_ENCRYPTION_KEY:?WEBHOOK_ENCRYPTION_KEY must be set}
+      TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-0}
       NODE_ENV: production
       PORT: 3000
       HOSTNAME: 0.0.0.0
@@ -47,6 +50,34 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/health/ready').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  background-worker:
+    image: iskycc/run-insight:latest
+    container_name: run-insight-background-worker
+    environment:
+      CRON_SECRET: ${CRON_SECRET:?CRON_SECRET must be set}
+    depends_on:
+      app:
+        condition: service_healthy
+    command:
+      [
+        "/bin/sh",
+        "-c",
+        "tick=0; while true; do wget -qO- -T 20 --post-data='' --header=\"Authorization: Bearer $$CRON_SECRET\" http://app:3000/api/cron/webhooks/process >/dev/null 2>&1 || true; if [ $$((tick % 2)) -eq 0 ]; then wget -qO- -T 20 --post-data='' --header=\"Authorization: Bearer $$CRON_SECRET\" http://app:3000/api/cron/import-jobs/process >/dev/null 2>&1 || true; fi; if [ $$((tick % 4)) -eq 0 ]; then wget -qO- -T 20 --post-data='' --header=\"Authorization: Bearer $$CRON_SECRET\" http://app:3000/api/cron/scheduled-reports/process >/dev/null 2>&1 || true; fi; tick=$$((tick + 1)); sleep 15; done",
+      ]
     restart: unless-stopped
 
 volumes:

@@ -91,9 +91,26 @@ export default function AssetsPage() {
   const openAsset = async (id: string) => {
     try {
       const data = await fetchJson<{ asset: AssetDTO }>(`/api/assets/${id}`);
-      setSelectedAsset(data.asset);
+      let openedAsset = data.asset;
+      const viewStorageKey = `run-insight:asset-view:${id}`;
+      const lastViewedAt = Number(
+        window.sessionStorage.getItem(viewStorageKey) ?? '0'
+      );
+      if (Date.now() - lastViewedAt >= 10 * 60 * 1000) {
+        window.sessionStorage.setItem(viewStorageKey, String(Date.now()));
+        try {
+          const view = await fetchJson<{ viewCount: number }>(
+            `/api/assets/${id}/view`,
+            { method: 'POST' }
+          );
+          openedAsset = { ...openedAsset, viewCount: view.viewCount };
+        } catch {
+          window.sessionStorage.removeItem(viewStorageKey);
+        }
+      }
+      setSelectedAsset(openedAsset);
       setAssets((current) =>
-        current.map((asset) => asset.id === id ? data.asset : asset)
+        current.map((asset) => asset.id === id ? openedAsset : asset)
       );
     } catch (caught) {
       setError(caught instanceof ApiError ? caught.message : '加载资产详情失败');
@@ -140,6 +157,7 @@ export default function AssetsPage() {
               placeholder="全部状态"
               options={[
                 { value: 'DRAFT', label: '草稿' },
+                { value: 'REVIEW', label: '待审核' },
                 { value: 'PUBLISHED', label: '已发布' },
                 { value: 'ARCHIVED', label: '已归档' },
               ]}
@@ -166,6 +184,7 @@ export default function AssetsPage() {
 
       {selectedAsset ? (
         <AssetDetail
+          key={`${selectedAsset.id}:${selectedAsset.version}`}
           asset={selectedAsset}
           onClose={() => setSelectedAsset(null)}
           onUpdated={(updated) => {

@@ -1,5 +1,14 @@
 import { hashPassword, verifyPassword, generateToken, verifyToken } from "@/lib/auth";
 
+jest.mock("@/lib/prisma", () => ({
+  prisma: {
+    session: {
+      findUnique: jest.fn(),
+      updateMany: jest.fn(),
+    },
+  },
+}));
+
 describe("auth utilities", () => {
   describe("hashPassword / verifyPassword", () => {
     it("should hash a password and verify it correctly", async () => {

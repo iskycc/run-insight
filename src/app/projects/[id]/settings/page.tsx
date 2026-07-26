@@ -11,7 +11,9 @@ import { Badge } from '@/components/shared/Badge';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { useAuth } from '@/components/shared/AuthProvider';
 import { useToast } from '@/contexts/ToastContext';
+import { formatDateTime } from '@/lib/date-time';
 import { fetchJson, ApiError } from '@/lib/fetch';
+import { WebhookSettings } from '@/components/projects/WebhookSettings';
 import type {
   ApiKeyResponse,
   ApiKeyCreateResponse,
@@ -19,8 +21,20 @@ import type {
   ProjectsResponse,
 } from '@/types';
 
-function formatDateTime(iso: string) {
-  return new Date(iso).toLocaleString('zh-CN');
+function formatOptionalDateTime(iso: string | null, fallback: string) {
+  return iso ? formatDateTime(iso) : fallback;
+}
+
+function expiryFromDays(value: string): string | null {
+  if (value === 'never') return null;
+  const days = Number(value);
+  return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
+}
+
+function ApiKeyStatusBadge({ status }: { status: ApiKeyResponse['status'] }) {
+  if (status === 'REVOKED') return <Badge progress="blocked">已撤销</Badge>;
+  if (status === 'EXPIRED') return <Badge progress="pending">已过期</Badge>;
+  return <Badge progress="fixed">有效</Badge>;
 }
 
 export default function ProjectSettingsPage() {
@@ -41,11 +55,13 @@ export default function ProjectSettingsPage() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [newLabel, setNewLabel] = useState('');
+  const [newExpiry, setNewExpiry] = useState('90');
   const [createError, setCreateError] = useState('');
   const [creating, setCreating] = useState(false);
 
   const [issuedKey, setIssuedKey] = useState<string>('');
   const [issuedLabel, setIssuedLabel] = useState<string>('');
+  const [issuedExpiresAt, setIssuedExpiresAt] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   // Load project info from the projects list (no single-project GET endpoint).
@@ -107,6 +123,7 @@ export default function ProjectSettingsPage() {
 
   const openCreate = useCallback(() => {
     setNewLabel('');
+    setNewExpiry('90');
     setCreateError('');
     setCreateOpen(true);
   }, []);
@@ -114,6 +131,7 @@ export default function ProjectSettingsPage() {
   const closeCreate = useCallback(() => {
     setCreateOpen(false);
     setNewLabel('');
+    setNewExpiry('90');
     setCreateError('');
   }, []);
 
@@ -131,33 +149,39 @@ export default function ProjectSettingsPage() {
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ description: label }),
+          body: JSON.stringify({
+            description: label,
+            scopes: ['IMPORT'],
+            expiresAt: expiryFromDays(newExpiry),
+          }),
         }
       );
       setIssuedKey(data.key);
       setIssuedLabel(data.description || label);
+      setIssuedExpiresAt(data.expiresAt);
       setCreateOpen(false);
       setNewLabel('');
+      setNewExpiry('90');
       setReloadKey((k) => k + 1);
     } catch (error) {
       setCreateError(error instanceof ApiError ? error.message : '创建失败');
     } finally {
       setCreating(false);
     }
-  }, [id, newLabel]);
+  }, [id, newExpiry, newLabel]);
 
-  const handleDelete = useCallback(
+  const handleRevoke = useCallback(
     async (keyId: string) => {
-      if (!window.confirm('确定要删除该 API Key 吗？此操作不可撤销。')) return;
+      if (!window.confirm('确定要撤销该 API Key 吗？撤销后无法恢复。')) return;
       try {
         await fetchJson(`/api/projects/${id}/api-keys/${keyId}`, {
           method: 'DELETE',
         });
-        showToast({ message: 'API Key 已删除', type: 'success' });
+        showToast({ message: 'API Key 已撤销', type: 'success' });
         setReloadKey((k) => k + 1);
       } catch (error) {
         showToast({
-          message: error instanceof ApiError ? error.message : '删除失败',
+          message: error instanceof ApiError ? error.message : '撤销失败',
           type: 'error',
         });
       }
@@ -179,6 +203,7 @@ export default function ProjectSettingsPage() {
   const dismissIssued = useCallback(() => {
     setIssuedKey('');
     setIssuedLabel('');
+    setIssuedExpiresAt(null);
     setCopied(false);
   }, []);
 
@@ -243,7 +268,7 @@ export default function ProjectSettingsPage() {
             <div>
               <h2 className="text-lg font-semibold text-text-primary">API Key</h2>
               <p className="mt-1 text-xs text-text-secondary">
-                用于外部系统调用本项目相关接口，密钥仅在创建时显示一次。
+                用于外部系统导入本项目数据。完整密钥仅在创建时显示一次，支持过期与可审计撤销。
               </p>
             </div>
             {canAdmin && (
@@ -274,8 +299,11 @@ export default function ProjectSettingsPage() {
                 <thead className="bg-bg/60 text-left text-xs font-semibold text-text-secondary">
                   <tr>
                     <th className="px-4 py-3">标签</th>
-                    <th className="px-4 py-3">ID</th>
-                    <th className="px-4 py-3">创建时间</th>
+                    <th className="px-4 py-3">密钥前缀</th>
+                    <th className="px-4 py-3">权限</th>
+                    <th className="px-4 py-3">状态</th>
+                    <th className="px-4 py-3">过期时间</th>
+                    <th className="px-4 py-3">最后使用</th>
                     <th className="px-4 py-3 text-right">操作</th>
                   </tr>
                 </thead>
@@ -286,18 +314,28 @@ export default function ProjectSettingsPage() {
                         {key.description || '(无标签)'}
                       </td>
                       <td className="px-4 py-3 font-mono text-xs text-text-secondary">
-                        {key.id}
+                        {key.prefix}••••
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge>导入</Badge>
+                      </td>
+                      <td className="px-4 py-3">
+                        <ApiKeyStatusBadge status={key.status} />
                       </td>
                       <td className="px-4 py-3 text-text-secondary">
-                        {formatDateTime(key.createdAt)}
+                        {formatOptionalDateTime(key.expiresAt, '永不过期')}
+                      </td>
+                      <td className="px-4 py-3 text-text-secondary">
+                        {formatOptionalDateTime(key.lastUsedAt, '从未使用')}
                       </td>
                       <td className="px-4 py-3 text-right">
                         <Button
                           size="sm"
                           variant="danger"
-                          onClick={() => handleDelete(key.id)}
+                          onClick={() => handleRevoke(key.id)}
+                          disabled={key.status === 'REVOKED'}
                         >
-                          删除
+                          {key.status === 'REVOKED' ? '已撤销' : '撤销'}
                         </Button>
                       </td>
                     </tr>
@@ -307,6 +345,12 @@ export default function ProjectSettingsPage() {
             </div>
           )}
         </div>
+
+        <WebhookSettings
+          projectId={id}
+          canAdmin={canAdmin}
+          archived={archived}
+        />
       </div>
 
       {/* Create modal */}
@@ -327,7 +371,7 @@ export default function ProjectSettingsPage() {
       >
         <div className="space-y-4">
           <Input
-            label="标签"
+            label="描述"
             value={newLabel}
             onChange={(e) => setNewLabel(e.target.value)}
             placeholder="例如 CI 流水线"
@@ -336,8 +380,29 @@ export default function ProjectSettingsPage() {
               if (e.key === 'Enter') handleCreate();
             }}
           />
+          <fieldset>
+            <legend className="text-sm font-medium text-text-primary">权限范围</legend>
+            <label className="mt-2 flex items-center gap-2 text-sm text-text-secondary">
+              <input type="checkbox" checked disabled />
+              导入数据（IMPORT）
+            </label>
+          </fieldset>
+          <label className="block">
+            <span className="text-sm font-medium text-text-primary">有效期</span>
+            <select
+              aria-label="有效期"
+              value={newExpiry}
+              onChange={(event) => setNewExpiry(event.target.value)}
+              className="field-control mt-2 h-11 w-full px-3 text-sm"
+            >
+              <option value="30">30 天</option>
+              <option value="90">90 天</option>
+              <option value="365">1 年</option>
+              <option value="never">永不过期</option>
+            </select>
+          </label>
           <p className="text-xs text-text-secondary">
-            创建后将显示一次完整密钥，请妥善保存。
+            创建后将显示一次完整密钥，请妥善保存。权限与有效期创建后不可修改。
           </p>
         </div>
       </Modal>
@@ -353,7 +418,15 @@ export default function ProjectSettingsPage() {
       >
         <div className="space-y-3">
           <p className="text-sm text-text-secondary">
-            标签：<span className="text-text-primary">{issuedLabel || '(无标签)'}</span>
+            描述：<span className="text-text-primary">{issuedLabel}</span>
+          </p>
+          <p className="text-sm text-text-secondary">
+            权限：<span className="text-text-primary">导入数据（IMPORT）</span>
+            {' · '}
+            有效期：
+            <span className="text-text-primary">
+              {formatOptionalDateTime(issuedExpiresAt, '永不过期')}
+            </span>
           </p>
           <p className="text-xs text-text-secondary">
             请立即复制以下密钥。关闭后将无法再次查看完整密钥。

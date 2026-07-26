@@ -1,24 +1,40 @@
-import { GET } from "@/app/api/assets/route";
+import { GET, POST as createAsset } from "@/app/api/assets/route";
 import {
   GET as getAsset,
   PATCH as updateAsset,
 } from "@/app/api/assets/[id]/route";
 import { POST as reuseAsset } from "@/app/api/assets/[id]/reuse/route";
+import { POST as recordAssetView } from "@/app/api/assets/[id]/view/route";
 import { generateToken } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { NextRequest } from "next/server";
 
 jest.mock("@/lib/prisma", () => {
+  const assetClient = {
+    findMany: jest.fn(),
+    count: jest.fn(),
+    findUnique: jest.fn(),
+    update: jest.fn(),
+    create: jest.fn(),
+  };
+  const assetVersion = {
+    create: jest.fn(),
+  };
   const client = {
     user: { findUnique: jest.fn() },
     projectMember: { findUnique: jest.fn() },
-    asset: {
-      findMany: jest.fn(),
-      count: jest.fn(),
-      findUnique: jest.fn(),
-      update: jest.fn(),
-    },
+    project: { findUnique: jest.fn() },
+    asset: assetClient,
+    assetVersion,
     rootCauseCategory: { findUnique: jest.fn() },
+    $transaction: jest.fn(
+      async (
+        callback: (tx: {
+          asset: typeof assetClient;
+          assetVersion: typeof assetVersion;
+        }) => Promise<unknown>,
+      ) => callback({ asset: assetClient, assetVersion }),
+    ),
   };
   return { prisma: client };
 });
@@ -101,6 +117,45 @@ describe("asset APIs", () => {
       status: "DRAFT",
       tags: { array_contains: "登录" },
       rootCauseCategoryId: "root_1",
+    });
+  });
+
+  it("creates an independent draft and its initial version atomically", async () => {
+    (mockPrisma.project.findUnique as jest.Mock).mockResolvedValue({
+      id: "project_1",
+    });
+    (mockPrisma.asset.create as jest.Mock).mockResolvedValue(asset);
+
+    const response = await createAsset(
+      request("/api/assets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: "project_1",
+          title: "登录失败分析",
+          summary: "登录接口返回 500",
+          solution: "修复空值处理",
+          tags: ["登录"],
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(201);
+    expect(mockPrisma.asset.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          projectId: "project_1",
+          status: "DRAFT",
+          createdBy: "user_1",
+        }),
+      }),
+    );
+    expect(mockPrisma.assetVersion.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        assetId,
+        version: 1,
+        status: "DRAFT",
+      }),
     });
   });
 
@@ -227,20 +282,35 @@ describe("asset APIs", () => {
     expect(response.status).toBe(500);
   });
 
-  it("increments view count when opening an asset", async () => {
+  it("keeps asset detail GET read-only", async () => {
     (mockPrisma.asset.findUnique as jest.Mock).mockResolvedValue(asset);
-    (mockPrisma.asset.update as jest.Mock).mockResolvedValue({
-      ...asset,
-      viewCount: 1,
-      project: { id: "project_1", name: "项目一" },
-    });
     const response = await getAsset(request(`/api/assets/${assetId}`), {
       params: Promise.resolve({ id: assetId }),
     });
     expect(response.status).toBe(200);
-    expect(mockPrisma.asset.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { viewCount: { increment: 1 } } })
+    expect(mockPrisma.asset.update).not.toHaveBeenCalled();
+  });
+
+  it("increments view count only through the explicit view event", async () => {
+    (mockPrisma.asset.findUnique as jest.Mock).mockResolvedValue({
+      id: assetId,
+      projectId: "project_1",
+      status: "PUBLISHED",
+    });
+    (mockPrisma.asset.update as jest.Mock).mockResolvedValue({ viewCount: 1 });
+
+    const response = await recordAssetView(
+      request(`/api/assets/${assetId}/view`, { method: "POST" }),
+      params,
     );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ viewCount: 1 });
+    expect(mockPrisma.asset.update).toHaveBeenCalledWith({
+      where: { id: assetId },
+      data: { viewCount: { increment: 1 } },
+      select: { viewCount: true },
+    });
   });
 
   it("lets a viewer open a published asset without edit permission", async () => {
@@ -252,13 +322,6 @@ describe("asset APIs", () => {
       ...asset,
       status: "PUBLISHED",
     });
-    (mockPrisma.asset.update as jest.Mock).mockResolvedValue({
-      ...asset,
-      status: "PUBLISHED",
-      viewCount: 1,
-      project: { id: "project_1", name: "项目一" },
-    });
-
     const response = await getAsset(request(`/api/assets/${assetId}`), params);
     expect(response.status).toBe(200);
     expect((await response.json()).asset.canEdit).toBe(false);
@@ -305,7 +368,6 @@ describe("asset APIs", () => {
         body: JSON.stringify({
           title: "新标题",
           tags: ["回归"],
-          status: "PUBLISHED",
           rootCauseCategoryId: "root_1",
         }),
         headers: { "Content-Type": "application/json" },
@@ -318,6 +380,69 @@ describe("asset APIs", () => {
         data: expect.objectContaining({ version: { increment: 1 } }),
       })
     );
+    expect(mockPrisma.assetVersion.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ assetId, version: 2, title: "新标题" }),
+    });
+  });
+
+  it("lets an editor submit review but only a project admin can publish", async () => {
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue({
+      role: "EDITOR",
+    });
+    (mockPrisma.projectMember.findUnique as jest.Mock).mockResolvedValue({
+      role: "EDITOR",
+    });
+    (mockPrisma.asset.findUnique as jest.Mock).mockResolvedValue(asset);
+    (mockPrisma.asset.update as jest.Mock).mockResolvedValue({
+      ...asset,
+      status: "REVIEW",
+      version: 2,
+      project: { id: "project_1", name: "项目一" },
+    });
+
+    const submitted = await updateAsset(
+      patchRequest({ status: "REVIEW" }),
+      params,
+    );
+    expect(submitted.status).toBe(200);
+
+    (mockPrisma.asset.findUnique as jest.Mock).mockResolvedValue({
+      ...asset,
+      status: "REVIEW",
+    });
+    const denied = await updateAsset(
+      patchRequest({ status: "PUBLISHED" }),
+      params,
+    );
+    expect(denied.status).toBe(403);
+
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue({
+      role: "ADMIN",
+    });
+    (mockPrisma.asset.update as jest.Mock).mockResolvedValue({
+      ...asset,
+      status: "PUBLISHED",
+      version: 3,
+      project: { id: "project_1", name: "项目一" },
+    });
+    const published = await updateAsset(
+      patchRequest({ status: "PUBLISHED" }),
+      params,
+    );
+    expect(published.status).toBe(200);
+  });
+
+  it("rejects content edits outside the draft state", async () => {
+    (mockPrisma.asset.findUnique as jest.Mock).mockResolvedValue({
+      ...asset,
+      status: "REVIEW",
+    });
+    const response = await updateAsset(
+      patchRequest({ title: "审核中修改" }),
+      params,
+    );
+    expect(response.status).toBe(409);
+    expect(mockPrisma.asset.update).not.toHaveBeenCalled();
   });
 
   it("updates all optional asset fields and disconnects a category", async () => {

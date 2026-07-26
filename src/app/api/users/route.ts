@@ -7,7 +7,7 @@ import { isValidRole } from "@/lib/validations";
 import type { UsersResponse, UserWithRole } from "@/types";
 
 export async function GET(request: NextRequest) {
-  const authResult = authenticateRequest(request);
+  const authResult = await authenticateRequest(request);
   if (authResult instanceof NextResponse) return authResult;
 
   const roleCheck = await requireRole(authResult.userId, ["ADMIN"], prisma);
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const authResult = authenticateRequest(request);
+  const authResult = await authenticateRequest(request);
   if (authResult instanceof NextResponse) return authResult;
 
   const roleCheck = await requireRole(authResult.userId, ["ADMIN"], prisma);

@@ -5,13 +5,17 @@ import { useAuth } from '@/components/shared/AuthProvider';
 import { useEffect, useRef, useState } from 'react';
 import {
   CaretDown,
+  CalendarDots,
   ChartLineUp,
+  Devices,
   LockKey,
   SignOut,
-  Sun,
 } from '@phosphor-icons/react';
 import { LoginPrompt } from '@/components/shared/LoginPrompt';
 import { ChangePasswordModal } from '@/components/shared/ChangePasswordModal';
+import { SessionManagerModal } from '@/components/shared/SessionManagerModal';
+import { NotificationCenter } from '@/components/notifications/NotificationCenter';
+import { OrganizationSwitcher } from '@/components/organizations/OrganizationSwitcher';
 
 export function Header() {
   const { user, login, logout } = useAuth();
@@ -19,6 +23,7 @@ export function Header() {
   const [loginError, setLoginError] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [sessionManagerOpen, setSessionManagerOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -65,18 +70,8 @@ export function Header() {
         <div className="app-user flex items-center gap-2">
           {user ? (
             <>
-              <button
-                type="button"
-                aria-label="外观跟随系统"
-                title="外观跟随系统"
-                className="hidden h-9 w-9 items-center justify-center rounded-full text-text-secondary transition hover:bg-bg hover:text-text-primary sm:inline-flex"
-              >
-                <Sun size={21} aria-hidden="true" />
-              </button>
-              <span
-                aria-hidden="true"
-                className="hidden h-6 w-px shrink-0 bg-border sm:block"
-              />
+              <OrganizationSwitcher />
+              <NotificationCenter />
               <div className="relative" ref={menuRef}>
                 <button
                   type="button"
@@ -102,6 +97,15 @@ export function Header() {
                     role="menu"
                     aria-label="用户菜单"
                   >
+                    <Link
+                      href="/reports/scheduled"
+                      role="menuitem"
+                      className="flex w-full items-center gap-2 rounded-[9px] px-3 py-2 text-left text-sm text-text-secondary transition-colors hover:bg-bg hover:text-text-primary"
+                      onClick={() => setMenuOpen(false)}
+                    >
+                      <CalendarDots size={17} aria-hidden="true" />
+                      定时报表
+                    </Link>
                     <button
                       type="button"
                       role="menuitem"
@@ -113,6 +117,18 @@ export function Header() {
                     >
                       <LockKey size={17} aria-hidden="true" />
                       修改密码
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="flex w-full items-center gap-2 rounded-[9px] px-3 py-2 text-left text-sm text-text-secondary transition-colors hover:bg-bg hover:text-text-primary"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        setSessionManagerOpen(true);
+                      }}
+                    >
+                      <Devices size={17} aria-hidden="true" />
+                      登录会话
                     </button>
                     <button
                       type="button"
@@ -154,6 +170,11 @@ export function Header() {
         open={changePasswordOpen}
         onClose={() => setChangePasswordOpen(false)}
         onLogout={logout}
+      />
+      <SessionManagerModal
+        open={sessionManagerOpen}
+        onClose={() => setSessionManagerOpen(false)}
+        onCurrentRevoked={logout}
       />
     </>
   );

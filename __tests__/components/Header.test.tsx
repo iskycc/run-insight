@@ -53,7 +53,7 @@ describe('Header password management', () => {
     return user;
   }
 
-  it('changes the current password and offers a fresh login', async () => {
+  it('changes the current password and signs out every session', async () => {
     mockFetchJson.mockResolvedValueOnce({ success: true });
     render(<Header />);
     const user = await openChangePassword();
@@ -75,13 +75,12 @@ describe('Header password management', () => {
       });
     });
     expect(mockShowToast).toHaveBeenCalledWith({
-      message: '密码修改成功',
+      message: '密码修改成功，请重新登录',
       type: 'success',
     });
+    expect(mockLogout).toHaveBeenCalledTimes(1);
     expect(screen.getByRole('dialog', { name: '密码已修改' })).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: '退出并重新登录' }));
-    await waitFor(() => expect(mockLogout).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole('status')).toHaveTextContent('所有登录会话均已注销');
   });
 
   it('validates confirmation before sending credentials', async () => {
@@ -116,5 +115,36 @@ describe('Header password management', () => {
     });
     expect(screen.queryByText('secret-old-password')).not.toBeInTheDocument();
     expect(screen.queryByText('secret-new-password')).not.toBeInTheDocument();
+  });
+
+  it('opens safe session management from the user menu', async () => {
+    mockFetchJson.mockResolvedValueOnce({
+      sessions: [
+        {
+          id: 'session-1',
+          deviceInfo: 'Chrome · macOS',
+          status: 'ACTIVE',
+          isCurrent: true,
+          createdAt: '2026-07-27T00:00:00.000Z',
+          expiresAt: '2026-08-03T00:00:00.000Z',
+          revokedAt: null,
+          lastSeenAt: '2026-07-27T01:00:00.000Z',
+        },
+      ],
+    });
+    render(<Header />);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: /admin/ }));
+    await user.click(screen.getByRole('menuitem', { name: '登录会话' }));
+
+    expect(await screen.findByRole('dialog', { name: '登录会话' })).toBeInTheDocument();
+    expect(screen.getByText('Chrome · macOS')).toBeInTheDocument();
+    expect(screen.getByText('当前设备')).toBeInTheDocument();
+    expect(screen.getByText(/不保存原始令牌或 IP 地址/)).toBeInTheDocument();
+    expect(mockFetchJson).toHaveBeenCalledWith('/api/auth/sessions', {
+      signal: expect.any(AbortSignal),
+      cache: 'no-store',
+    });
   });
 });

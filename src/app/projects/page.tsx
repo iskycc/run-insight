@@ -11,13 +11,10 @@ import { Badge } from '@/components/shared/Badge';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { useAuth } from '@/components/shared/AuthProvider';
 import { useToast } from '@/contexts/ToastContext';
+import { formatDate } from '@/lib/date-time';
 import { fetchJson, ApiError } from '@/lib/fetch';
 import { ArrowRight, DotsThree } from '@phosphor-icons/react';
 import type { ProjectWithStats, ProjectsResponse, ProjectDTO } from '@/types';
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('zh-CN');
-}
 
 export default function ProjectsPage() {
   const { user } = useAuth();
@@ -25,7 +22,7 @@ export default function ProjectsPage() {
   const router = useRouter();
 
   const [projects, setProjects] = useState<ProjectWithStats[]>([]);
-  const [showArchived, setShowArchived] = useState(false);
+  const [projectView, setProjectView] = useState<'active' | 'trash'>('active');
   const [reloadKey, setReloadKey] = useState(0);
   const [loadState, setLoadState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
 
@@ -40,11 +37,15 @@ export default function ProjectsPage() {
     void (async () => {
       try {
         const data = await fetchJson<ProjectsResponse>(
-          `/api/projects?includeArchived=${showArchived}`,
+          `/api/projects?includeArchived=${projectView === 'trash'}`,
           { signal: controller.signal }
         );
         if (!controller.signal.aborted) {
-          setProjects(data.projects);
+          setProjects(
+            projectView === 'trash'
+              ? data.projects.filter((project) => project.archived)
+              : data.projects
+          );
           setLoadState('ready');
         }
       } catch (error) {
@@ -55,7 +56,7 @@ export default function ProjectsPage() {
       }
     })();
     return () => controller.abort();
-  }, [user, showArchived, showToast, reloadKey]);
+  }, [user, projectView, showToast, reloadKey]);
 
   const loading = loadState === 'idle' || loadState === 'loading';
   const canEdit = user?.role === 'ADMIN' || user?.role === 'EDITOR';
@@ -85,29 +86,55 @@ export default function ProjectsPage() {
     }
   }, [newProjectName, router, showToast]);
 
-  const handleArchive = useCallback(async (project: ProjectWithStats) => {
-    if (!window.confirm(project.archived ? '确定要取消归档该项目吗？' : '确定要归档该项目吗？')) return;
+  const handleMoveToTrash = useCallback(async (project: ProjectWithStats) => {
+    if (!window.confirm(`确定将项目“${project.name}”移至回收站吗？之后可以恢复。`)) return;
     try {
-      await fetchJson(`/api/projects/${project.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ archived: !project.archived }),
-      });
-      showToast({ message: project.archived ? '项目已取消归档' : '项目已归档', type: 'success' });
+      await fetchJson(`/api/projects/${project.id}`, { method: 'DELETE' });
+      showToast({ message: '项目已移至回收站', type: 'success' });
       setReloadKey((k) => k + 1);
     } catch (error) {
       showToast({ message: error instanceof ApiError ? error.message : '操作失败', type: 'error' });
     }
   }, [showToast]);
 
-  const handleDelete = useCallback(async (project: ProjectWithStats) => {
-    if (!window.confirm('确定要删除该项目吗？此操作不可撤销。')) return;
+  const handleRestore = useCallback(async (project: ProjectWithStats) => {
     try {
-      await fetchJson(`/api/projects/${project.id}`, { method: 'DELETE' });
-      showToast({ message: '项目已删除', type: 'success' });
+      await fetchJson(`/api/projects/${project.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ archived: false }),
+      });
+      showToast({ message: '项目已恢复', type: 'success' });
       setReloadKey((k) => k + 1);
     } catch (error) {
-      showToast({ message: error instanceof ApiError ? error.message : '删除失败', type: 'error' });
+      showToast({ message: error instanceof ApiError ? error.message : '恢复失败', type: 'error' });
+    }
+  }, [showToast]);
+
+  const handlePermanentDelete = useCallback(async (project: ProjectWithStats) => {
+    if (
+      !window.confirm(
+        `永久删除项目“${project.name}”会级联删除其阶段、批跑、用例及关联数据，且无法恢复。确定继续吗？`
+      )
+    ) {
+      return;
+    }
+    const confirmation = window.prompt(`请输入项目名称“${project.name}”以确认永久删除：`);
+    if (confirmation !== project.name) {
+      if (confirmation !== null) {
+        showToast({ message: '名称不匹配，已取消永久删除', type: 'error' });
+      }
+      return;
+    }
+    try {
+      await fetchJson(`/api/projects/${project.id}?permanent=true`, { method: 'DELETE' });
+      showToast({ message: '项目已永久删除', type: 'success' });
+      setReloadKey((k) => k + 1);
+    } catch (error) {
+      showToast({
+        message: error instanceof ApiError ? error.message : '永久删除失败',
+        type: 'error',
+      });
     }
   }, [showToast]);
 
@@ -124,22 +151,40 @@ export default function ProjectsPage() {
   return (
     <PageContainer
       title="项目管理"
-      subtitle="创建、归档和管理项目"
+      subtitle="创建项目，并从回收站恢复误删内容"
       actions={
-        canEdit ? <Button onClick={() => setCreateModalOpen(true)}>新建项目</Button> : undefined
+        canEdit && projectView === 'active'
+          ? <Button onClick={() => setCreateModalOpen(true)}>新建项目</Button>
+          : undefined
       }
     >
       <div className="space-y-4">
-        <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 text-sm text-text-secondary">
-            <input
-              type="checkbox"
-              checked={showArchived}
-              onChange={(e) => setShowArchived(e.target.checked)}
-              className="h-4 w-4 rounded border-border text-accent focus:ring-accent"
-            />
-            显示已归档项目
-          </label>
+        <div
+          className="inline-flex rounded-xl border border-border bg-bg p-1"
+          role="group"
+          aria-label="项目筛选"
+        >
+          {([
+            ['active', '活跃项目'],
+            ['trash', '回收站'],
+          ] as const).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => {
+                setLoadState('loading');
+                setProjectView(value);
+              }}
+              aria-pressed={projectView === value}
+              className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+                projectView === value
+                  ? 'bg-surface-solid text-text-primary shadow-sm'
+                  : 'text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
         <div className="panel overflow-hidden p-3 sm:p-4">
@@ -150,9 +195,19 @@ export default function ProjectsPage() {
           ) : projects.length === 0 ? (
             <EmptyState
               title="暂无项目"
-              description={canEdit ? '点击右上角按钮创建第一个项目' : '当前还没有可查看的项目'}
-              actionLabel={canEdit ? '新建项目' : undefined}
-              onAction={canEdit ? () => setCreateModalOpen(true) : undefined}
+              description={
+                projectView === 'trash'
+                  ? '回收站中没有项目'
+                  : canEdit
+                    ? '点击右上角按钮创建第一个项目'
+                    : '当前还没有可查看的项目'
+              }
+              actionLabel={projectView === 'active' && canEdit ? '新建项目' : undefined}
+              onAction={
+                projectView === 'active' && canEdit
+                  ? () => setCreateModalOpen(true)
+                  : undefined
+              }
             />
           ) : (
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -169,7 +224,7 @@ export default function ProjectsPage() {
                       <div className="min-w-0">
                         <div className="mb-3 flex flex-wrap items-center gap-2">
                           {project.archived ? (
-                            <Badge progress="blocked">已归档</Badge>
+                            <Badge progress="blocked">回收站</Badge>
                           ) : (
                             <Badge progress="fixed">活跃项目</Badge>
                           )}
@@ -194,19 +249,23 @@ export default function ProjectsPage() {
                             {project.canEdit && (
                               <button
                                 type="button"
-                                onClick={() => void handleArchive(project)}
+                                onClick={() => void (
+                                  project.archived
+                                    ? handleRestore(project)
+                                    : handleMoveToTrash(project)
+                                )}
                                 className="w-full rounded-lg px-3 py-2 text-left text-sm text-text-primary hover:bg-bg"
                               >
-                                {project.archived ? '取消归档' : '归档项目'}
+                                {project.archived ? '恢复项目' : '移至回收站'}
                               </button>
                             )}
-                            {project.canAdmin && (
+                            {project.canAdmin && project.archived && (
                               <button
                                 type="button"
-                                onClick={() => void handleDelete(project)}
+                                onClick={() => void handlePermanentDelete(project)}
                                 className="w-full rounded-lg px-3 py-2 text-left text-sm text-danger hover:bg-danger/10"
                               >
-                                删除项目
+                                永久删除
                               </button>
                             )}
                           </div>
@@ -249,7 +308,7 @@ export default function ProjectsPage() {
                       href={`/projects/${project.id}`}
                       className="mt-6 inline-flex h-10 w-full items-center justify-center rounded-xl bg-accent px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-accent-hover focus:outline-none focus:ring-2 focus:ring-accent/30"
                     >
-                      进入项目
+                      {project.archived ? '查看归档项目' : '进入项目'}
                       <ArrowRight size={16} weight="bold" aria-hidden="true" className="ml-2" />
                     </Link>
                   </article>

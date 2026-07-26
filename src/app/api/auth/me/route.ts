@@ -1,18 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken, getTokenFromCookies } from "@/lib/auth";
+import { authenticateRequest } from "@/lib/auth";
 import type { MeResponse, UserDTO } from "@/types";
 
 export async function GET(request: NextRequest) {
   try {
-    const cookieHeader = request.headers.get("cookie");
-    const token = getTokenFromCookies(cookieHeader);
-
-    if (!token) {
+    const payload = await authenticateRequest(request);
+    if (payload instanceof NextResponse) {
       return NextResponse.json<MeResponse>({ user: null });
     }
-
-    const payload = verifyToken(token);
 
     const user = await prisma.user.findUnique({
       where: { id: payload.userId },

@@ -14,6 +14,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const showDevelopmentCredentials = process.env.NODE_ENV === 'development';
 
   useEffect(() => {
     if (user) router.replace('/workspace');
@@ -91,9 +92,11 @@ export default function LoginPage() {
           </form>
         </div>
 
-        <p className="text-center text-xs text-text-secondary/60 mt-6">
-          默认账号：admin / admin123
-        </p>
+        {showDevelopmentCredentials && (
+          <p className="mt-6 text-center text-xs text-text-secondary/60">
+            本地开发账号：admin / admin123
+          </p>
+        )}
       </div>
     </div>
   );

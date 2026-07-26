@@ -4,16 +4,25 @@ import { authenticateRequest, requireRole } from "@/lib/auth";
 import { validateRequired } from "@/lib/validations";
 import { internalError, jsonError } from "@/lib/api-helpers";
 import { writeAuditLog } from "@/lib/audit";
+import { getCurrentOrganization } from "@/lib/organizations";
 import type { ProjectRole } from "@/generated/prisma/enums";
 import type { ProjectDTO, ProjectWithStats, ProjectsResponse } from "@/types";
 
 export async function GET(request: NextRequest) {
-  const authResult = authenticateRequest(request);
+  const authResult = await authenticateRequest(request);
   if (authResult instanceof NextResponse) return authResult;
 
   try {
     const { searchParams } = request.nextUrl;
     const includeArchived = searchParams.get("includeArchived") === "true";
+    const organization = await getCurrentOrganization(
+      prisma,
+      request,
+      authResult.userId,
+    );
+    if (!organization) {
+      return NextResponse.json<ProjectsResponse>({ projects: [] });
+    }
 
     const user = await prisma.user.findUnique({
       where: { id: authResult.userId },
@@ -21,9 +30,11 @@ export async function GET(request: NextRequest) {
     });
     if (!user) return jsonError("UNAUTHORIZED", "用户不存在", 401);
 
-    const where: Record<string, unknown> = {};
+    const where: Record<string, unknown> = {
+      organizationId: organization.id,
+    };
     if (!includeArchived) where.archived = false;
-    if (user.role !== "ADMIN") {
+    if (organization.role === "MEMBER") {
       where.members = { some: { userId: authResult.userId } };
     }
 
@@ -45,12 +56,18 @@ export async function GET(request: NextRequest) {
     const [passCounts, failCounts] = await Promise.all([
       prisma.caseResult.groupBy({
         by: ["projectId"],
-        where: { resultSummary: "PASS" },
+        where: {
+          resultSummary: "PASS",
+          project: { organizationId: organization.id },
+        },
         _count: { _all: true },
       }),
       prisma.caseResult.groupBy({
         by: ["projectId"],
-        where: { resultSummary: "FAIL" },
+        where: {
+          resultSummary: "FAIL",
+          project: { organizationId: organization.id },
+        },
         _count: { _all: true },
       }),
     ]);
@@ -60,9 +77,11 @@ export async function GET(request: NextRequest) {
 
     const projectsWithStats: ProjectWithStats[] = projects.map((p) => {
       const projectRole = (p.members?.[0]?.role ?? null) as ProjectRole | null;
-      const systemAdmin = user.role === "ADMIN";
+      const organizationAdmin =
+        organization.role === "OWNER" || organization.role === "ADMIN";
       return {
       id: p.id,
+      organizationId: p.organizationId,
       name: p.name,
       createdAt: p.createdAt.toISOString(),
       updatedAt: p.updatedAt.toISOString(),
@@ -72,9 +91,9 @@ export async function GET(request: NextRequest) {
       passCount: passMap.get(p.id) ?? 0,
       failCount: failMap.get(p.id) ?? 0,
       projectRole,
-      canView: systemAdmin || projectRole !== null,
-      canEdit: systemAdmin || projectRole === "ADMIN" || projectRole === "EDITOR",
-      canAdmin: systemAdmin || projectRole === "ADMIN",
+      canView: organizationAdmin || projectRole !== null,
+      canEdit: organizationAdmin || projectRole === "ADMIN" || projectRole === "EDITOR",
+      canAdmin: organizationAdmin || projectRole === "ADMIN",
       };
     });
 
@@ -85,13 +104,21 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const authResult = authenticateRequest(request);
+  const authResult = await authenticateRequest(request);
   if (authResult instanceof NextResponse) return authResult;
 
   const roleCheck = await requireRole(authResult.userId, ["ADMIN", "EDITOR"], prisma);
   if (roleCheck) return roleCheck;
 
   try {
+    const organization = await getCurrentOrganization(
+      prisma,
+      request,
+      authResult.userId,
+    );
+    if (!organization) {
+      return jsonError("NO_ORGANIZATION", "请先创建或加入一个组织", 409);
+    }
     const body = await request.json();
     const { name } = body;
 
@@ -102,6 +129,7 @@ export async function POST(request: NextRequest) {
 
     const project = await prisma.project.create({
       data: {
+        organizationId: organization.id,
         name: name.trim(),
         members: {
           create: { userId: authResult.userId, role: "ADMIN" },
@@ -111,6 +139,7 @@ export async function POST(request: NextRequest) {
 
     const projectDTO: ProjectDTO = {
       id: project.id,
+      organizationId: project.organizationId,
       name: project.name,
       createdAt: project.createdAt.toISOString(),
       updatedAt: project.updatedAt.toISOString(),
@@ -126,13 +155,13 @@ export async function POST(request: NextRequest) {
       action: "CREATE",
       entityType: "project",
       entityId: project.id,
-      changes: { name: project.name },
+      changes: { name: project.name, organizationId: organization.id },
     });
 
     return NextResponse.json({ project: projectDTO }, { status: 201 });
   } catch (error: unknown) {
     if (error instanceof Error && 'code' in error && (error as { code: string }).code === "P2002") {
-      return jsonError("CONFLICT", "项目名称已存在", 409);
+      return jsonError("CONFLICT", "当前组织中已存在同名项目", 409);
     }
     return internalError("创建项目失败");
   }
