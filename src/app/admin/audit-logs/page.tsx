@@ -190,6 +190,18 @@ export default function AdminAuditLogsPage() {
     setPage(1);
   }, []);
 
+  const setRecentDays = useCallback((days: number) => {
+    const to = new Date();
+    const from = new Date(to);
+    from.setDate(from.getDate() - (days - 1));
+    const format = (date: Date) => date.toISOString().slice(0, 10);
+    setDraftFilters((current) => ({
+      ...current,
+      dateFrom: format(from),
+      dateTo: format(to),
+    }));
+  }, []);
+
   const toggleDetails = useCallback((id: string) => {
     setExpandedIds((current) => {
       const next = new Set(current);
@@ -228,7 +240,31 @@ export default function AdminAuditLogsPage() {
         </a>
       )}
     >
-      <div className="panel p-4">
+      <section className="bento-panel p-4 sm:p-5" aria-label="审计日志筛选">
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <span className="mr-1 text-xs font-semibold text-text-secondary">快捷范围</span>
+          <button
+            type="button"
+            className="filter-chip hover:border-accent/25 hover:text-accent"
+            onClick={() => setRecentDays(7)}
+          >
+            近 7 天
+          </button>
+          <button
+            type="button"
+            className="filter-chip hover:border-accent/25 hover:text-accent"
+            onClick={() => setRecentDays(30)}
+          >
+            近 30 天
+          </button>
+          <button
+            type="button"
+            className="filter-chip hover:border-accent/25 hover:text-accent"
+            onClick={clearFilters}
+          >
+            全部时间
+          </button>
+        </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <Select
             label="用户"
@@ -254,14 +290,20 @@ export default function AdminAuditLogsPage() {
           <Input
             label="开始日期"
             aria-label="开始日期"
-            type="date"
+            type="text"
+            inputMode="numeric"
+            placeholder="YYYY-MM-DD"
+            pattern="\d{4}-\d{2}-\d{2}"
             value={draftFilters.dateFrom}
             onChange={(event) => updateDraftFilter('dateFrom', event.target.value)}
           />
           <Input
             label="结束日期"
             aria-label="结束日期"
-            type="date"
+            type="text"
+            inputMode="numeric"
+            placeholder="YYYY-MM-DD"
+            pattern="\d{4}-\d{2}-\d{2}"
             value={draftFilters.dateTo}
             onChange={(event) => updateDraftFilter('dateTo', event.target.value)}
           />
@@ -274,20 +316,29 @@ export default function AdminAuditLogsPage() {
             应用筛选
           </Button>
         </div>
-      </div>
+      </section>
 
       {errorMsg ? (
         <div className="panel flex items-center justify-center p-10">
           <p className="text-sm text-danger">{errorMsg}</p>
         </div>
       ) : (
-        <div className="panel overflow-hidden">
+        <div className="bento-panel overflow-hidden">
           {loading ? (
             <div className="flex items-center justify-center p-10">
               <p className="text-sm text-text-secondary">加载中...</p>
             </div>
           ) : logs.length === 0 ? (
-            <EmptyState title="暂无审计日志" description="当前筛选条件下没有操作记录" />
+            <EmptyState
+              title="暂无审计日志"
+              description={
+                Object.values(filters).some(Boolean)
+                  ? '当前筛选条件下没有操作记录，可以清除筛选查看全部日志。'
+                  : '系统产生管理操作后，会在这里记录用户、时间和变更详情。'
+              }
+              actionLabel={Object.values(filters).some(Boolean) ? '清除筛选' : undefined}
+              onAction={Object.values(filters).some(Boolean) ? clearFilters : undefined}
+            />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">

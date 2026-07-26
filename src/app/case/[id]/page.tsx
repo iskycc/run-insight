@@ -182,7 +182,7 @@ export default function CaseDetailPage() {
   if (authLoading || loading) {
     return (
       <PageContainer title="用例明细">
-        <div className="flex items-center justify-center py-2xl">
+        <div className="flex items-center justify-center py-12">
           <div className="text-text-secondary text-sm">加载中…</div>
         </div>
       </PageContainer>
@@ -192,7 +192,7 @@ export default function CaseDetailPage() {
   if (error || !caseData) {
     return (
       <PageContainer title="用例明细">
-        <div className="flex flex-col items-center justify-center py-2xl gap-sm">
+        <div className="flex flex-col items-center justify-center py-12 gap-2">
           <div className="text-text-secondary text-sm">{error || '用例不存在'}</div>
           <button
             onClick={() => router.push('/workspace')}
@@ -244,10 +244,10 @@ export default function CaseDetailPage() {
         </>
       )}
 
-      <section className="panel mt-lg p-lg" aria-label="分析时间线">
-        <h2 className="mb-md text-sm font-semibold text-text-primary">分析时间线</h2>
+      <section className="panel mt-6 p-6" aria-label="分析时间线">
+        <h2 className="mb-4 text-sm font-semibold text-text-primary">分析时间线</h2>
         {canEdit && (
-          <div className="mb-lg flex flex-col gap-2">
+          <div className="mb-6 flex flex-col gap-2">
             <textarea
               aria-label="发表评论"
               value={comment}

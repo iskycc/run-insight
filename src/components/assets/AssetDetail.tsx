@@ -92,8 +92,8 @@ export function AssetDetail({ asset, onClose, onUpdated }: Props) {
   };
 
   return (
-    <div className="panel space-y-lg p-lg">
-      <div className="flex flex-wrap items-start justify-between gap-sm">
+    <div className="panel space-y-6 p-6">
+      <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <div className="mb-1 flex items-center gap-2">
             <span className="rounded bg-accent/10 px-2 py-1 text-xs text-accent">
@@ -129,7 +129,7 @@ export function AssetDetail({ asset, onClose, onUpdated }: Props) {
 
       {error && <p className="rounded bg-danger/10 p-3 text-sm text-danger">{error}</p>}
 
-      <section className="grid gap-md sm:grid-cols-2">
+      <section className="grid gap-4 sm:grid-cols-2">
         <div>
           <h3 className="text-xs font-semibold text-text-secondary">摘要</h3>
           <p className="mt-2 whitespace-pre-wrap text-sm text-text-primary">{asset.summary}</p>
@@ -155,7 +155,7 @@ export function AssetDetail({ asset, onClose, onUpdated }: Props) {
         </div>
       </section>
 
-      <div className="flex flex-wrap gap-md border-t border-border pt-md text-xs text-text-secondary">
+      <div className="flex flex-wrap gap-4 border-t border-border pt-4 text-xs text-text-secondary">
         {asset.sourceCase && (
           <Link href={`/case/${asset.sourceCase.id}`} className="text-accent">
             来源用例 {asset.sourceCase.caseNo}
@@ -179,7 +179,7 @@ export function AssetDetail({ asset, onClose, onUpdated }: Props) {
           </>
         }
       >
-        <div className="space-y-md">
+        <div className="space-y-4">
           <Input label="标题" value={title} onChange={(event) => setTitle(event.target.value)} />
           <Select
             label="根因分类"

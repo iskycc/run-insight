@@ -30,27 +30,33 @@ export function LoginPrompt({ open, onClose, onLogin, loginError }: LoginPromptP
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop overlay */}
       <div
+        aria-hidden="true"
         className="absolute inset-0 bg-slate-950/35 backdrop-blur-sm"
         onClick={onClose}
       />
 
       {/* Modal body */}
-      <div className="panel relative z-10 mx-4 w-full max-w-sm p-lg shadow-lg">
-        <h2 className="text-lg font-semibold text-text-primary mb-md">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="login-prompt-title"
+        className="panel relative z-10 mx-4 w-full max-w-sm p-6 shadow-lg"
+      >
+        <h2 id="login-prompt-title" className="mb-4 text-lg font-semibold text-text-primary">
           请先登录
         </h2>
 
         {loginError && (
-          <div className="mb-sm px-sm py-xs bg-danger/10 text-danger text-sm rounded-md">
+          <div className="mb-2 px-2 py-1 bg-danger/10 text-danger text-sm rounded-md">
             {loginError}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-sm">
+        <form onSubmit={handleSubmit} className="space-y-2">
           <div>
             <label
               htmlFor="login-username"
-              className="block text-sm text-text-secondary mb-xs"
+              className="block text-sm text-text-secondary mb-1"
             >
               用户名
             </label>
@@ -60,8 +66,9 @@ export function LoginPrompt({ open, onClose, onLogin, loginError }: LoginPromptP
               aria-label="用户名"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="field-control h-10 w-full px-sm text-text-primary"
+              className="field-control h-10 w-full px-2 text-text-primary"
               autoComplete="username"
+              autoFocus
               required
             />
           </div>
@@ -69,7 +76,7 @@ export function LoginPrompt({ open, onClose, onLogin, loginError }: LoginPromptP
           <div>
             <label
               htmlFor="login-password"
-              className="block text-sm text-text-secondary mb-xs"
+              className="block text-sm text-text-secondary mb-1"
             >
               密码
             </label>
@@ -79,24 +86,24 @@ export function LoginPrompt({ open, onClose, onLogin, loginError }: LoginPromptP
               aria-label="密码"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="field-control h-10 w-full px-sm text-text-primary"
+              className="field-control h-10 w-full px-2 text-text-primary"
               autoComplete="current-password"
               required
             />
           </div>
 
-          <div className="flex gap-sm pt-sm">
+          <div className="flex gap-2 pt-2">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 rounded-md border border-border bg-bg px-md py-sm text-text-secondary transition-colors hover:text-text-primary"
+              className="flex-1 rounded-md border border-border bg-bg px-4 py-2 text-text-secondary transition-colors hover:text-text-primary"
             >
               取消
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex-1 rounded-md bg-accent px-md py-sm font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
+              className="flex-1 rounded-md bg-accent px-4 py-2 font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
             >
               {isSubmitting ? '登录中…' : '登录'}
             </button>

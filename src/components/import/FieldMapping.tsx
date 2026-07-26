@@ -30,16 +30,16 @@ export default function FieldMapping({ headers, mapping, onMappingChange, sample
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-[132px_minmax(0,1fr)_minmax(120px,180px)] gap-3 px-1 text-xs font-medium text-[var(--color-text-secondary)] max-md:hidden">
+      <div className="grid grid-cols-[132px_minmax(0,1fr)_minmax(120px,180px)] gap-4 px-3 text-xs font-semibold text-[var(--color-text-secondary)] max-md:hidden">
         <span>系统字段</span>
         <span>文件列</span>
         <span>样例</span>
       </div>
-      <div className="overflow-hidden rounded-md border border-border bg-bg/50">
+      <div className="overflow-hidden rounded-2xl border border-border bg-white shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
         {ALL_FIELDS.map((field) => (
           <div
             key={field.key}
-            className="grid gap-3 border-b border-border px-4 py-3 last:border-b-0 md:grid-cols-[132px_minmax(0,1fr)_minmax(120px,180px)] md:items-center"
+            className="grid gap-3 border-b border-border/70 px-4 py-4 transition-colors last:border-b-0 hover:bg-[#f8faff] md:grid-cols-[132px_minmax(0,1fr)_minmax(120px,180px)] md:items-center"
           >
             <div className="min-w-0 text-sm">
               <span className="font-medium text-[var(--color-text-primary)]">
@@ -50,9 +50,10 @@ export default function FieldMapping({ headers, mapping, onMappingChange, sample
               </span>
             </div>
             <select
+              aria-label={`${field.label}对应的文件列`}
               value={mapping[field.key] || ''}
               onChange={(e) => handleFieldChange(field.key, e.target.value)}
-              className="field-control h-9 min-w-0 px-3 text-sm"
+              className="field-control h-11 min-w-0 px-3 text-sm"
             >
               <option value="">（不映射）</option>
               {headers.map((h) => (
@@ -61,7 +62,7 @@ export default function FieldMapping({ headers, mapping, onMappingChange, sample
                 </option>
               ))}
             </select>
-            <span className="min-w-0 truncate text-xs text-[var(--color-text-secondary)]">
+            <span className="min-w-0 truncate rounded-lg bg-bg/70 px-3 py-2 text-xs text-[var(--color-text-secondary)]">
               {mapping[field.key] && sampleRow[mapping[field.key]] !== undefined
                 ? String(sampleRow[mapping[field.key]])
                 : '—'}

@@ -45,7 +45,7 @@ type CaseDetailProps = {
 
 function InfoRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-xs">
+    <div className="flex flex-col gap-1">
       <span className="text-xs font-semibold text-text-secondary">{label}</span>
       <div className="text-sm text-text-primary">{children}</div>
     </div>
@@ -58,14 +58,14 @@ export function CaseDetail({ canEdit, caseData, onEdit, onSaveAsset }: CaseDetai
   const [renderedAt] = useState(() => Date.now());
 
   return (
-    <div className="space-y-lg">
+    <div className="space-y-6">
       {/* 顶部操作栏 */}
-      <div className="panel flex flex-wrap items-center justify-between gap-sm p-4">
-        <div className="flex min-w-0 items-center gap-sm">
+      <div className="panel flex flex-wrap items-center justify-between gap-2 p-4">
+        <div className="flex min-w-0 items-center gap-2">
           <span className="font-mono text-sm text-text-secondary">{caseData.caseNo}</span>
           <h1 className="truncate text-xl font-semibold text-text-primary">{caseData.name}</h1>
         </div>
-        <div className="flex items-center gap-sm">
+        <div className="flex items-center gap-2">
           {canEdit && (
             <Button variant="secondary" size="sm" onClick={onEdit}>
               编辑分析
@@ -76,7 +76,7 @@ export function CaseDetail({ canEdit, caseData, onEdit, onSaveAsset }: CaseDetai
               {caseData.assetSaved ? '更新资产快照' : '保存为资产'}
             </Button>
           ) : caseData.assetSaved ? (
-            <span className="inline-flex items-center rounded-md bg-success/15 px-sm py-xs text-xs font-medium text-success">
+            <span className="inline-flex items-center rounded-md bg-success/15 px-2 py-1 text-xs font-medium text-success">
               已保存资产
             </span>
           ) : null}
@@ -84,13 +84,13 @@ export function CaseDetail({ canEdit, caseData, onEdit, onSaveAsset }: CaseDetai
       </div>
 
       {/* 基本信息 */}
-      <div className="panel p-lg">
-        <h2 className="text-sm font-semibold text-text-primary mb-md">基本信息</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-md">
+      <div className="panel p-6">
+        <h2 className="text-sm font-semibold text-text-primary mb-4">基本信息</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <InfoRow label="编号">{caseData.caseNo}</InfoRow>
           <InfoRow label="名称">{caseData.name}</InfoRow>
           <InfoRow label="结果概要">
-            <span className={`inline-flex items-center px-sm py-xs text-xs font-medium rounded-md ${
+            <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-md ${
               caseData.resultSummary === 'PASS'
                 ? 'bg-success/15 text-success'
                 : caseData.resultSummary === 'FAIL'
@@ -120,9 +120,9 @@ export function CaseDetail({ canEdit, caseData, onEdit, onSaveAsset }: CaseDetai
       </div>
 
       {/* 分析信息 */}
-      <div className="panel p-lg">
-        <h2 className="text-sm font-semibold text-text-primary mb-md">分析信息</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-md">
+      <div className="panel p-6">
+        <h2 className="text-sm font-semibold text-text-primary mb-4">分析信息</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <InfoRow label="分析责任人">
             {caseData.assigneeUsername ?? caseData.assignee ?? <span className="text-text-secondary">—</span>}
           </InfoRow>
@@ -180,9 +180,9 @@ export function CaseDetail({ canEdit, caseData, onEdit, onSaveAsset }: CaseDetai
       </div>
 
       {/* 所属维度 */}
-      <div className="panel p-lg">
-        <h2 className="text-sm font-semibold text-text-primary mb-md">所属维度</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-md">
+      <div className="panel p-6">
+        <h2 className="text-sm font-semibold text-text-primary mb-4">所属维度</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <InfoRow label="项目">{caseData.project.name}</InfoRow>
           <InfoRow label="测试阶段">{caseData.stage.name}</InfoRow>
           <InfoRow label="批跑范围">{caseData.batchScope.name}</InfoRow>
@@ -190,7 +190,7 @@ export function CaseDetail({ canEdit, caseData, onEdit, onSaveAsset }: CaseDetai
       </div>
 
       {/* 时间戳 */}
-      <div className="flex flex-wrap gap-md text-xs text-text-secondary">
+      <div className="flex flex-wrap gap-4 text-xs text-text-secondary">
         <span>创建于 {new Date(caseData.createdAt).toLocaleString('zh-CN')}</span>
         <span>更新于 {new Date(caseData.updatedAt).toLocaleString('zh-CN')}</span>
         <span>最近更新人 {caseData.updatedByUsername ?? '—'}</span>

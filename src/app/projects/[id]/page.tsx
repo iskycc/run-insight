@@ -12,6 +12,7 @@ import { Modal } from '@/components/shared/Modal';
 import { useAuth } from '@/components/shared/AuthProvider';
 import { useToast } from '@/contexts/ToastContext';
 import { ApiError, fetchJson } from '@/lib/fetch';
+import { ArrowLeft, CaretDown, DotsThree, Plus } from '@phosphor-icons/react';
 import type {
   BatchScopeDTO,
   BatchScopeWithStats,
@@ -303,33 +304,42 @@ export default function ProjectDetailPage() {
       title={title}
       subtitle={project ? `创建于 ${formatDate(project.createdAt)}` : '加载项目信息'}
       actions={
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <Link
             href="/projects"
-            className="rounded-md px-3 py-2 text-sm text-text-secondary hover:bg-bg hover:text-accent"
+            className="rounded-xl px-3 py-2 text-sm text-text-secondary transition hover:bg-bg hover:text-accent"
           >
-            返回列表
+            <span className="inline-flex items-center gap-1.5">
+              <ArrowLeft size={15} aria-hidden="true" />
+              项目列表
+            </span>
           </Link>
-          <Link
-            href={`/projects/${id}/settings`}
-            className="rounded-md border border-border bg-bg px-3 py-2 text-sm text-text-primary hover:border-accent/30"
-          >
-            项目设置
-          </Link>
-          <Link
-            href={`/projects/${id}/members`}
-            className="rounded-md border border-border bg-bg px-3 py-2 text-sm text-text-primary hover:border-accent/30"
-          >
-            项目成员
-          </Link>
-          <Link
-            href={`/projects/${id}/root-causes`}
-            className="rounded-md border border-border bg-bg px-3 py-2 text-sm text-text-primary hover:border-accent/30"
-          >
-            根因分类
-          </Link>
+          <details className="relative">
+            <summary className="flex h-10 cursor-pointer list-none items-center rounded-xl border border-border bg-bg px-3 text-sm font-medium text-text-primary transition hover:border-accent/30 hover:bg-surface-solid focus:outline-none focus:ring-2 focus:ring-accent/30 [&::-webkit-details-marker]:hidden">
+              项目管理
+              <CaretDown size={14} aria-hidden="true" className="ml-2 text-text-secondary" />
+            </summary>
+            <div className="absolute right-0 top-12 z-30 w-40 overflow-hidden rounded-xl border border-border bg-surface-solid p-1.5 shadow-lg">
+              {[
+                ['项目设置', `/projects/${id}/settings`],
+                ['项目成员', `/projects/${id}/members`],
+                ['根因分类', `/projects/${id}/root-causes`],
+              ].map(([label, href]) => (
+                <Link
+                  key={href}
+                  href={href}
+                  className="block rounded-lg px-3 py-2 text-sm text-text-primary hover:bg-bg"
+                >
+                  {label}
+                </Link>
+              ))}
+            </div>
+          </details>
           {canEdit && !projectInactive && (
-            <Button onClick={() => setCreateStageOpen(true)}>新建阶段</Button>
+            <Button onClick={() => setCreateStageOpen(true)} className="rounded-xl">
+              <Plus size={16} aria-hidden="true" />
+              新建阶段
+            </Button>
           )}
         </div>
       }
@@ -341,17 +351,35 @@ export default function ProjectDetailPage() {
           </div>
         )}
 
-        <section aria-label="项目概览" className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <section aria-label="项目概览" className="grid grid-cols-2 gap-3 lg:grid-cols-6">
+          <div className="panel col-span-2 overflow-hidden p-5 lg:col-span-2">
+            <p className="text-xs font-semibold text-text-secondary">整体通过率</p>
+            <div className="mt-2 flex items-end justify-between gap-3">
+              <p className="text-4xl font-semibold tracking-tight text-text-primary">
+                {rate(project?.passCount ?? 0, project?.caseCount ?? 0)}
+              </p>
+              <Badge progress="fixed">{project?.archived ? '已归档' : '运行中'}</Badge>
+            </div>
+            <div className="mt-5 h-2 overflow-hidden rounded-full bg-border/70">
+              <div
+                className="h-full rounded-full bg-success"
+                style={{
+                  width: rate(project?.passCount ?? 0, project?.caseCount ?? 0) === '—'
+                    ? '0%'
+                    : rate(project?.passCount ?? 0, project?.caseCount ?? 0),
+                }}
+              />
+            </div>
+          </div>
           {[
             ['阶段', project?.stageCount ?? 0],
             ['用例', project?.caseCount ?? 0],
             ['通过', project?.passCount ?? 0],
             ['失败', project?.failCount ?? 0],
-            ['通过率', rate(project?.passCount ?? 0, project?.caseCount ?? 0)],
           ].map(([label, value]) => (
-            <div key={label} className="panel p-4">
+            <div key={label} className="panel min-w-0 p-4 lg:col-span-1">
               <p className="text-xs font-semibold text-text-secondary">{label}</p>
-              <p className="mt-2 text-2xl font-semibold text-text-primary">{value}</p>
+              <p className="mt-3 text-2xl font-semibold tabular-nums text-text-primary">{value}</p>
             </div>
           ))}
         </section>
@@ -396,54 +424,81 @@ export default function ProjectDetailPage() {
                   const batchState = batchStates[stage.id];
                   return (
                     <article key={stage.id}>
-                      <div className="flex flex-wrap items-center gap-3 px-4 py-4 hover:bg-bg/40">
+                      <div className="flex flex-wrap items-stretch gap-3 px-3 py-3 transition hover:bg-bg/40 sm:px-4">
                         <button
                           type="button"
                           onClick={() => toggleStage(stage.id)}
                           aria-expanded={expanded}
                           aria-label={`${expanded ? '收起' : '展开'}${stage.name}`}
-                          className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary hover:bg-surface-solid hover:text-accent"
+                          className="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-2 py-2 text-left focus:outline-none focus:ring-2 focus:ring-accent/30"
                         >
-                          <span className={`transition-transform ${expanded ? 'rotate-90' : ''}`}>›</span>
+                          <span
+                            aria-hidden="true"
+                            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-bg text-lg text-text-secondary transition ${expanded ? 'rotate-90 text-accent' : ''}`}
+                          >
+                            ›
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="flex flex-wrap items-center gap-2">
+                              <span className="truncate font-semibold text-text-primary">{stage.name}</span>
+                              <span className="rounded-full bg-accent/10 px-2 py-1 text-xs font-semibold text-accent">
+                                {stage.batchCount} 个批跑
+                              </span>
+                              {stage.archived && <Badge progress="blocked">已归档</Badge>}
+                            </span>
+                            <span className="mt-1.5 block text-xs text-text-secondary">
+                              {stage.caseCount} 个用例 ·
+                              <span className="ml-1 text-success">{stage.passCount} 通过</span>
+                              <span className="ml-1 text-danger">{stage.failCount} 失败</span>
+                            </span>
+                          </span>
                         </button>
-                        <div className="min-w-[11rem] flex-1">
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-medium text-text-primary">{stage.name}</h3>
-                            {stage.archived && <Badge progress="blocked">已归档</Badge>}
-                          </div>
-                          <p className="mt-1 text-xs text-text-secondary">
-                            {stage.batchCount} 个批跑 · {stage.caseCount} 个用例 ·
-                            <span className="ml-1 text-success">{stage.passCount} 通过</span>
-                            <span className="ml-1 text-danger">{stage.failCount} 失败</span>
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex shrink-0 items-center gap-2 self-center">
                           {canEdit && !projectInactive && !stage.archived && (
                             <Button
                               size="sm"
                               variant="secondary"
+                              className="rounded-xl"
+                              aria-label="新建批跑"
                               onClick={() => {
                                 setBatchStage(stage);
                                 setBatchName('');
                                 setBatchError('');
                               }}
                             >
-                              新建批跑
+                              <Plus size={15} aria-hidden="true" />
+                              批跑
                             </Button>
                           )}
-                          {canEdit && !projectInactive && (
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              onClick={() => updateArchive('stage', stage)}
-                            >
-                              {stage.archived ? '取消归档' : '归档'}
-                            </Button>
-                          )}
-                          {canDelete && (
-                            <Button size="sm" variant="danger" onClick={() => deleteItem('stage', stage)}>
-                              删除
-                            </Button>
+                          {(canEdit || canDelete) && !projectInactive && (
+                            <details className="relative">
+                              <summary
+                                aria-label={`管理阶段 ${stage.name}`}
+                                className="flex h-8 w-8 cursor-pointer list-none items-center justify-center rounded-full text-text-secondary hover:bg-surface-solid hover:text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/30 [&::-webkit-details-marker]:hidden"
+                              >
+                                <DotsThree size={20} weight="bold" aria-hidden="true" />
+                              </summary>
+                              <div className="absolute right-0 top-10 z-20 w-36 overflow-hidden rounded-xl border border-border bg-surface-solid p-1.5 shadow-lg">
+                                {canEdit && (
+                                  <button
+                                    type="button"
+                                    onClick={() => void updateArchive('stage', stage)}
+                                    className="w-full rounded-lg px-3 py-2 text-left text-sm text-text-primary hover:bg-bg"
+                                  >
+                                    {stage.archived ? '取消归档' : '归档阶段'}
+                                  </button>
+                                )}
+                                {canDelete && (
+                                  <button
+                                    type="button"
+                                    onClick={() => void deleteItem('stage', stage)}
+                                    className="w-full rounded-lg px-3 py-2 text-left text-sm text-danger hover:bg-danger/10"
+                                  >
+                                    删除阶段
+                                  </button>
+                                )}
+                              </div>
+                            </details>
                           )}
                         </div>
                       </div>
@@ -463,7 +518,7 @@ export default function ProjectDetailPage() {
                               {batchState.batches.map((batch) => (
                                 <div
                                   key={batch.id}
-                                  className="flex flex-wrap items-center gap-3 rounded-md border border-border bg-surface px-3 py-3"
+                                  className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface px-3 py-3 shadow-sm"
                                 >
                                   <div className="min-w-[10rem] flex-1">
                                     <div className="flex items-center gap-2">
@@ -478,23 +533,39 @@ export default function ProjectDetailPage() {
                                   </div>
                                   <Link
                                     href={`/workspace?projectId=${id}&testStageId=${stage.id}&batchScopeId=${batch.id}`}
-                                    className="text-xs font-medium text-accent hover:underline"
+                                    className="rounded-lg bg-accent/10 px-3 py-2 text-xs font-semibold text-accent hover:bg-accent/15"
                                   >
                                     查看用例
                                   </Link>
-                                  {canEdit && !projectInactive && (
-                                    <Button
-                                      size="sm"
-                                      variant="secondary"
-                                      onClick={() => updateArchive('batch', batch)}
-                                    >
-                                      {batch.archived ? '取消归档' : '归档'}
-                                    </Button>
-                                  )}
-                                  {canDelete && (
-                                    <Button size="sm" variant="danger" onClick={() => deleteItem('batch', batch)}>
-                                      删除
-                                    </Button>
+                                  {(canEdit || canDelete) && !projectInactive && (
+                                    <details className="relative">
+                                      <summary
+                                        aria-label={`管理批跑 ${batch.name}`}
+                                        className="flex h-8 w-8 cursor-pointer list-none items-center justify-center rounded-full text-text-secondary hover:bg-bg hover:text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/30 [&::-webkit-details-marker]:hidden"
+                                      >
+                                        <DotsThree size={20} weight="bold" aria-hidden="true" />
+                                      </summary>
+                                      <div className="absolute right-0 top-10 z-20 w-36 overflow-hidden rounded-xl border border-border bg-surface-solid p-1.5 shadow-lg">
+                                        {canEdit && (
+                                          <button
+                                            type="button"
+                                            onClick={() => void updateArchive('batch', batch)}
+                                            className="w-full rounded-lg px-3 py-2 text-left text-sm text-text-primary hover:bg-bg"
+                                          >
+                                            {batch.archived ? '取消归档' : '归档批跑'}
+                                          </button>
+                                        )}
+                                        {canDelete && (
+                                          <button
+                                            type="button"
+                                            onClick={() => void deleteItem('batch', batch)}
+                                            className="w-full rounded-lg px-3 py-2 text-left text-sm text-danger hover:bg-danger/10"
+                                          >
+                                            删除批跑
+                                          </button>
+                                        )}
+                                      </div>
+                                    </details>
                                   )}
                                 </div>
                               ))}

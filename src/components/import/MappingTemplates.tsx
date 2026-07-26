@@ -105,7 +105,7 @@ export default function MappingTemplates({
   };
 
   return (
-    <div className="mb-4 rounded-md border border-border bg-bg/50 p-4">
+    <div className="mb-5 rounded-2xl border border-border bg-[#f8faff] p-4 sm:p-5">
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto] lg:items-end">
         <label className="block">
           <span className="text-xs font-medium text-[var(--color-text-secondary)]">已保存模板</span>
@@ -116,7 +116,7 @@ export default function MappingTemplates({
               setSelectedName(event.target.value);
               setMessage('');
             }}
-            className="field-control mt-2 h-9 w-full px-3 text-sm"
+            className="field-control mt-2 h-11 w-full px-3 text-sm"
           >
             <option value="">选择模板</option>
             {templates.map((template) => (
@@ -142,7 +142,7 @@ export default function MappingTemplates({
               if (event.key === 'Enter') handleSave();
             }}
             placeholder="输入模板名称"
-            className="field-control mt-2 h-9 w-full px-3 text-sm"
+            className="field-control mt-2 h-11 w-full px-3 text-sm"
           />
         </label>
         <Button type="button" size="sm" variant="secondary" onClick={handleSave} disabled={!newName.trim()}>

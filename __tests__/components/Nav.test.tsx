@@ -64,10 +64,12 @@ describe('Nav', () => {
     expect(screen.queryByRole('link', { name: '系统管理' })).not.toBeInTheDocument();
   });
 
-  it('only shows the public dashboard to guests', () => {
+  it('hides navigation for guests because the dashboard is the default page', async () => {
     renderNav(null);
 
-    expect(screen.getByRole('link', { name: '大盘' })).toBeInTheDocument();
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
+    expect(screen.queryByRole('navigation', { name: '主导航' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '大盘' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: '项目' })).not.toBeInTheDocument();
   });
 });

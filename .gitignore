@@ -11,6 +11,9 @@
 # testing
 /coverage
 /.coverage-detail
+/test-results/
+/playwright-report/
+/blob-report/
 
 # next.js
 /.next/
@@ -19,10 +22,21 @@
 # production
 /build
 
+# local audit, screenshots, and generated reports
+/artifacts/
+/screenshots/
+/design-qa.md
+
 # misc
 .DS_Store
+.AppleDouble
 *.pem
 Thumbs.db
+*.log
+*.tmp
+*.temp
+/.cache/
+/.tmp/
 
 # debug
 npm-debug.log*
@@ -41,6 +55,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+.eslintcache
 
 # prisma generated client
 /src/generated/

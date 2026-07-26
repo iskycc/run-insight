@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { Select } from '@/components/shared/Select';
+import { EmptyState } from '@/components/shared/EmptyState';
+import { Button } from '@/components/shared/Button';
 import { useAuth } from '@/components/shared/AuthProvider';
 import { ApiError, fetchJson } from '@/lib/fetch';
 import { useToast } from '@/contexts/ToastContext';
@@ -33,6 +35,14 @@ export default function MyTasksPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [renderedAt] = useState(() => Date.now());
+  const hasFilters = Boolean(status || priority || overdue);
+
+  const clearFilters = () => {
+    setStatus('');
+    setPriority('');
+    setOverdue('');
+    setPage(1);
+  };
 
   const load = useCallback(async () => {
     const params = new URLSearchParams();
@@ -68,51 +78,61 @@ export default function MyTasksPage() {
 
   return (
     <PageContainer title="我的待办" subtitle={`分配给我的用例 · 共 ${total} 项`}>
-      <div className="mb-4 grid gap-3 sm:grid-cols-3">
-        <Select
-          label="状态"
-          value={status}
-          onChange={(event) => {
-            setStatus(event.target.value);
-            setPage(1);
-          }}
-          placeholder="全部状态"
-          options={PROGRESS_CATEGORIES.map((value) => ({ value, label: PROGRESS_LABELS[value] }))}
-        />
-        <Select
-          label="优先级"
-          value={priority}
-          onChange={(event) => {
-            setPriority(event.target.value);
-            setPage(1);
-          }}
-          placeholder="全部优先级"
-          options={[
-            { value: 'HIGH', label: '高' },
-            { value: 'MEDIUM', label: '中' },
-            { value: 'LOW', label: '低' },
-          ]}
-        />
-        <Select
-          label="截止时间"
-          value={overdue}
-          onChange={(event) => {
-            setOverdue(event.target.value);
-            setPage(1);
-          }}
-          placeholder="全部"
-          options={[
-            { value: 'true', label: '已逾期' },
-            { value: 'false', label: '未逾期' },
-          ]}
-        />
-      </div>
+      <section className="bento-panel mb-5 p-4 sm:p-5" aria-label="待办筛选">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Select
+            label="状态"
+            value={status}
+            onChange={(event) => {
+              setStatus(event.target.value);
+              setPage(1);
+            }}
+            placeholder="全部状态"
+            options={PROGRESS_CATEGORIES.map((value) => ({ value, label: PROGRESS_LABELS[value] }))}
+          />
+          <Select
+            label="优先级"
+            value={priority}
+            onChange={(event) => {
+              setPriority(event.target.value);
+              setPage(1);
+            }}
+            placeholder="全部优先级"
+            options={[
+              { value: 'HIGH', label: '高' },
+              { value: 'MEDIUM', label: '中' },
+              { value: 'LOW', label: '低' },
+            ]}
+          />
+          <Select
+            label="截止时间"
+            value={overdue}
+            onChange={(event) => {
+              setOverdue(event.target.value);
+              setPage(1);
+            }}
+            placeholder="全部"
+            options={[
+              { value: 'true', label: '已逾期' },
+              { value: 'false', label: '未逾期' },
+            ]}
+          />
+        </div>
+        {hasFilters && (
+          <div className="mt-3 flex justify-end">
+            <Button variant="secondary" size="sm" onClick={clearFilters}>
+              清除筛选
+            </Button>
+          </div>
+        )}
+      </section>
 
       {authLoading || loading ? (
-        <div className="panel p-10 text-center text-sm text-text-secondary">加载中...</div>
+        <div className="bento-panel p-10 text-center text-sm text-text-secondary">加载中...</div>
       ) : (
-        <div className="panel overflow-x-auto">
-          <table className="w-full min-w-[800px] text-left text-sm">
+        <div className="bento-panel overflow-hidden">
+          <div className="hidden overflow-x-auto sm:block">
+            <table className="w-full min-w-[800px] text-left text-sm">
             <thead className="border-b border-border bg-bg/50 text-xs text-text-secondary">
               <tr>
                 <th className="px-4 py-3">用例</th>
@@ -150,8 +170,50 @@ export default function MyTasksPage() {
                 );
               })}
             </tbody>
-          </table>
-          {!tasks.length && <p className="p-10 text-center text-sm text-text-secondary">暂无符合条件的待办</p>}
+            </table>
+          </div>
+          <div className="divide-y divide-border sm:hidden">
+            {tasks.map((task) => {
+              const overdueTask = !!task.dueDate && new Date(task.dueDate).getTime() < renderedAt;
+              return (
+                <Link
+                  key={task.id}
+                  href={`/case/${task.id}`}
+                  className="block p-4 text-text-primary"
+                >
+                  <p className="text-sm font-semibold">{task.name}</p>
+                  <p className="mt-1 text-xs text-text-secondary">
+                    {task.caseNo} · {task.project.name} / {task.stage.name}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                    <span className="filter-chip">
+                      {task.progressCategory
+                        ? PROGRESS_LABELS[task.progressCategory as keyof typeof PROGRESS_LABELS]
+                        : '未设置'}
+                    </span>
+                    <span className="filter-chip">
+                      优先级 {task.priority ? priorityLabel[task.priority] : '—'}
+                    </span>
+                    <span className={overdueTask ? 'filter-chip text-danger' : 'filter-chip'}>
+                      {task.dueDate ? new Date(task.dueDate).toLocaleDateString('zh-CN') : '无截止日期'}
+                    </span>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+          {!tasks.length && (
+            <EmptyState
+              title={hasFilters ? '筛选条件下暂无待办' : '当前没有分配给你的待办'}
+              description={
+                hasFilters
+                  ? '调整或清除筛选条件，查看其他待办任务。'
+                  : '新的分析任务分配给你后，会在这里集中显示。'
+              }
+              actionLabel={hasFilters ? '清除筛选' : undefined}
+              onAction={hasFilters ? clearFilters : undefined}
+            />
+          )}
         </div>
       )}
 

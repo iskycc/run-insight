@@ -8,6 +8,7 @@ import FieldMapping from '@/components/import/FieldMapping';
 import MappingTemplates from '@/components/import/MappingTemplates';
 import ValidationReport from '@/components/import/ValidationReport';
 import { Button } from '@/components/shared/Button';
+import { Check } from '@phosphor-icons/react';
 import { fetchJson, ApiError } from '@/lib/fetch';
 import { buildAutoMapping, parseImportFile } from '@/lib/import-file-parser';
 import type { ValidationError, ImportType } from '@/lib/validations';
@@ -81,9 +82,9 @@ function mapRows(rows: Record<string, unknown>[], mapping: Record<string, string
 
 function Panel({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) {
   return (
-    <section className="panel p-5">
+    <section className="rounded-[22px] border border-white/80 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.07)] sm:p-6">
       <div className="mb-5 flex items-center justify-between gap-3">
-        <h2 className="text-base font-semibold text-text-primary">{title}</h2>
+        <h2 className="text-lg font-semibold tracking-tight text-text-primary">{title}</h2>
         {action}
       </div>
       {children}
@@ -94,8 +95,8 @@ function Panel({ title, children, action }: { title: string; children: ReactNode
 function Metric({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="min-w-0">
-      <div className="text-xs text-[var(--color-text-secondary)]">{label}</div>
-      <div className="mt-1 truncate text-sm font-semibold text-[var(--color-text-primary)]">{value}</div>
+      <div className="text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--color-text-secondary)]">{label}</div>
+      <div className="mt-1.5 truncate text-sm font-semibold text-[var(--color-text-primary)]">{value}</div>
     </div>
   );
 }
@@ -105,18 +106,25 @@ function ProgressPanel({ progress }: { progress: ImportProgress }) {
   const isDone = progress.status === 'success';
 
   return (
-    <Panel title="导入进度">
+    <Panel title="当前进度">
       <div className="space-y-4">
         <div className="flex items-baseline justify-between gap-4">
           <div>
             <p className="text-sm font-medium text-[var(--color-text-primary)]">{progress.label}</p>
             <p className="mt-1 text-xs text-[var(--color-text-secondary)]">{progress.detail}</p>
           </div>
-          <span className="text-2xl font-semibold tracking-tight text-[var(--color-text-primary)]">
+          <span className="text-3xl font-semibold tracking-[-0.04em] text-[var(--color-text-primary)]">
             {Math.round(progress.value)}%
           </span>
         </div>
-        <div className="h-2 overflow-hidden rounded-full bg-bg">
+        <div
+          className="h-2 overflow-hidden rounded-full bg-[#e8edf5]"
+          role="progressbar"
+          aria-label={progress.label}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(progress.value)}
+        >
           <div
             className={`h-full rounded-full transition-all duration-500 ${
               progress.status === 'error'
@@ -138,31 +146,54 @@ function ProgressPanel({ progress }: { progress: ImportProgress }) {
 }
 
 function Stepper({ step }: { step: Step }) {
+  const currentIndex = STEP_ITEMS.findIndex((item) => item.key === step);
+
   return (
-    <div className="panel px-4 py-3">
-      <div className="grid grid-cols-5 gap-2">
-        {STEP_ITEMS.map((item) => {
+    <nav
+      className="rounded-[22px] border border-white/80 bg-white px-4 py-4 shadow-[0_14px_36px_rgba(15,23,42,0.06)] sm:px-6"
+      aria-label="导入步骤"
+    >
+      <ol className="grid grid-cols-5 gap-1 sm:gap-3">
+        {STEP_ITEMS.map((item, index) => {
           const active = item.key === step;
           const complete = isStepComplete(step, item.key);
           return (
-            <div key={item.key} className="min-w-0">
-              <div
-                className={`h-1.5 rounded-full transition-colors ${
-                  active || complete ? 'bg-[var(--color-accent)]' : 'bg-border'
+            <li
+              key={item.key}
+              className="relative flex min-w-0 flex-col items-center gap-2 text-center sm:flex-row sm:text-left"
+              aria-current={active ? 'step' : undefined}
+            >
+              <span
+                className={`relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-colors ${
+                  active
+                    ? 'bg-accent text-white shadow-[0_6px_18px_rgba(37,99,235,0.28)]'
+                    : complete
+                      ? 'bg-accent/10 text-accent'
+                      : 'bg-[#eef2f8] text-text-secondary'
                 }`}
-              />
+              >
+                {complete ? <Check size={15} weight="bold" aria-hidden="true" /> : index + 1}
+              </span>
               <div
-                className={`mt-2 truncate text-xs font-medium ${
+                className={`truncate text-[11px] font-semibold sm:text-xs ${
                   active ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-secondary)]'
                 }`}
               >
                 {item.label}
               </div>
-            </div>
+              {index < STEP_ITEMS.length - 1 && (
+                <span
+                  aria-hidden="true"
+                  className={`absolute left-[calc(50%+20px)] right-[calc(-50%+20px)] top-4 h-px sm:left-8 sm:right-[-12px] ${
+                    index < currentIndex ? 'bg-accent/50' : 'bg-border'
+                  }`}
+                />
+              )}
+            </li>
           );
         })}
-      </div>
-    </div>
+      </ol>
+    </nav>
   );
 }
 
@@ -186,7 +217,7 @@ function SelectField({
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        className="field-control mt-2 h-10 w-full px-3 text-sm"
+        className="field-control mt-2 h-11 w-full px-3 text-sm"
       >
         {children}
       </select>
@@ -215,7 +246,7 @@ function InlineCreate({
           value={value}
           onChange={(event) => onChange(event.target.value)}
           placeholder={placeholder}
-          className="field-control h-9 min-w-0 flex-1 px-3 text-sm"
+          className="field-control h-10 min-w-0 flex-1 px-3 text-sm"
           autoFocus
           onKeyDown={(event) => {
             if (event.key === 'Enter') onConfirm();
@@ -464,6 +495,13 @@ export default function ImportPage() {
   }, [canImport, newBatchName, selectedStageId]);
 
   const handlePreValidate = useCallback(async () => {
+    if (
+      rows.length === 0
+      || !selectedProjectId
+      || !selectedStageId
+      || !selectedBatchScopeId
+    ) return;
+
     const startedAt = performance.now();
     setErrors([]);
     setPreview(null);
@@ -489,10 +527,25 @@ export default function ImportPage() {
       finishedMs: performance.now() - startedAt,
     });
     setStep('validate');
-  }, [rows, mapping, importType]);
+  }, [
+    rows,
+    mapping,
+    importType,
+    selectedProjectId,
+    selectedStageId,
+    selectedBatchScopeId,
+  ]);
 
   const handlePreview = useCallback(async () => {
-    if (!canImport || previewInFlightRef.current) return;
+    if (
+      !canImport
+      || previewInFlightRef.current
+      || preValidationErrors.length > 0
+      || rows.length === 0
+      || !selectedProjectId
+      || !selectedStageId
+      || !selectedBatchScopeId
+    ) return;
     previewInFlightRef.current = true;
     const startedAt = performance.now();
     setIsPreviewing(true);
@@ -575,6 +628,7 @@ export default function ImportPage() {
     fileName,
     importType,
     mapping,
+    preValidationErrors.length,
     rows,
     selectedBatchScopeId,
     selectedProjectId,
@@ -583,7 +637,14 @@ export default function ImportPage() {
   ]);
 
   const handleImport = useCallback(async () => {
-    if (!canImport || !preview || importInFlightRef.current) return;
+    if (
+      !canImport
+      || !preview
+      || importInFlightRef.current
+      || !selectedProjectId
+      || !selectedStageId
+      || !selectedBatchScopeId
+    ) return;
     importInFlightRef.current = true;
     const startedAt = performance.now();
     setIsImporting(true);
@@ -691,7 +752,7 @@ export default function ImportPage() {
 
   if (!user) {
     return (
-      <div className="flex items-center justify-center p-xl">
+      <div className="flex items-center justify-center p-8">
         <p className="text-sm text-[var(--color-text-secondary)]">请先登录以使用导入功能</p>
       </div>
     );
@@ -715,44 +776,76 @@ export default function ImportPage() {
   const selectedProject = projects.find((project) => project.id === selectedProjectId);
   const selectedStage = stages.find((stage) => stage.id === selectedStageId);
   const selectedBatch = batches.find((batch) => batch.id === selectedBatchScopeId);
+  const targetReady = Boolean(selectedProjectId && selectedStageId && selectedBatchScopeId);
+  const mappedFieldCount = Object.values(mapping).filter(Boolean).length;
+  const nextAction = {
+    'select-type': '确认导入类型后上传文件',
+    upload: '选择一个数据文件',
+    mapping: targetReady ? '检查字段映射并校验' : '依次选择项目、阶段与批跑',
+    validate: preview ? '确认差异并正式导入' : '生成差异预览',
+    done: '导入已完成',
+  }[step];
 
   return (
     <div className="page-shell">
-      <div className="mx-auto max-w-6xl space-y-6">
-        <header className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+      <div className="mx-auto max-w-6xl space-y-5 sm:space-y-6">
+        <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="eyebrow">Import</p>
-            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-text-primary sm:text-3xl">
+            <h1 className="mt-1 text-3xl font-semibold tracking-[-0.035em] text-text-primary sm:text-4xl">
               导入用例数据
             </h1>
+            <p className="mt-2 max-w-xl text-sm leading-6 text-text-secondary">
+              分步完成文件解析、字段映射与差异确认，正式导入前不会修改现有数据。
+            </p>
           </div>
-          <div className="panel grid grid-cols-3 gap-4 px-4 py-3">
-            <Metric label="行数上限" value="100000" />
+          <div className="grid w-full grid-cols-3 gap-px overflow-hidden rounded-2xl border border-white/80 bg-border shadow-[0_12px_30px_rgba(15,23,42,0.06)] sm:w-auto">
+            <div className="bg-white px-4 py-3 sm:min-w-24"><Metric label="行数上限" value="100,000" /></div>
+            <div className="bg-white px-4 py-3 sm:min-w-24">
             <Metric label="字段数" value={headers.length || '—'} />
+            </div>
+            <div className="bg-white px-4 py-3 sm:min-w-24">
             <Metric label="数据行" value={rows.length || '—'} />
+            </div>
           </div>
         </header>
 
         <Stepper step={step} />
 
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-6">
           <main className="space-y-5">
             {step === 'select-type' && (
               <Panel title="选择导入类型">
                 <div className="space-y-5">
                   <ImportTypeSwitch value={importType} onChange={setImportType} />
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <div className={`rounded-md border p-4 ${importType === 'pre-analysis' ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/5' : 'border-border bg-bg/60'}`}>
-                      <div className="text-sm font-medium text-[var(--color-text-primary)]">分析前</div>
-                      <div className="mt-2 text-xs leading-5 text-[var(--color-text-secondary)]">用例编号、名称、结果概要、日志链接</div>
-                    </div>
-                    <div className={`rounded-md border p-4 ${importType === 'post-analysis' ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/5' : 'border-border bg-bg/60'}`}>
-                      <div className="text-sm font-medium text-[var(--color-text-primary)]">分析后</div>
-                      <div className="mt-2 text-xs leading-5 text-[var(--color-text-secondary)]">进展分类、责任人、根因、MR/单号</div>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setImportType('pre-analysis')}
+                      className={`rounded-2xl border p-5 text-left transition-all ${
+                        importType === 'pre-analysis'
+                          ? 'border-accent/30 bg-accent/5 shadow-[0_10px_24px_rgba(37,99,235,0.10)]'
+                          : 'border-border bg-[#f8faff] hover:border-accent/20 hover:bg-white'
+                      }`}
+                    >
+                      <span className="text-sm font-semibold text-[var(--color-text-primary)]">分析前数据</span>
+                      <span className="mt-2 block text-xs leading-5 text-[var(--color-text-secondary)]">导入用例编号、名称、结果概要与日志链接</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setImportType('post-analysis')}
+                      className={`rounded-2xl border p-5 text-left transition-all ${
+                        importType === 'post-analysis'
+                          ? 'border-accent/30 bg-accent/5 shadow-[0_10px_24px_rgba(37,99,235,0.10)]'
+                          : 'border-border bg-[#f8faff] hover:border-accent/20 hover:bg-white'
+                      }`}
+                    >
+                      <span className="text-sm font-semibold text-[var(--color-text-primary)]">分析后数据</span>
+                      <span className="mt-2 block text-xs leading-5 text-[var(--color-text-secondary)]">补充进展分类、责任人、根因与 MR / 单号</span>
+                    </button>
                   </div>
-                  <div className="flex justify-end">
-                    <Button onClick={() => setStep('upload')}>下一步</Button>
+                  <div className="flex justify-end border-t border-border pt-5">
+                    <Button className="min-w-28" onClick={() => setStep('upload')}>下一步</Button>
                   </div>
                 </div>
               </Panel>
@@ -762,13 +855,17 @@ export default function ImportPage() {
               <Panel title="上传文件">
                 <div className="space-y-4">
                   <FileDropZone onFileAccepted={handleFileAccepted} />
-                  {fileError && <p className="text-sm text-[var(--color-danger)]">{fileError}</p>}
+                  {fileError && (
+                    <p role="alert" className="rounded-xl bg-danger/5 px-4 py-3 text-sm text-[var(--color-danger)]">
+                      {fileError}
+                    </p>
+                  )}
                   {fileName && (
-                    <div className="panel-muted px-4 py-3 text-sm text-text-primary">
-                      已选择：{fileName}
+                    <div className="rounded-xl border border-success/20 bg-success/5 px-4 py-3 text-sm text-text-primary">
+                      已选择：<span className="font-semibold">{fileName}</span>
                     </div>
                   )}
-                  <div className="flex justify-between">
+                  <div className="flex justify-between border-t border-border pt-5">
                     <Button variant="secondary" onClick={() => setStep('select-type')}>上一步</Button>
                   </div>
                 </div>
@@ -778,6 +875,9 @@ export default function ImportPage() {
             {step === 'mapping' && (
               <>
                 <Panel title="导入目标">
+                  <p className="-mt-2 mb-5 text-sm leading-6 text-text-secondary">
+                    先确定数据将写入的范围，下一级选项会在上一级选择后开放。
+                  </p>
                   <div className="grid gap-4 md:grid-cols-3">
                     <div>
                       <SelectField
@@ -900,11 +1000,11 @@ export default function ImportPage() {
                   </Panel>
                 )}
 
-                <div className="flex justify-between">
+                <div className="flex flex-wrap justify-between gap-3 rounded-2xl border border-white/80 bg-white p-3 shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
                   <Button variant="secondary" onClick={() => setStep('upload')}>上一步</Button>
                   <Button
                     onClick={handlePreValidate}
-                    disabled={!selectedProjectId || !selectedStageId || !selectedBatchScopeId}
+                    disabled={!targetReady || rows.length === 0}
                   >
                     校验数据
                   </Button>
@@ -947,7 +1047,7 @@ export default function ImportPage() {
                     </p>
                   </Panel>
                 )}
-                <div className="flex justify-between">
+                <div className="flex flex-wrap justify-between gap-3 rounded-2xl border border-white/80 bg-white p-3 shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
                   <Button
                     variant="secondary"
                     onClick={() => {
@@ -961,12 +1061,15 @@ export default function ImportPage() {
                     上一步
                   </Button>
                   {preValidationErrors.length === 0 && errors.length === 0 && !preview && (
-                    <Button onClick={handlePreview} disabled={isPreviewing}>
+                    <Button
+                      onClick={handlePreview}
+                      disabled={isPreviewing || !targetReady || rows.length === 0}
+                    >
                       {isPreviewing ? '预览中' : '预览导入差异'}
                     </Button>
                   )}
                   {preValidationErrors.length === 0 && errors.length === 0 && preview && (
-                    <Button onClick={handleImport} disabled={isImporting}>
+                    <Button onClick={handleImport} disabled={isImporting || !targetReady}>
                       {isImporting ? '导入中' : '确认并导入'}
                     </Button>
                   )}
@@ -991,22 +1094,28 @@ export default function ImportPage() {
             )}
           </main>
 
-          <aside className="space-y-5">
+          <aside className="min-w-0 space-y-5 lg:sticky lg:top-24 lg:self-start">
             <ProgressPanel progress={progress} />
-            <Panel title="文件摘要">
-              <div className="space-y-4">
-                <Metric label="文件" value={fileName || '—'} />
-                <div className="grid grid-cols-2 gap-3 border-t border-border pt-4">
-                  <Metric label="字段" value={headers.length || '—'} />
-                  <Metric label="数据行" value={rows.length || '—'} />
+            <Panel title="导入摘要">
+              <div className="space-y-5">
+                <div className="rounded-2xl bg-[#f4f7fc] p-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-accent">下一步</p>
+                  <p className="mt-2 text-sm font-semibold leading-6 text-text-primary">{nextAction}</p>
                 </div>
-              </div>
-            </Panel>
-            <Panel title="目标范围">
-              <div className="space-y-4">
-                <Metric label="项目" value={selectedProject?.name ?? '—'} />
-                <Metric label="阶段" value={selectedStage?.name ?? '—'} />
-                <Metric label="批跑" value={selectedBatch?.name ?? '—'} />
+                <div className="space-y-4">
+                  <Metric label="文件" value={fileName || '尚未选择'} />
+                  <div className="grid grid-cols-2 gap-3 border-t border-border pt-4">
+                    <Metric label="数据行" value={rows.length ? rows.length.toLocaleString('zh-CN') : '—'} />
+                    <Metric label="已映射字段" value={mappedFieldCount || '—'} />
+                  </div>
+                </div>
+                <div className="space-y-4 border-t border-border pt-4">
+                  <Metric label="项目" value={selectedProject?.name ?? '未选择'} />
+                  <div className="grid grid-cols-2 gap-3">
+                    <Metric label="阶段" value={selectedStage?.name ?? '—'} />
+                    <Metric label="批跑" value={selectedBatch?.name ?? '—'} />
+                  </div>
+                </div>
               </div>
             </Panel>
           </aside>

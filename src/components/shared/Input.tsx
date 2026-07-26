@@ -1,4 +1,5 @@
 import { type InputHTMLAttributes, forwardRef, useId } from 'react';
+import { MagnifyingGlass } from '@phosphor-icons/react';
 
 type InputProps = InputHTMLAttributes<HTMLInputElement> & {
   label?: string;
@@ -36,18 +37,11 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         )}
         <div className="relative">
           {isSearch && (
-            <svg
-              className="pointer-events-none absolute left-sm top-1/2 -translate-y-1/2 text-text-secondary"
-              width="14"
-              height="14"
-              viewBox="0 0 14 14"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <circle cx="6" cy="6" r="4" />
-              <path d="M9.5 9.5L13 13" />
-            </svg>
+            <MagnifyingGlass
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary"
+              size={17}
+              aria-hidden="true"
+            />
           )}
           <input
             ref={ref}
@@ -55,13 +49,13 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             type={type}
             aria-invalid={error ? true : undefined}
             aria-describedby={descriptionIds}
-            className={`field-control h-10 w-full text-sm placeholder:text-text-secondary/50
+            className={`field-control h-11 w-full text-sm placeholder:text-text-secondary/55
               ${
                 error
                   ? 'border-danger focus:ring-danger/30 focus:border-danger'
                   : ''
               }
-              ${isSearch ? 'pl-lg pr-sm' : 'px-sm'}
+              ${isSearch ? 'pl-10 pr-3' : 'px-3'}
               ${className}`}
             {...props}
           />

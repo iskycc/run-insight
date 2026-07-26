@@ -18,6 +18,7 @@ type Props = {
   pageSize: number;
   onPageChange: (page: number) => void;
   onSelect: (id: string) => void;
+  onEmptyAction?: () => void;
 };
 
 export function AssetList({
@@ -27,6 +28,7 @@ export function AssetList({
   pageSize,
   onPageChange,
   onSelect,
+  onEmptyAction,
 }: Props) {
   const totalPages = Math.ceil(total / pageSize);
   if (!assets.length) {
@@ -34,22 +36,24 @@ export function AssetList({
       <EmptyState
         title="暂无知识资产"
         description="将分析完成的用例保存为资产后，即可在这里持续维护和复用。"
+        actionLabel={onEmptyAction ? '前往工作台沉淀资产' : undefined}
+        onAction={onEmptyAction}
       />
     );
   }
 
   return (
     <div>
-      <div className="panel overflow-x-auto">
+      <div className="bento-panel overflow-x-auto">
         <table className="w-full min-w-[760px]">
           <thead>
             <tr className="border-b border-border bg-bg/70 text-left text-xs text-text-secondary">
-              <th className="px-md py-sm font-medium">资产</th>
-              <th className="px-md py-sm font-medium">项目</th>
-              <th className="px-md py-sm font-medium">根因分类</th>
-              <th className="px-md py-sm font-medium">标签</th>
-              <th className="px-md py-sm font-medium">状态</th>
-              <th className="px-md py-sm font-medium">版本 / 使用</th>
+              <th className="px-4 py-2 font-medium">资产</th>
+              <th className="px-4 py-2 font-medium">项目</th>
+              <th className="px-4 py-2 font-medium">根因分类</th>
+              <th className="px-4 py-2 font-medium">标签</th>
+              <th className="px-4 py-2 font-medium">状态</th>
+              <th className="px-4 py-2 font-medium">版本 / 使用</th>
             </tr>
           </thead>
           <tbody>
@@ -59,17 +63,17 @@ export function AssetList({
                 onClick={() => onSelect(asset.id)}
                 className="cursor-pointer border-b border-border last:border-0 hover:bg-bg/70"
               >
-                <td className="max-w-[320px] px-md py-sm">
+                <td className="max-w-[320px] px-4 py-2">
                   <p className="truncate text-sm font-medium text-text-primary">{asset.title}</p>
                   <p className="mt-1 truncate text-xs text-text-secondary">
                     {asset.sourceCase?.caseNo ?? '独立资产'} · {asset.summary}
                   </p>
                 </td>
-                <td className="px-md py-sm text-sm text-text-secondary">{asset.project.name}</td>
-                <td className="px-md py-sm text-sm text-text-secondary">
+                <td className="px-4 py-2 text-sm text-text-secondary">{asset.project.name}</td>
+                <td className="px-4 py-2 text-sm text-text-secondary">
                   {asset.rootCauseCategory?.name ?? '未分类'}
                 </td>
-                <td className="px-md py-sm">
+                <td className="px-4 py-2">
                   <div className="flex max-w-[220px] flex-wrap gap-1">
                     {asset.tags.length
                       ? asset.tags.slice(0, 3).map((tag) => (
@@ -80,12 +84,12 @@ export function AssetList({
                       : <span className="text-xs text-text-secondary">—</span>}
                   </div>
                 </td>
-                <td className="px-md py-sm">
+                <td className="px-4 py-2">
                   <span className="rounded-md bg-accent/10 px-2 py-1 text-xs text-accent">
                     {STATUS_LABELS[asset.status]}
                   </span>
                 </td>
-                <td className="px-md py-sm text-xs text-text-secondary">
+                <td className="px-4 py-2 text-xs text-text-secondary">
                   v{asset.version} · 浏览 {asset.viewCount} · 复用 {asset.reuseCount}
                 </td>
               </tr>
@@ -94,7 +98,7 @@ export function AssetList({
         </table>
       </div>
       {totalPages > 1 && (
-        <div className="mt-lg flex items-center justify-center gap-sm">
+        <div className="mt-6 flex items-center justify-center gap-2">
           <button
             onClick={() => onPageChange(page - 1)}
             disabled={page <= 1}

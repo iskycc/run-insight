@@ -76,7 +76,9 @@ export interface CaseResultDTO {
   resultSummary: string;
   logUrl: string | null;
   projectId: string;
+  projectName?: string | null;
   testStageId: string;
+  testStageName?: string | null;
   batchScopeId: string;
   assignee: string | null;
   assigneeId?: string | null;

@@ -21,9 +21,13 @@ export default function RootLayout({
       <body className="min-h-screen bg-bg font-sans text-text-primary">
         <ToastProvider>
           <AuthProvider>
-            <Header />
-            <Nav />
-            <main className="min-h-[calc(100vh-104px)]">{children}</main>
+            <div className="app-chrome">
+              <div className="app-chrome-inner">
+                <Header />
+                <Nav />
+              </div>
+            </div>
+            <main className="min-h-[calc(100vh-86px)]">{children}</main>
           </AuthProvider>
           <ToastContainer />
         </ToastProvider>

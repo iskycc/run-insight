@@ -89,7 +89,7 @@ export function BatchActionModal({
         </>
       }
     >
-      <div className="space-y-sm text-sm">
+      <div className="space-y-2 text-sm">
         <p className="text-text-secondary">
           {ACTION_DESCRIPTIONS[action]}
         </p>
@@ -166,7 +166,7 @@ export function BatchActionModal({
         )}
 
         {error && (
-          <div className="rounded-md bg-danger/10 px-sm py-sm text-sm text-danger">
+          <div className="rounded-md bg-danger/10 px-2 py-2 text-sm text-danger">
             {error}
           </div>
         )}

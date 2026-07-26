@@ -119,18 +119,20 @@ export function RootCauseManager({ projectId }: Props) {
   };
 
   if (loading) {
-    return <div className="panel p-lg text-sm text-text-secondary">加载中…</div>;
+    return <div className="panel p-6 text-sm text-text-secondary">加载中…</div>;
   }
 
   return (
-    <div className="space-y-md">
-      <div className="panel flex flex-wrap items-center justify-between gap-sm p-md">
+    <div className="space-y-4">
+      <div className="bento-panel flex flex-wrap items-center justify-between gap-3 p-5">
         <div>
           <h2 className="font-semibold text-text-primary">
             {projectId ? '项目根因分类' : '全局根因分类'}
           </h2>
           <p className="mt-1 text-xs text-text-secondary">
-            将常见问题归一化，具体原因仍可在用例中补充说明。
+            {projectId
+              ? '仅用于当前项目；全局分类仍可供所有项目复用。'
+              : '作为所有项目的通用分类模板，项目仍可维护自己的专属分类。'}
           </p>
         </div>
         {canManage && <Button onClick={openCreate}>新建分类</Button>}
@@ -143,14 +145,20 @@ export function RootCauseManager({ projectId }: Props) {
       {categories.length === 0 ? (
         <EmptyState
           title="暂无根因分类"
-          description={canManage ? '创建第一个标准分类。' : '管理员尚未配置分类。'}
+          description={
+            canManage
+              ? '建议从环境、数据、代码缺陷或非问题等常见原因开始创建。'
+              : '管理员尚未配置分类，分析时仍可填写具体原因。'
+          }
+          actionLabel={canManage ? '创建第一个分类' : undefined}
+          onAction={canManage ? openCreate : undefined}
         />
       ) : (
-        <div className="panel divide-y divide-border overflow-hidden">
+        <div className="bento-panel divide-y divide-border overflow-hidden">
           {categories.map((category) => (
             <div
               key={category.id}
-              className="flex flex-col gap-sm p-md sm:flex-row sm:items-center sm:justify-between"
+              className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between"
             >
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
@@ -205,7 +213,7 @@ export function RootCauseManager({ projectId }: Props) {
           </>
         }
       >
-        <div className="space-y-md">
+        <div className="space-y-4">
           <Input
             label="分类名称"
             value={name}

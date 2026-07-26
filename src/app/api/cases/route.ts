@@ -136,6 +136,10 @@ export async function GET(request: NextRequest) {
         orderBy,
         skip: (page - 1) * pageSize,
         take: pageSize,
+        include: {
+          project: { select: { name: true } },
+          stage: { select: { name: true } },
+        },
       }),
       prisma.caseResult.count({ where }),
     ]);

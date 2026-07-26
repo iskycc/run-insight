@@ -207,12 +207,12 @@ export default function ProjectSettingsPage() {
     >
       <div className="space-y-6">
         {/* Project info */}
-        <div className="panel p-lg">
+        <div className="panel p-6">
           <h2 className="text-lg font-semibold text-text-primary">项目信息</h2>
           {projectLoading ? (
-            <p className="mt-md text-sm text-text-secondary">加载中...</p>
+            <p className="mt-4 text-sm text-text-secondary">加载中...</p>
           ) : projectName ? (
-            <dl className="mt-md grid grid-cols-1 gap-md text-sm sm:grid-cols-3">
+            <dl className="mt-4 grid grid-cols-1 gap-4 text-sm sm:grid-cols-3">
               <div>
                 <dt className="text-xs font-semibold text-text-secondary">名称</dt>
                 <dd className="mt-1 text-text-primary">{projectName}</dd>
@@ -233,12 +233,12 @@ export default function ProjectSettingsPage() {
               </div>
             </dl>
           ) : (
-            <p className="mt-md text-sm text-text-secondary">项目不存在或已被删除</p>
+            <p className="mt-4 text-sm text-text-secondary">项目不存在或已被删除</p>
           )}
         </div>
 
         {/* API Keys */}
-        <div className="panel p-lg">
+        <div className="panel p-6">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold text-text-primary">API Key</h2>
@@ -252,15 +252,15 @@ export default function ProjectSettingsPage() {
           </div>
 
           {!canAdmin ? (
-            <div className="mt-md panel flex items-center justify-center p-md text-sm text-text-secondary">
+            <div className="mt-4 panel flex items-center justify-center p-4 text-sm text-text-secondary">
               API Key 管理仅对管理员开放
             </div>
           ) : keysLoading ? (
-            <div className="mt-md flex items-center justify-center p-md">
+            <div className="mt-4 flex items-center justify-center p-4">
               <p className="text-sm text-text-secondary">加载中...</p>
             </div>
           ) : keys.length === 0 ? (
-            <div className="mt-md">
+            <div className="mt-4">
               <EmptyState
                 title="暂无 API Key"
                 description="点击右上角按钮创建第一个 API Key"
@@ -269,7 +269,7 @@ export default function ProjectSettingsPage() {
               />
             </div>
           ) : (
-            <div className="mt-md overflow-x-auto">
+            <div className="mt-4 overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-bg/60 text-left text-xs font-semibold text-text-secondary">
                   <tr>
@@ -361,7 +361,7 @@ export default function ProjectSettingsPage() {
           <div className="flex items-stretch gap-2">
             <pre
               data-testid="issued-key"
-              className="flex-1 overflow-x-auto rounded-md border border-border bg-bg/60 p-sm font-mono text-xs text-text-primary"
+              className="flex-1 overflow-x-auto rounded-md border border-border bg-bg/60 p-2 font-mono text-xs text-text-primary"
             >
               {issuedKey}
             </pre>

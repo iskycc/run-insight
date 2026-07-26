@@ -85,6 +85,8 @@ export default function AdminUsersPage() {
   }, [reloadKey]);
 
   const adminCount = users?.filter((u) => u.role === 'ADMIN').length ?? 0;
+  const editorCount = users?.filter((u) => u.role === 'EDITOR').length ?? 0;
+  const viewerCount = users?.filter((u) => u.role === 'VIEWER').length ?? 0;
 
   const handleCreate = useCallback(async () => {
     const username = createForm.username.trim();
@@ -212,7 +214,20 @@ export default function AdminUsersPage() {
       subtitle="创建用户、调整角色"
       actions={<Button onClick={() => setCreateOpen(true)}>新建用户</Button>}
     >
-      <div className="panel overflow-hidden">
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {[
+          ['全部用户', users.length],
+          ['管理员', adminCount],
+          ['编辑者', editorCount],
+          ['查看者', viewerCount],
+        ].map(([label, count]) => (
+          <div key={String(label)} className="surface-subtle px-4 py-3">
+            <p className="text-xs font-medium text-text-secondary">{label}</p>
+            <p className="mt-1 text-2xl font-semibold tracking-tight text-text-primary">{count}</p>
+          </div>
+        ))}
+      </div>
+      <div className="bento-panel overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-bg/60 text-left text-xs font-semibold text-text-secondary">

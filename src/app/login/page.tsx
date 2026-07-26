@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/shared/AuthProvider';
 import { Input } from '@/components/shared/Input';
 import { Button } from '@/components/shared/Button';
+import { ChartLineUp } from '@phosphor-icons/react';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -14,11 +15,11 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 已登录则跳转工作台
-  if (user) {
-    router.push('/workspace');
-    return null;
-  }
+  useEffect(() => {
+    if (user) router.replace('/workspace');
+  }, [router, user]);
+
+  if (user) return null;
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -39,36 +40,24 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-[calc(100vh-104px)] items-center justify-center px-md py-2xl">
+    <div className="flex min-h-[calc(100vh-86px)] items-center justify-center px-4 py-12">
       <div className="w-full max-w-sm">
-        <div className="mb-2xl text-center">
-          <div className="mb-md inline-flex h-16 w-16 items-center justify-center rounded-md bg-accent text-white shadow-[0_18px_38px_rgba(37,99,235,0.24)]">
-            <svg
-              width="32"
-              height="32"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M3 3v18h18" />
-              <path d="M7 16l4-8 4 4 4-6" />
-            </svg>
+        <div className="mb-8 text-center">
+          <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-[18px] bg-accent text-white shadow-[0_18px_38px_rgba(17,96,242,0.20)]">
+            <ChartLineUp size={34} weight="bold" aria-hidden="true" />
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight text-text-primary">
+          <h1 className="text-[28px] font-semibold tracking-[-0.035em] text-text-primary">
             Run Insight
           </h1>
-          <p className="text-sm text-text-secondary mt-xs">
+          <p className="text-sm text-text-secondary mt-1">
             用例结果分析平台
           </p>
         </div>
 
-        <div className="panel p-lg">
-          <form onSubmit={handleSubmit} className="space-y-md">
+        <div className="bento-panel p-6">
+          <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
-              <div className="rounded-md bg-danger/10 px-sm py-sm text-sm text-danger">
+              <div className="rounded-[10px] bg-danger/10 px-3 py-2 text-sm text-danger">
                 {error}
               </div>
             )}
@@ -102,7 +91,7 @@ export default function LoginPage() {
           </form>
         </div>
 
-        <p className="text-center text-xs text-text-secondary/60 mt-lg">
+        <p className="text-center text-xs text-text-secondary/60 mt-6">
           默认账号：admin / admin123
         </p>
       </div>

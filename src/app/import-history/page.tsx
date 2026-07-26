@@ -84,6 +84,10 @@ export default function ImportHistoryPage() {
     setReloadKey((k) => k + 1);
   }, []);
 
+  const handleStartImport = useCallback(() => {
+    router.push('/import');
+  }, [router]);
+
   const loading = loadState === 'idle';
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -100,15 +104,20 @@ export default function ImportHistoryPage() {
   return (
     <PageContainer
       title="导入历史"
-      subtitle="查看历史导入记录与详情"
+      subtitle="追踪每次数据写入的状态、结果与错误明细"
       actions={
-        <Button variant="secondary" size="sm" onClick={handleRefresh}>
-          刷新
-        </Button>
+        <>
+          <Button variant="secondary" size="sm" onClick={handleRefresh}>
+            刷新
+          </Button>
+          <Button size="sm" onClick={handleStartImport}>
+            新建导入
+          </Button>
+        </>
       }
     >
-      <div className="space-y-4">
-        <div className="panel grid gap-3 p-4 sm:grid-cols-2">
+      <div className="space-y-5">
+        <section className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
           <label className="block">
             <span className="text-xs font-semibold text-text-secondary">项目</span>
             <select
@@ -118,7 +127,7 @@ export default function ImportHistoryPage() {
                 setProjectId(event.target.value);
                 setPage(1);
               }}
-              className="field-control mt-1.5 h-10 w-full px-3 text-sm"
+              className="field-control mt-2 h-11 w-full px-3 text-sm"
             >
               <option value="">全部项目</option>
               {projects.map((project) => (
@@ -137,7 +146,7 @@ export default function ImportHistoryPage() {
                 setStatus(event.target.value as ImportRecordStatus | '');
                 setPage(1);
               }}
-              className="field-control mt-1.5 h-10 w-full px-3 text-sm"
+              className="field-control mt-2 h-11 w-full px-3 text-sm"
             >
               <option value="">全部状态</option>
               <option value="success">成功</option>
@@ -145,28 +154,66 @@ export default function ImportHistoryPage() {
               <option value="failed">失败</option>
             </select>
           </label>
-        </div>
+          {(projectId || status) && (
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setProjectId('');
+                setStatus('');
+                setPage(1);
+              }}
+            >
+              清除筛选
+            </Button>
+          )}
+        </section>
 
-        <div className="panel overflow-hidden">
+        <section className="overflow-hidden rounded-[22px] border border-white/80 bg-white shadow-[0_16px_40px_rgba(15,23,42,0.07)]">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4 sm:px-6">
+            <div>
+              <h2 className="text-base font-semibold tracking-tight text-text-primary">导入记录</h2>
+              <p className="mt-1 text-xs text-text-secondary">
+                {total > 0 ? `共 ${total.toLocaleString('zh-CN')} 条记录` : '按时间倒序显示最近导入'}
+              </p>
+            </div>
+            {(projectId || status) && (
+              <span className="rounded-full bg-accent/8 px-3 py-1.5 text-xs font-semibold text-accent">
+                已应用筛选
+              </span>
+            )}
+          </div>
           {loading ? (
-            <div className="flex items-center justify-center p-10">
+            <div className="flex min-h-72 items-center justify-center p-10">
               <p className="text-sm text-text-secondary">加载中...</p>
             </div>
           ) : records.length === 0 ? (
-            <EmptyState title="暂无导入记录" description="完成一次导入后将显示在这里" />
+            <EmptyState
+              title={projectId || status ? '没有匹配的导入记录' : '还没有导入记录'}
+              description={projectId || status ? '可以调整或清除筛选条件后重试' : '完成第一次导入后，状态和错误明细会显示在这里'}
+              actionLabel={projectId || status ? '清除筛选' : '开始导入'}
+              onAction={() => {
+                if (projectId || status) {
+                  setProjectId('');
+                  setStatus('');
+                  setPage(1);
+                } else {
+                  handleStartImport();
+                }
+              }}
+            />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-bg/60 text-left text-xs font-semibold text-text-secondary">
+                <thead className="bg-[#f8faff] text-left text-xs font-semibold text-text-secondary">
                   <tr>
-                    <th className="px-4 py-3">时间</th>
+                    <th className="hidden px-4 py-3 lg:table-cell">时间</th>
                     <th className="px-4 py-3">文件名</th>
                     <th className="px-4 py-3">项目</th>
-                    <th className="px-4 py-3">导入人</th>
-                    <th className="px-4 py-3">导入类型</th>
+                    <th className="hidden px-4 py-3 xl:table-cell">导入人</th>
+                    <th className="hidden px-4 py-3 lg:table-cell">导入类型</th>
                     <th className="px-4 py-3">状态</th>
-                    <th className="px-4 py-3 text-right">总行数</th>
-                    <th className="px-4 py-3 text-right">成功</th>
+                    <th className="hidden px-4 py-3 text-right sm:table-cell">总行数</th>
+                    <th className="hidden px-4 py-3 text-right md:table-cell">成功</th>
                     <th className="px-4 py-3 text-right">错误数</th>
                   </tr>
                 </thead>
@@ -174,16 +221,20 @@ export default function ImportHistoryPage() {
                   {records.map((r) => (
                     <tr
                       key={r.id}
-                      className="cursor-pointer hover:bg-bg/40"
+                      tabIndex={0}
+                      className="cursor-pointer outline-none transition-colors hover:bg-[#f8faff] focus-visible:bg-accent/5"
                       onClick={() => router.push(`/import-history/${r.id}`)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') router.push(`/import-history/${r.id}`);
+                      }}
                     >
-                      <td className="px-4 py-3 text-text-secondary">{formatDateTime(r.createdAt)}</td>
-                      <td className="px-4 py-3 font-medium text-text-primary">{r.fileName}</td>
-                      <td className="px-4 py-3 text-text-secondary">
+                      <td className="hidden whitespace-nowrap px-4 py-3 text-text-secondary lg:table-cell">{formatDateTime(r.createdAt)}</td>
+                      <td className="max-w-40 truncate px-4 py-3 font-medium text-text-primary sm:max-w-56">{r.fileName}</td>
+                      <td className="max-w-32 truncate px-4 py-3 text-text-secondary">
                         {r.projectName}
                       </td>
-                      <td className="px-4 py-3 text-text-secondary">{r.username}</td>
-                      <td className="px-4 py-3">
+                      <td className="hidden px-4 py-3 text-text-secondary xl:table-cell">{r.username}</td>
+                      <td className="hidden px-4 py-3 lg:table-cell">
                         <Badge progress="analyzing">{importTypeLabel(r.importType)}</Badge>
                       </td>
                       <td className="px-4 py-3">
@@ -191,13 +242,13 @@ export default function ImportHistoryPage() {
                           {statusConfig[r.status].label}
                         </Badge>
                       </td>
-                      <td className="px-4 py-3 text-right text-text-secondary">{r.totalRows}</td>
-                      <td className="px-4 py-3 text-right">
-                        <span className="text-success">{r.importedCount}</span>
+                      <td className="hidden px-4 py-3 text-right text-text-secondary sm:table-cell">{r.totalRows.toLocaleString('zh-CN')}</td>
+                      <td className="hidden px-4 py-3 text-right md:table-cell">
+                        <span className="text-success">{r.importedCount.toLocaleString('zh-CN')}</span>
                       </td>
                       <td className="px-4 py-3 text-right">
                         {r.errorCount > 0 ? (
-                          <span className="text-danger">{r.errorCount}</span>
+                          <span className="text-danger">{r.errorCount.toLocaleString('zh-CN')}</span>
                         ) : (
                           <span className="text-text-secondary">0</span>
                         )}
@@ -208,7 +259,7 @@ export default function ImportHistoryPage() {
               </table>
             </div>
           )}
-        </div>
+        </section>
 
         {total > 0 && (
           <div className="flex items-center justify-between">

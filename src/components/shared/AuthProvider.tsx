@@ -41,7 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch('/api/auth/me');
+        const res = await fetch('/api/auth/me', { cache: 'no-store' });
         if (res.ok && !cancelled) {
           const data = await res.json();
           // MeResponse: { user: UserDTO | null }

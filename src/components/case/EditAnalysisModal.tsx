@@ -121,7 +121,7 @@ export function EditAnalysisModal({
         </>
       }
     >
-      <form id="edit-analysis-form" onSubmit={handleSubmit} className="space-y-md">
+      <form id="edit-analysis-form" onSubmit={handleSubmit} className="space-y-4">
         {members ? (
           <Select
             label="分析责任人"
@@ -148,7 +148,7 @@ export function EditAnalysisModal({
         )}
 
         {members && (
-          <div className="grid grid-cols-1 gap-md sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Select
               label="优先级"
               value={priority}
@@ -162,7 +162,10 @@ export function EditAnalysisModal({
             />
             <Input
               label="截止日期"
-              type="date"
+              type="text"
+              inputMode="numeric"
+              placeholder="YYYY-MM-DD"
+              pattern="\d{4}-\d{2}-\d{2}"
               value={dueDate}
               onChange={(event) => setDueDate(event.target.value)}
             />

@@ -7,7 +7,9 @@ type CaseResultRow = {
   resultSummary: string;
   logUrl: string | null;
   projectId: string;
+  project?: { name: string } | null;
   testStageId: string;
+  stage?: { name: string } | null;
   batchScopeId: string;
   assignee: string | null;
   assigneeId: string | null;
@@ -34,7 +36,9 @@ export function toCaseDTO(c: CaseResultRow): CaseResultDTO {
     resultSummary: c.resultSummary,
     logUrl: c.logUrl,
     projectId: c.projectId,
+    projectName: c.project?.name ?? null,
     testStageId: c.testStageId,
+    testStageName: c.stage?.name ?? null,
     batchScopeId: c.batchScopeId,
     assignee: c.assignee,
     assigneeId: c.assigneeId,

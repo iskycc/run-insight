@@ -1,6 +1,7 @@
 'use client';
 
 import { type ReactNode, useEffect, useId } from 'react';
+import { X } from '@phosphor-icons/react';
 
 type ModalProps = {
   open: boolean;
@@ -47,30 +48,28 @@ export function Modal({ open, onClose, title, children, footer }: ModalProps) {
       />
 
       <div
-        className="panel relative z-10 mx-md w-full max-w-lg overflow-hidden shadow-lg"
+        className="relative z-10 mx-4 w-full max-w-lg overflow-hidden rounded-[20px] border border-white/70 bg-surface-solid shadow-lg"
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
       >
-        <div className="flex items-center justify-between border-b border-border px-lg py-md">
+        <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <h2 id={titleId} className="text-lg font-semibold text-text-primary">
             {title}
           </h2>
           <button
             onClick={onClose}
-            className="rounded-md p-xs text-text-secondary transition-colors hover:bg-bg hover:text-text-primary"
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-bg text-text-secondary transition-colors hover:text-text-primary"
             aria-label="关闭"
           >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M4 4l8 8M12 4l-8 8" />
-            </svg>
+            <X size={16} weight="bold" aria-hidden="true" />
           </button>
         </div>
 
-        <div className="px-lg py-md">{children}</div>
+        <div className="px-6 py-4">{children}</div>
 
         {footer && (
-          <div className="flex items-center justify-end gap-sm border-t border-border bg-bg/40 px-lg py-md">
+          <div className="flex items-center justify-end gap-2 border-t border-border bg-bg/40 px-6 py-4">
             {footer}
           </div>
         )}

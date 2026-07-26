@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 
 type PageContainerProps = {
   title: string;
-  subtitle?: string;
+  subtitle?: ReactNode;
   actions?: ReactNode;
   children: ReactNode;
 };
@@ -11,20 +11,22 @@ export function PageContainer({ title, subtitle, actions, children }: PageContai
   return (
     <div className="page-shell">
       <div className="page-heading">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-text-primary sm:text-3xl">
+        <div className="min-w-0">
+          <h1 className="text-[28px] font-bold leading-tight tracking-[-0.035em] text-text-primary sm:text-[32px]">
             {title}
           </h1>
           {subtitle && (
             <p
               data-testid="page-subtitle"
-              className="mt-1 max-w-2xl text-sm text-text-secondary"
+              className="mt-1 max-w-3xl text-sm leading-6 text-text-secondary"
             >
               {subtitle}
             </p>
           )}
         </div>
-        {actions && <div className="flex shrink-0 items-center gap-sm">{actions}</div>}
+        {actions && (
+          <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>
+        )}
       </div>
 
       <div>{children}</div>

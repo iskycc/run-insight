@@ -1,4 +1,5 @@
 import { type SelectHTMLAttributes, forwardRef } from 'react';
+import { CaretDown } from '@phosphor-icons/react';
 
 type SelectOption = {
   value: string;
@@ -23,7 +24,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
         <div className="relative">
           <select
             ref={ref}
-            className={`field-control h-10 w-full appearance-none px-sm pr-lg text-sm
+            className={`field-control h-11 w-full appearance-none px-3 pr-9 text-sm
               ${className}`}
             {...props}
           >
@@ -38,18 +39,12 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
               </option>
             ))}
           </select>
-          {/* Dropdown arrow */}
-          <svg
-            className="pointer-events-none absolute right-sm top-1/2 -translate-y-1/2 text-text-secondary"
-            width="12"
-            height="12"
-            viewBox="0 0 12 12"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <path d="M3 5l3 3 3-3" />
-          </svg>
+          <CaretDown
+            className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary"
+            size={14}
+            weight="bold"
+            aria-hidden="true"
+          />
         </div>
       </div>
     );

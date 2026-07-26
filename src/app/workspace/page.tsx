@@ -4,13 +4,13 @@ import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import FilterBar, { type WorkspaceFilters } from '@/components/workspace/FilterBar';
 import MetricCards from '@/components/workspace/MetricCards';
-import ProgressDistribution from '@/components/dashboard/ProgressDistribution';
+import FailureQualityCard from '@/components/workspace/FailureQualityCard';
+import SavedViewsCard from '@/components/workspace/SavedViewsCard';
 import CaseTable, {
   type SortField,
   type SortOrder,
 } from '@/components/workspace/CaseTable';
 import { PageContainer } from '@/components/layout/PageContainer';
-import { Button } from '@/components/shared/Button';
 import { SaveAssetModal } from '@/components/shared/SaveAssetModal';
 import {
   BatchActionModal,
@@ -20,6 +20,12 @@ import {
 import { useAuth } from '@/components/shared/AuthProvider';
 import { useToast } from '@/contexts/ToastContext';
 import { fetchJson, ApiError } from '@/lib/fetch';
+import {
+  CaretDown,
+  DownloadSimple,
+  HandWaving,
+  SquaresFour,
+} from '@phosphor-icons/react';
 import type {
   CaseResultDTO,
   CasesResponse,
@@ -104,7 +110,7 @@ function WorkspaceContent() {
   const [sortOrder, setSortOrder] = useState<SortOrder>(
     () => initialSearchParams.get('sortOrder') === 'asc' ? 'asc' : 'desc',
   );
-  const pageSize = 20;
+  const pageSize = 5;
 
   // Selection state
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -485,7 +491,13 @@ function WorkspaceContent() {
     resultSummary: c.resultSummary,
     logUrl: c.logUrl ?? '',
     projectId: c.projectId,
+    projectName:
+      c.projectName ??
+      projects.find((project) => project.id === c.projectId)?.name,
     testStageId: c.testStageId,
+    testStageName:
+      c.testStageName ??
+      stages.find((stage) => stage.id === c.testStageId)?.name,
     batchScopeId: c.batchScopeId,
     assignee: c.assignee ?? undefined,
     progressCategory: c.progressCategory ?? undefined,
@@ -496,106 +508,171 @@ function WorkspaceContent() {
     updatedAt: c.updatedAt,
   }));
 
+  const pendingCount = metrics
+    ? Math.max(0, metrics.failedCaseCount - metrics.analyzedCaseCount)
+    : 0;
+  const categoryCount = (label: string) =>
+    metrics?.progressDistribution.find((item) => item.category === label)?.count ?? 0;
+  const now = new Date();
+  const greetingTime = [
+    `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`,
+    `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
+  ].join(' ');
+
+  const applyQuickView = (patch: Partial<WorkspaceFilters>) => {
+    handleFilterChange({
+      projectId: selectedProjectId,
+      stageId: selectedStageId,
+      batchScopeId: selectedBatchScopeId,
+      progressCategory: selectedProgressCategory,
+      assetSaved: selectedAssetSaved,
+      search,
+      resultSummary,
+      assignee,
+      rootCause,
+      dateFrom,
+      dateTo,
+      ...patch,
+    });
+  };
+
   return (
     <PageContainer
       title="工作台"
-      subtitle="按项目、阶段和批跑筛选用例，推进分析闭环"
+      subtitle={
+        metrics
+          ? (
+            <span className="inline-flex items-center gap-1.5">
+              <HandWaving size={16} weight="fill" className="text-warning" aria-hidden="true" />
+              下午好，{user.username}！截至 {greetingTime}，共{' '}
+              {metrics.totalCaseCount.toLocaleString()} 条用例，
+              {metrics.analyzedCaseCount.toLocaleString()} 条已分析。
+            </span>
+          )
+          : '按项目、阶段和批跑筛选用例，推进分析闭环'
+      }
       actions={
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="secondary"
-            disabled={exportingFormat !== null}
-            onClick={() => handleExport('csv')}
-          >
-            {exportingFormat === 'csv' ? '导出中...' : '导出 CSV'}
-          </Button>
-          <Button
-            disabled={exportingFormat !== null}
-            onClick={() => handleExport('xlsx')}
-          >
-            {exportingFormat === 'xlsx' ? '导出中...' : '导出 Excel'}
-          </Button>
-        </div>
+        <details className="group relative">
+          <summary className="flex h-11 cursor-pointer list-none items-center gap-2 rounded-[10px] border border-border bg-surface-solid px-4 text-sm font-medium text-text-primary shadow-[0_4px_14px_rgba(38,57,88,0.045)] transition hover:border-accent/30 [&::-webkit-details-marker]:hidden">
+            <SquaresFour size={17} aria-hidden="true" />
+            自定义视图
+            <CaretDown size={13} weight="bold" aria-hidden="true" />
+          </summary>
+          <div className="absolute right-0 z-20 mt-2 w-44 overflow-hidden rounded-[14px] border border-border/90 bg-surface-solid p-1.5 shadow-[0_18px_50px_rgba(38,57,88,0.14)]">
+            <button
+              type="button"
+              disabled={exportingFormat !== null}
+              onClick={() => handleExport('xlsx')}
+              className="flex h-9 w-full items-center gap-2 rounded-[9px] px-3 text-left text-xs font-medium text-text-primary transition hover:bg-accent/5 disabled:opacity-50"
+            >
+              <DownloadSimple size={15} aria-hidden="true" />
+              {exportingFormat === 'xlsx' ? '导出中…' : 'Excel 工作簿'}
+            </button>
+            <button
+              type="button"
+              disabled={exportingFormat !== null}
+              onClick={() => handleExport('csv')}
+              className="flex h-9 w-full items-center gap-2 rounded-[9px] px-3 text-left text-xs font-medium text-text-primary transition hover:bg-accent/5 disabled:opacity-50"
+            >
+              <DownloadSimple size={15} aria-hidden="true" />
+              {exportingFormat === 'csv' ? '导出中…' : 'CSV 文件'}
+            </button>
+          </div>
+        </details>
       }
     >
-      <div className="space-y-6">
-      <FilterBar
-        projects={projects}
-        stages={stages}
-        batches={batches}
-        selectedProjectId={selectedProjectId}
-        selectedStageId={selectedStageId}
-        selectedBatchScopeId={selectedBatchScopeId}
-        selectedProgressCategory={selectedProgressCategory}
-        selectedAssetSaved={selectedAssetSaved}
-        search={search}
-        resultSummary={resultSummary}
-        assignee={assignee}
-        rootCause={rootCause}
-        dateFrom={dateFrom}
-        dateTo={dateTo}
-        onFilterChange={handleFilterChange}
-      />
-
-      {/* Metric cards */}
-      {metrics && (
-        <MetricCards
-          metrics={{
-            totalCaseCount: metrics.totalCaseCount,
-            failedCaseCount: metrics.failedCaseCount,
-            pendingCount: metrics.progressDistribution.find((d) => d.category === '待分析')?.count ?? 0,
-            analyzedCount: metrics.analyzedCaseCount,
-            assetCount: metrics.assetCount,
-          }}
+      <div className="space-y-5">
+        <FilterBar
+          projects={projects}
+          stages={stages}
+          batches={batches}
+          selectedProjectId={selectedProjectId}
+          selectedStageId={selectedStageId}
+          selectedBatchScopeId={selectedBatchScopeId}
+          selectedProgressCategory={selectedProgressCategory}
+          selectedAssetSaved={selectedAssetSaved}
+          search={search}
+          resultSummary={resultSummary}
+          assignee={assignee}
+          rootCause={rootCause}
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          onFilterChange={handleFilterChange}
         />
-      )}
 
-      {/* Progress distribution */}
-      {metrics && <ProgressDistribution data={metrics.progressDistribution} />}
+        {metrics && (
+          <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(270px,0.92fr)_minmax(430px,1.3fr)_minmax(260px,0.86fr)]">
+            <MetricCards
+              metrics={{
+                totalCaseCount: metrics.totalCaseCount,
+                failedCaseCount: metrics.failedCaseCount,
+                pendingCount,
+                analyzedCount: metrics.analyzedCaseCount,
+                assetCount: metrics.assetCount,
+                projectCount: metrics.projectCount,
+              }}
+              onContinue={() => applyQuickView({ progressCategory: 'PENDING' })}
+            />
+            <FailureQualityCard
+              failureCount={metrics.failedCaseCount}
+              totalCaseCount={metrics.totalCaseCount}
+              data={metrics.progressDistribution}
+            />
+            <SavedViewsCard
+              pendingCount={pendingCount}
+              failedCount={metrics.failedCaseCount}
+              locatedCount={categoryCount('已定位')}
+              fixedCount={categoryCount('已修复')}
+              recentCount={Math.min(metrics.totalCaseCount, 60)}
+              onSelect={applyQuickView}
+              onViewAll={() => applyQuickView({
+                progressCategory: '',
+                resultSummary: '',
+              })}
+            />
+          </div>
+        )}
 
-      {/* Case table */}
-      <CaseTable
-        canEdit={canEdit}
-        cases={caseRows}
-        totalCount={totalCount}
-        page={page}
-        pageSize={pageSize}
-        sortField={sortField}
-        sortOrder={sortOrder}
-        selectedIds={selectedIds}
-        onPageChange={setPage}
-        onSortChange={handleSortChange}
-        onSaveAsset={handleSaveAsset}
-        onViewDetail={handleViewDetail}
-        onSelectionChange={handleSelectionChange}
-        onClearSelection={handleClearSelection}
-        onBatchAction={handleBatchAction}
-      />
-
-      {/* Save asset modal */}
-      {canEdit && selectedCase && (
-        <SaveAssetModal
-          open={saveModalOpen}
-          onClose={() => {
-            setSaveModalOpen(false);
-            setSelectedCase(null);
-          }}
-          onConfirm={handleSaveAssetConfirm}
-        caseData={selectedCase}
-      />
-      )}
-
-      {/* Batch action modal */}
-      {canEdit && batchAction && (
-        <BatchActionModal
-          key={batchAction}
-          open={batchAction !== null}
-          action={batchAction}
-          selectedCount={selectedIds.length}
-          onClose={() => setBatchAction(null)}
-          onConfirm={handleBatchConfirm}
+        <CaseTable
+          canEdit={canEdit}
+          cases={caseRows}
+          totalCount={totalCount}
+          page={page}
+          pageSize={pageSize}
+          sortField={sortField}
+          sortOrder={sortOrder}
+          selectedIds={selectedIds}
+          onPageChange={setPage}
+          onSortChange={handleSortChange}
+          onSaveAsset={handleSaveAsset}
+          onViewDetail={handleViewDetail}
+          onSelectionChange={handleSelectionChange}
+          onClearSelection={handleClearSelection}
+          onBatchAction={handleBatchAction}
         />
-      )}
+
+        {canEdit && selectedCase && (
+          <SaveAssetModal
+            open={saveModalOpen}
+            onClose={() => {
+              setSaveModalOpen(false);
+              setSelectedCase(null);
+            }}
+            onConfirm={handleSaveAssetConfirm}
+            caseData={selectedCase}
+          />
+        )}
+
+        {canEdit && batchAction && (
+          <BatchActionModal
+            key={batchAction}
+            open={batchAction !== null}
+            action={batchAction}
+            selectedCount={selectedIds.length}
+            onClose={() => setBatchAction(null)}
+            onConfirm={handleBatchConfirm}
+          />
+        )}
       </div>
     </PageContainer>
   );

@@ -3,8 +3,9 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell,
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts';
+import { CaretDown, CaretUp } from '@phosphor-icons/react';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { Select } from '@/components/shared/Select';
 import { EmptyState } from '@/components/shared/EmptyState';
@@ -20,6 +21,22 @@ import type {
 
 type SortField = 'assignee' | 'totalCases' | 'failCount' | 'fixCount' | 'savedAssetCount' | 'fixRate';
 type SortOrder = 'asc' | 'desc';
+type ChartMetric = 'failCount' | 'totalCases' | 'fixCount';
+
+const CHART_METRIC_LABELS: Record<ChartMetric, string> = {
+  failCount: '失败用例数',
+  totalCases: '用例总数',
+  fixCount: '已修复数',
+};
+
+const SORT_FIELD_LABELS: Record<SortField, string> = {
+  assignee: '责任人',
+  totalCases: '用例总数',
+  failCount: '失败数',
+  fixCount: '修复数',
+  savedAssetCount: '已保存资产',
+  fixRate: '修复率',
+};
 
 interface FilterOptions {
   projects: { value: string; label: string }[];
@@ -50,6 +67,7 @@ export default function AssigneeReportPage() {
   const [loading, setLoading] = useState(false);
   const [sortField, setSortField] = useState<SortField>('failCount');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const [chartMetric, setChartMetric] = useState<ChartMetric>('failCount');
 
   // Load projects once on mount
   useEffect(() => {
@@ -157,11 +175,27 @@ export default function AssigneeReportPage() {
     return copy;
   }, [stats, sortField, sortOrder]);
 
-  const topFailStats = useMemo(() => {
+  const rankedStats = useMemo(() => {
     return [...stats]
-      .filter((s) => s.failCount > 0)
-      .sort((a, b) => b.failCount - a.failCount)
+      .filter((s) => s[chartMetric] > 0)
+      .sort((a, b) => b[chartMetric] - a[chartMetric])
       .slice(0, 10);
+  }, [stats, chartMetric]);
+
+  const summary = useMemo(() => {
+    const totalCases = stats.reduce((sum, row) => sum + row.totalCases, 0);
+    const failCount = stats.reduce((sum, row) => sum + row.failCount, 0);
+    const fixCount = stats.reduce((sum, row) => sum + row.fixCount, 0);
+    const assetCount = stats.reduce((sum, row) => sum + row.savedAssetCount, 0);
+    return {
+      totalCases,
+      failCount,
+      fixCount,
+      assetCount,
+      aggregateFixRate: failCount > 0
+        ? Math.min(100, Math.round((fixCount / failCount) * 100))
+        : 0,
+    };
   }, [stats]);
 
   const handleSort = useCallback((field: SortField) => {
@@ -174,8 +208,10 @@ export default function AssigneeReportPage() {
   }, [sortField]);
 
   const sortIndicator = useCallback((field: SortField) => {
-    if (sortField !== field) return '';
-    return sortOrder === 'asc' ? ' ▲' : ' ▼';
+    if (sortField !== field) return null;
+    return sortOrder === 'asc'
+      ? <CaretUp size={12} weight="bold" aria-hidden="true" />
+      : <CaretDown size={12} weight="bold" aria-hidden="true" />;
   }, [sortField, sortOrder]);
 
   const workspaceHref = useCallback((assigneeName: string) => {
@@ -211,90 +247,158 @@ export default function AssigneeReportPage() {
   }
 
   return (
-    <PageContainer title="责任人报告" subtitle="按责任人聚合用例数、失败、修复和资产沉淀情况">
-      <div className="space-y-6">
-        {/* Filters */}
-        <div className="panel grid gap-4 p-4 sm:grid-cols-3">
-          <Select
-            label="项目"
-            placeholder="全部项目"
-            options={filterOptions.projects}
-            value={projectId}
-            onChange={(e) => handleProjectChange(e.target.value)}
-          />
-          <Select
-            label="测试阶段"
-            placeholder="全部阶段"
-            options={filterOptions.stages}
-            value={stageId}
-            onChange={(e) => handleStageChange(e.target.value)}
-            disabled={!projectId}
-          />
-          <Select
-            label="批跑范围"
-            placeholder="全部范围"
-            options={filterOptions.batches}
-            value={batchScopeId}
-            onChange={(e) => setBatchScopeId(e.target.value)}
-            disabled={!stageId}
-          />
-        </div>
-
-        {/* Chart */}
-        <div className="panel p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-text-primary">Top 10 失败用例数</h3>
-            <span className="text-xs text-text-secondary">仅展示有失败的责任人</span>
+    <PageContainer
+      title="责任人报告"
+      subtitle={`聚合 ${stats.length.toLocaleString()} 位责任人的用例质量、修复与资产沉淀`}
+    >
+      <div className="space-y-5">
+        <section className="rounded-[24px] border border-white/80 bg-white/90 p-4 shadow-[0_16px_48px_rgba(38,57,88,0.08)] backdrop-blur-xl sm:p-5">
+          <div className="mb-4">
+            <h2 className="text-sm font-semibold tracking-tight text-text-primary">报告范围</h2>
+            <p className="mt-0.5 text-xs text-text-secondary">选择项目后可继续收窄到测试阶段和批跑范围</p>
           </div>
-          <div className="h-72">
-            {topFailStats.length === 0 ? (
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Select
+              label="项目"
+              placeholder="全部项目"
+              options={filterOptions.projects}
+              value={projectId}
+              onChange={(e) => handleProjectChange(e.target.value)}
+            />
+            <Select
+              label="测试阶段"
+              placeholder="全部阶段"
+              options={filterOptions.stages}
+              value={stageId}
+              onChange={(e) => handleStageChange(e.target.value)}
+              disabled={!projectId}
+            />
+            <Select
+              label="批跑范围"
+              placeholder="全部范围"
+              options={filterOptions.batches}
+              value={batchScopeId}
+              onChange={(e) => setBatchScopeId(e.target.value)}
+              disabled={!stageId}
+            />
+          </div>
+        </section>
+
+        <section aria-label="责任人报告摘要" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {[
+            { label: '覆盖责任人', value: stats.length, suffix: '人', tone: 'text-text-primary' },
+            { label: '失败用例', value: summary.failCount, suffix: '条', tone: 'text-danger' },
+            { label: '已修复', value: summary.fixCount, suffix: '条', tone: 'text-success' },
+            { label: '整体修复率', value: summary.aggregateFixRate, suffix: '%', tone: 'text-accent' },
+          ].map((item) => (
+            <div
+              key={item.label}
+              className="rounded-[20px] border border-white/80 bg-white/90 p-4 shadow-[0_10px_32px_rgba(38,57,88,0.06)] sm:p-5"
+            >
+              <p className="text-xs font-medium text-text-secondary">{item.label}</p>
+              <p className={`mt-2 text-2xl font-semibold tracking-tight ${item.tone}`}>
+                {item.value.toLocaleString()}
+                <span className="ml-1 text-xs font-medium text-text-secondary">{item.suffix}</span>
+              </p>
+            </div>
+          ))}
+        </section>
+
+        <section className="rounded-[24px] border border-white/80 bg-white/90 p-4 shadow-[0_16px_48px_rgba(38,57,88,0.08)] backdrop-blur-xl sm:p-5">
+          <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+            <div>
+              <h2 className="flex flex-wrap items-center gap-2 text-sm font-semibold tracking-tight text-text-primary">
+                <span>Top 10 {CHART_METRIC_LABELS[chartMetric]}</span>
+                <span className="rounded-full bg-accent/8 px-2 py-0.5 text-[11px] font-semibold text-accent">
+                  当前展示 {rankedStats.length} 人
+                </span>
+              </h2>
+              <p className="mt-0.5 text-xs text-text-secondary">
+                最多展示 10 位责任人，条形长度代表当前指标值
+              </p>
+            </div>
+            <label className="flex items-center gap-2 text-xs font-semibold text-text-secondary">
+              图表指标
+              <select
+                aria-label="图表指标"
+                value={chartMetric}
+                onChange={(event) => setChartMetric(event.target.value as ChartMetric)}
+                className="field-control h-9 rounded-xl bg-white px-3 text-xs font-semibold text-text-primary"
+              >
+                {(Object.keys(CHART_METRIC_LABELS) as ChartMetric[]).map((metric) => (
+                  <option key={metric} value={metric}>{CHART_METRIC_LABELS[metric]}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <div style={{ height: Math.max(260, rankedStats.length * 44) }}>
+            {rankedStats.length === 0 ? (
               <div className="flex h-full items-center justify-center text-sm text-text-secondary">
                 暂无数据
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={topFailStats} margin={{ top: 10, right: 20, left: 0, bottom: 30 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+                <BarChart
+                  data={rankedStats}
+                  layout="vertical"
+                  margin={{ top: 4, right: 28, left: 4, bottom: 4 }}
+                >
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    horizontal={false}
+                    stroke="var(--color-border)"
+                  />
                   <XAxis
-                    dataKey="assignee"
-                    angle={-25}
-                    textAnchor="end"
-                    height={60}
-                    interval={0}
+                    type="number"
+                    allowDecimals={false}
+                    axisLine={false}
+                    tickLine={false}
                     tick={{ fontSize: 11, fill: 'var(--color-text-secondary)' }}
                   />
                   <YAxis
-                    allowDecimals={false}
-                    tick={{ fontSize: 11, fill: 'var(--color-text-secondary)' }}
+                    type="category"
+                    dataKey="assignee"
+                    width={96}
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 12, fill: 'var(--color-text-primary)' }}
                   />
                   <Tooltip
-                    formatter={(value: unknown) => [Number(value).toLocaleString(), '失败用例数']}
+                    formatter={(value: unknown) => [
+                      Number(value).toLocaleString(),
+                      CHART_METRIC_LABELS[chartMetric],
+                    ]}
                     contentStyle={{
-                      borderRadius: 'var(--radius-md)',
+                      borderRadius: 14,
                       border: '1px solid var(--color-border)',
+                      boxShadow: '0 12px 32px rgba(38,57,88,0.12)',
                       fontSize: 12,
                     }}
                   />
-                  <Bar dataKey="failCount" name="失败用例数" radius={[4, 4, 0, 0]}>
-                    {topFailStats.map((entry, idx) => (
-                      <Cell
-                        key={entry.assignee}
-                        fill={idx === 0 ? 'var(--color-danger)' : 'var(--color-accent)'}
-                      />
-                    ))}
-                  </Bar>
+                  <Bar
+                    dataKey={chartMetric}
+                    name={CHART_METRIC_LABELS[chartMetric]}
+                    fill="var(--color-accent)"
+                    radius={[0, 8, 8, 0]}
+                    barSize={18}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             )}
           </div>
-        </div>
+        </section>
 
-        {/* Table */}
-        <div className="panel overflow-hidden">
-          <div className="flex items-center justify-between gap-3 border-b border-border bg-bg/60 px-4 py-3">
-            <span className="text-xs font-semibold text-text-secondary">
-              责任人统计（{stats.length} 人）
-            </span>
+        <section className="overflow-hidden rounded-[24px] border border-white/80 bg-white/90 shadow-[0_16px_48px_rgba(38,57,88,0.08)] backdrop-blur-xl">
+          <div className="flex flex-col justify-between gap-3 border-b border-border/60 px-4 py-4 sm:flex-row sm:items-center sm:px-5">
+            <div>
+              <h2 className="text-sm font-semibold tracking-tight text-text-primary">
+                责任人统计（{stats.length} 人）
+              </h2>
+              <p className="mt-0.5 text-xs text-text-secondary">
+                点击列标题排序；当前按{SORT_FIELD_LABELS[sortField]}{sortOrder === 'asc' ? '升序' : '降序'}
+              </p>
+            </div>
             <a
               href={csvHref}
               download="assignee-stats.csv"
@@ -302,10 +406,10 @@ export default function AssigneeReportPage() {
               onClick={(event) => {
                 if (sortedStats.length === 0) event.preventDefault();
               }}
-              className={`rounded-md border border-border px-3 py-1.5 text-xs font-medium transition-colors ${
+              className={`inline-flex h-9 items-center justify-center rounded-xl border border-border/80 bg-white px-3 text-xs font-semibold transition-colors ${
                 sortedStats.length === 0
                   ? 'cursor-not-allowed opacity-50'
-                  : 'hover:border-accent/30 hover:bg-surface-solid'
+                  : 'hover:border-accent/30 hover:bg-accent/5'
               }`}
             >
               导出 CSV
@@ -323,7 +427,7 @@ export default function AssigneeReportPage() {
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-bg/60 text-left text-xs text-text-secondary">
+                <thead className="bg-bg/40 text-left text-xs text-text-secondary">
                   <tr>
                     <th className="px-4 py-3">
                       <button
@@ -381,9 +485,9 @@ export default function AssigneeReportPage() {
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border">
+                <tbody className="divide-y divide-border/70">
                   {sortedStats.map((row) => (
-                    <tr key={row.assignee} className="hover:bg-bg/40">
+                    <tr key={row.assignee} className="transition-colors hover:bg-bg/40">
                       <td className="px-4 py-3 font-medium">
                         <Link
                           href={workspaceHref(row.assignee)}
@@ -394,8 +498,8 @@ export default function AssigneeReportPage() {
                         </Link>
                       </td>
                       <td className="px-4 py-3 text-text-secondary">{row.totalCases}</td>
-                      <td className="px-4 py-3 text-danger">{row.failCount}</td>
-                      <td className="px-4 py-3 text-success">{row.fixCount}</td>
+                      <td className="px-4 py-3 font-medium text-text-primary">{row.failCount}</td>
+                      <td className="px-4 py-3 font-medium text-success">{row.fixCount}</td>
                       <td className="px-4 py-3 text-text-secondary">{row.savedAssetCount}</td>
                       <td className="px-4 py-3 text-text-secondary">
                         {row.fixRate === 0 ? '0%' : `${(row.fixRate * 100).toFixed(0)}%`}
@@ -406,7 +510,7 @@ export default function AssigneeReportPage() {
               </table>
             </div>
           )}
-        </div>
+        </section>
       </div>
     </PageContainer>
   );

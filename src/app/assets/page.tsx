@@ -7,8 +7,10 @@ import { AssetDetail } from '@/components/assets/AssetDetail';
 import { AssetList } from '@/components/assets/AssetList';
 import { Input } from '@/components/shared/Input';
 import { Select } from '@/components/shared/Select';
+import { Button } from '@/components/shared/Button';
 import { useAuth } from '@/components/shared/AuthProvider';
 import { ApiError, fetchJson } from '@/lib/fetch';
+import { FunnelSimple } from '@phosphor-icons/react';
 import type {
   AssetDTO,
   AssetsResponse,
@@ -33,6 +35,7 @@ export default function AssetsPage() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const pageSize = 20;
 
   useEffect(() => {
@@ -103,48 +106,63 @@ export default function AssetsPage() {
   };
 
   return (
-    <PageContainer title="资产库" subtitle="可维护、发布和复用的分析知识">
-      <div className="panel mb-lg grid gap-md p-md sm:grid-cols-2 lg:grid-cols-5">
-        <Select
-          label="项目"
-          value={projectId}
-          placeholder="全部项目"
-          options={projects.map((project) => ({ value: project.id, label: project.name }))}
-          onChange={(event) => { filterChanged(); setProjectId(event.target.value); }}
-        />
-        <Select
-          label="状态"
-          value={status}
-          placeholder="全部状态"
-          options={[
-            { value: 'DRAFT', label: '草稿' },
-            { value: 'PUBLISHED', label: '已发布' },
-            { value: 'ARCHIVED', label: '已归档' },
-          ]}
-          onChange={(event) => { filterChanged(); setStatus(event.target.value); }}
-        />
-        <Select
-          label="根因分类"
-          value={rootCauseCategoryId}
-          placeholder="全部分类"
-          options={categories.map((category) => ({ value: category.id, label: category.name }))}
-          onChange={(event) => { filterChanged(); setRootCauseCategoryId(event.target.value); }}
-        />
-        <Input
-          label="标签"
-          value={tag}
-          placeholder="精确标签"
-          onChange={(event) => { filterChanged(); setTag(event.target.value); }}
-        />
-        <Input
-          label="全文搜索"
-          value={search}
-          placeholder="标题、摘要、方案、用例"
-          onChange={(event) => { filterChanged(); setSearch(event.target.value); }}
-        />
-      </div>
+    <PageContainer title="资产库" subtitle="沉淀可维护、可发布、可持续复用的分析知识">
+      <section className="bento-panel mb-5 p-4 sm:p-5" aria-label="资产筛选">
+        <div className="grid gap-3 md:grid-cols-[minmax(0,1.4fr)_minmax(180px,0.7fr)_auto] md:items-end">
+          <Input
+            label="搜索"
+            type="search"
+            value={search}
+            placeholder="搜索标题、摘要、方案或用例"
+            onChange={(event) => { filterChanged(); setSearch(event.target.value); }}
+          />
+          <Select
+            label="项目"
+            value={projectId}
+            placeholder="全部项目"
+            options={projects.map((project) => ({ value: project.id, label: project.name }))}
+            onChange={(event) => { filterChanged(); setProjectId(event.target.value); }}
+          />
+          <Button
+            variant="secondary"
+            onClick={() => setShowAdvancedFilters((current) => !current)}
+            aria-expanded={showAdvancedFilters}
+          >
+            <FunnelSimple size={17} aria-hidden="true" />
+            {showAdvancedFilters ? '收起筛选' : '更多筛选'}
+          </Button>
+        </div>
+        {showAdvancedFilters && (
+          <div className="mt-4 grid gap-3 border-t border-border pt-4 sm:grid-cols-3">
+            <Select
+              label="状态"
+              value={status}
+              placeholder="全部状态"
+              options={[
+                { value: 'DRAFT', label: '草稿' },
+                { value: 'PUBLISHED', label: '已发布' },
+                { value: 'ARCHIVED', label: '已归档' },
+              ]}
+              onChange={(event) => { filterChanged(); setStatus(event.target.value); }}
+            />
+            <Select
+              label="根因分类"
+              value={rootCauseCategoryId}
+              placeholder="全部分类"
+              options={categories.map((category) => ({ value: category.id, label: category.name }))}
+              onChange={(event) => { filterChanged(); setRootCauseCategoryId(event.target.value); }}
+            />
+            <Input
+              label="标签"
+              value={tag}
+              placeholder="输入精确标签"
+              onChange={(event) => { filterChanged(); setTag(event.target.value); }}
+            />
+          </div>
+        )}
+      </section>
 
-      {error && <p className="mb-md rounded bg-danger/10 p-3 text-sm text-danger">{error}</p>}
+      {error && <p className="mb-4 rounded bg-danger/10 p-3 text-sm text-danger">{error}</p>}
 
       {selectedAsset ? (
         <AssetDetail
@@ -158,7 +176,7 @@ export default function AssetsPage() {
           }}
         />
       ) : loading ? (
-        <div className="panel p-xl text-center text-sm text-text-secondary">加载中…</div>
+        <div className="panel p-8 text-center text-sm text-text-secondary">加载中…</div>
       ) : (
         <AssetList
           assets={assets}
@@ -167,9 +185,10 @@ export default function AssetsPage() {
           pageSize={pageSize}
           onPageChange={setPage}
           onSelect={(id) => void openAsset(id)}
+          onEmptyAction={() => router.push('/workspace')}
         />
       )}
-      <p className="mt-md text-xs text-text-secondary">共 {total} 条资产</p>
+      {total > 0 && <p className="mt-4 text-xs text-text-secondary">共 {total} 条资产</p>}
     </PageContainer>
   );
 }

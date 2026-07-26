@@ -1,5 +1,13 @@
 'use client';
 
+import { useMemo, useState } from 'react';
+import {
+  BookmarkSimple,
+  Briefcase,
+  Funnel,
+  MagnifyingGlass,
+  X,
+} from '@phosphor-icons/react';
 import {
   PROGRESS_CATEGORIES,
   PROGRESS_LABELS,
@@ -39,6 +47,13 @@ interface FilterBarProps {
   onFilterChange: (filters: WorkspaceFilters) => void;
 }
 
+type Chip = {
+  key: keyof WorkspaceFilters;
+  label: string;
+  value: string;
+  defaultText: string;
+};
+
 export default function FilterBar({
   projects,
   stages,
@@ -56,249 +71,374 @@ export default function FilterBar({
   dateTo,
   onFilterChange,
 }: FilterBarProps) {
+  const hasAdvancedFilters = Boolean(
+    selectedStageId ||
+      selectedBatchScopeId ||
+      selectedAssetSaved ||
+      assignee ||
+      rootCause ||
+      dateFrom ||
+      dateTo,
+  );
+  const [advancedOpen, setAdvancedOpen] = useState(hasAdvancedFilters);
+
   const filteredStages = selectedProjectId
-    ? stages.filter((s) => s.projectId === selectedProjectId)
+    ? stages.filter((stage) => stage.projectId === selectedProjectId)
     : [];
   const filteredBatches = selectedStageId
-    ? batches.filter((b) => b.testStageId === selectedStageId)
+    ? batches.filter((batch) => batch.testStageId === selectedStageId)
     : [];
 
+  const current: WorkspaceFilters = {
+    projectId: selectedProjectId,
+    stageId: selectedStageId,
+    batchScopeId: selectedBatchScopeId,
+    progressCategory: selectedProgressCategory,
+    assetSaved: selectedAssetSaved,
+    search,
+    resultSummary,
+    assignee,
+    rootCause,
+    dateFrom,
+    dateTo,
+  };
+
   const emit = (patch: Partial<WorkspaceFilters>) => {
-    onFilterChange({
-      projectId: selectedProjectId,
-      stageId: selectedStageId,
-      batchScopeId: selectedBatchScopeId,
-      progressCategory: selectedProgressCategory,
-      assetSaved: selectedAssetSaved,
+    onFilterChange({ ...current, ...patch });
+  };
+
+  const activeFilterCount = useMemo(
+    () => Object.values(current).filter(Boolean).length,
+    // The primitive filter values are the intended memoization inputs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      selectedProjectId,
+      selectedStageId,
+      selectedBatchScopeId,
+      selectedProgressCategory,
+      selectedAssetSaved,
       search,
       resultSummary,
       assignee,
       rootCause,
       dateFrom,
       dateTo,
-      ...patch,
+    ],
+  );
+
+  const clearFilters = () => {
+    setAdvancedOpen(false);
+    onFilterChange({
+      projectId: '',
+      stageId: '',
+      batchScopeId: '',
+      progressCategory: '',
+      assetSaved: '',
+      search: '',
+      resultSummary: '',
+      assignee: '',
+      rootCause: '',
+      dateFrom: '',
+      dateTo: '',
     });
   };
 
+  const selectedStageName =
+    filteredStages.find((stage) => stage.id === selectedStageId)?.name ?? '';
+  const selectedBatchName =
+    filteredBatches.find((batch) => batch.id === selectedBatchScopeId)?.name ?? '';
+  const progressLabel = selectedProgressCategory
+    ? PROGRESS_LABELS[selectedProgressCategory as ProgressCategory]
+    : '';
+
+  const chips: Chip[] = [
+    {
+      key: 'progressCategory',
+      label: '进展',
+      value: progressLabel,
+      defaultText: '全部进展',
+    },
+    {
+      key: 'assetSaved',
+      label: '资产状态',
+      value:
+        selectedAssetSaved === 'true'
+          ? '已保存'
+          : selectedAssetSaved === 'false'
+            ? '未保存'
+            : '',
+      defaultText: '全部',
+    },
+    {
+      key: 'stageId',
+      label: '测试阶段',
+      value: selectedStageName,
+      defaultText: '全部阶段',
+    },
+    {
+      key: 'batchScopeId',
+      label: '批跑范围',
+      value: selectedBatchName,
+      defaultText: '全部范围',
+    },
+    {
+      key: 'resultSummary',
+      label: '结果概要',
+      value: resultSummary,
+      defaultText: '全部结果',
+    },
+    {
+      key: 'dateFrom',
+      label: '创建日期',
+      value: dateFrom || dateTo ? `${dateFrom || '不限'} ~ ${dateTo || '不限'}` : '',
+      defaultText: '不限日期',
+    },
+  ];
+
+  const mainControl =
+    'field-control h-12 w-full rounded-[10px] border-border bg-surface-solid px-4 text-sm shadow-none';
+  const advancedControl =
+    'field-control h-11 w-full rounded-[10px] border-border bg-surface-solid px-3 text-sm font-normal shadow-none';
+
   return (
-    <div className="panel grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
-      <div className="flex min-w-0 flex-col gap-1.5 sm:col-span-2">
-        <label htmlFor="filter-search" className="text-xs font-medium text-[var(--color-text-secondary)]">
-          搜索
+    <section
+      aria-label="用例筛选"
+      className="rounded-[18px] border border-border/90 bg-surface-solid p-5 shadow-[0_12px_36px_rgba(38,57,88,0.055)] sm:p-6"
+    >
+      <div className="grid gap-3 lg:grid-cols-[1.05fr_1.12fr_1fr_auto]">
+        <label className="relative block min-w-0">
+          <span className="sr-only">搜索用例</span>
+          <MagnifyingGlass
+            size={19}
+            aria-hidden="true"
+            className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-text-secondary"
+          />
+          <input
+            aria-label="搜索用例"
+            type="search"
+            value={search}
+            onChange={(event) => emit({ search: event.target.value })}
+            placeholder="搜索用例、负责人或根因"
+            className={`${mainControl} pl-11 font-normal`}
+          />
         </label>
-        <input
-          id="filter-search"
-          aria-label="搜索用例"
-          type="search"
-          value={search}
-          onChange={(e) => emit({ search: e.target.value })}
-          placeholder="用例编号或名称"
-          className="field-control h-10 w-full px-3 text-sm"
-        />
-      </div>
 
-      <div className="flex min-w-0 flex-col gap-1.5">
-        <label htmlFor="filter-project" className="text-xs font-medium text-[var(--color-text-secondary)]">
-          项目
+        <label className="relative block min-w-0">
+          <span className="sr-only">项目</span>
+          <Briefcase
+            size={18}
+            aria-hidden="true"
+            className="pointer-events-none absolute left-4 top-1/2 z-10 -translate-y-1/2 text-text-primary"
+          />
+          <select
+            aria-label="项目"
+            value={selectedProjectId}
+            onChange={(event) =>
+              emit({
+                projectId: event.target.value,
+                stageId: '',
+                batchScopeId: '',
+              })
+            }
+            className={`${mainControl} pl-11 font-semibold`}
+          >
+            <option value="">全部项目</option>
+            {projects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+          </select>
         </label>
-        <select
-          id="filter-project"
-          aria-label="项目"
-          value={selectedProjectId}
-          onChange={(e) =>
-            emit({ projectId: e.target.value, stageId: '', batchScopeId: '' })
-          }
-          className="field-control h-10 w-full px-3 text-sm"
-        >
-          <option value="">全部项目</option>
-          {projects.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-      </div>
 
-      <div className="flex min-w-0 flex-col gap-1.5">
-        <label htmlFor="filter-stage" className="text-xs font-medium text-[var(--color-text-secondary)]">
-          测试阶段
+        <label className="relative block min-w-0">
+          <span className="sr-only">进展</span>
+          <BookmarkSimple
+            size={18}
+            aria-hidden="true"
+            className="pointer-events-none absolute left-4 top-1/2 z-10 -translate-y-1/2 text-text-secondary"
+          />
+          <select
+            aria-label="进展"
+            value={selectedProgressCategory}
+            onChange={(event) => emit({ progressCategory: event.target.value })}
+            className={`${mainControl} pl-11 font-semibold`}
+          >
+            <option value="">我的视图</option>
+            {PROGRESS_CATEGORIES.map((category) => (
+              <option key={category} value={category}>
+                {PROGRESS_LABELS[category]}
+              </option>
+            ))}
+          </select>
         </label>
-        <select
-          id="filter-stage"
-          aria-label="测试阶段"
-          value={selectedStageId}
-          disabled={!selectedProjectId}
-          onChange={(e) =>
-            emit({ stageId: e.target.value, batchScopeId: '' })
-          }
-          className="field-control h-10 w-full px-3 text-sm"
-        >
-          <option value="">全部阶段</option>
-          {filteredStages.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
-      </div>
 
-      <div className="flex min-w-0 flex-col gap-1.5">
-        <label htmlFor="filter-batch" className="text-xs font-medium text-[var(--color-text-secondary)]">
-          批跑范围
-        </label>
-        <select
-          id="filter-batch"
-          aria-label="批跑范围"
-          value={selectedBatchScopeId}
-          disabled={!selectedStageId}
-          onChange={(e) =>
-            emit({ batchScopeId: e.target.value })
-          }
-          className="field-control h-10 w-full px-3 text-sm"
-        >
-          <option value="">全部范围</option>
-          {filteredBatches.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.name}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="flex min-w-0 flex-col gap-1.5">
-        <label htmlFor="filter-result" className="text-xs font-medium text-[var(--color-text-secondary)]">
-          结果概要
-        </label>
-        <select
-          id="filter-result"
-          aria-label="结果概要"
-          value={resultSummary}
-          onChange={(e) => emit({ resultSummary: e.target.value })}
-          className="field-control h-10 w-full px-3 text-sm"
-        >
-          <option value="">全部结果</option>
-          {RESULT_SUMMARIES.map((result) => (
-            <option key={result} value={result}>{result}</option>
-          ))}
-        </select>
-      </div>
-
-      <div className="flex min-w-0 flex-col gap-1.5">
-        <label htmlFor="filter-progress" className="text-xs font-medium text-[var(--color-text-secondary)]">
-          进展
-        </label>
-        <select
-          id="filter-progress"
-          aria-label="进展"
-          value={selectedProgressCategory}
-          onChange={(e) => emit({ progressCategory: e.target.value })}
-          className="field-control h-10 w-full px-3 text-sm"
-        >
-          <option value="">全部进展</option>
-          {PROGRESS_CATEGORIES.map((p: ProgressCategory) => (
-            <option key={p} value={p}>
-              {PROGRESS_LABELS[p]}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="flex min-w-0 flex-col gap-1.5">
-        <label htmlFor="filter-asset" className="text-xs font-medium text-[var(--color-text-secondary)]">
-          资产状态
-        </label>
-        <select
-          id="filter-asset"
-          aria-label="资产状态"
-          value={selectedAssetSaved}
-          onChange={(e) => emit({ assetSaved: e.target.value })}
-          className="field-control h-10 w-full px-3 text-sm"
-        >
-          <option value="">全部</option>
-          <option value="true">已保存</option>
-          <option value="false">未保存</option>
-        </select>
-      </div>
-
-      <div className="flex min-w-0 flex-col gap-1.5">
-        <label htmlFor="filter-assignee" className="text-xs font-medium text-[var(--color-text-secondary)]">
-          责任人
-        </label>
-        <input
-          id="filter-assignee"
-          aria-label="责任人"
-          value={assignee}
-          onChange={(e) => emit({ assignee: e.target.value })}
-          placeholder="输入责任人"
-          className="field-control h-10 w-full px-3 text-sm"
-        />
-      </div>
-
-      <div className="flex min-w-0 flex-col gap-1.5">
-        <label htmlFor="filter-root-cause" className="text-xs font-medium text-[var(--color-text-secondary)]">
-          根因
-        </label>
-        <input
-          id="filter-root-cause"
-          aria-label="根因"
-          value={rootCause}
-          onChange={(e) => emit({ rootCause: e.target.value })}
-          placeholder="输入根因关键词"
-          className="field-control h-10 w-full px-3 text-sm"
-        />
-      </div>
-
-      <div className="flex min-w-0 flex-col gap-1.5">
-        <label htmlFor="filter-date-from" className="text-xs font-medium text-[var(--color-text-secondary)]">
-          创建日期从
-        </label>
-        <input
-          id="filter-date-from"
-          aria-label="创建日期从"
-          type="date"
-          value={dateFrom}
-          max={dateTo || undefined}
-          onChange={(e) => emit({ dateFrom: e.target.value })}
-          className="field-control h-10 w-full px-3 text-sm"
-        />
-      </div>
-
-      <div className="flex min-w-0 flex-col gap-1.5">
-        <label htmlFor="filter-date-to" className="text-xs font-medium text-[var(--color-text-secondary)]">
-          创建日期至
-        </label>
-        <input
-          id="filter-date-to"
-          aria-label="创建日期至"
-          type="date"
-          value={dateTo}
-          min={dateFrom || undefined}
-          onChange={(e) => emit({ dateTo: e.target.value })}
-          className="field-control h-10 w-full px-3 text-sm"
-        />
-      </div>
-
-      <div className="flex items-end">
         <button
           type="button"
-          onClick={() => onFilterChange({
-            projectId: '',
-            stageId: '',
-            batchScopeId: '',
-            progressCategory: '',
-            assetSaved: '',
-            search: '',
-            resultSummary: '',
-            assignee: '',
-            rootCause: '',
-            dateFrom: '',
-            dateTo: '',
-          })}
-          className="h-10 rounded-md px-3 text-sm text-text-secondary transition-colors hover:bg-bg hover:text-text-primary"
+          aria-expanded={advancedOpen}
+          aria-controls="workspace-advanced-filters"
+          onClick={() => setAdvancedOpen((open) => !open)}
+          className="inline-flex h-12 items-center justify-center gap-2 rounded-[10px] bg-accent px-7 text-sm font-medium text-white shadow-[0_8px_22px_rgba(17,96,242,0.18)] transition hover:bg-accent-hover"
+        >
+          <Funnel size={18} weight="bold" aria-hidden="true" />
+          筛选
+          {activeFilterCount > 0 && (
+            <span className="rounded-full bg-white/20 px-1.5 text-[11px]">
+              {activeFilterCount}
+            </span>
+          )}
+        </button>
+      </div>
+
+      <div className="mt-5 flex flex-wrap items-center gap-2.5">
+        {chips.map((chip) => (
+          <button
+            key={chip.key}
+            type="button"
+            onClick={() => {
+              const patch: Partial<WorkspaceFilters> = { [chip.key]: '' };
+              if (chip.key === 'stageId') patch.batchScopeId = '';
+              if (chip.key === 'dateFrom') patch.dateTo = '';
+              emit(patch);
+            }}
+            className="inline-flex min-h-8 items-center gap-2 rounded-[8px] border border-border/80 bg-bg/55 px-3 text-xs font-normal text-text-secondary transition hover:border-accent/25 hover:bg-surface-solid"
+          >
+            <span>
+              {chip.label}：{chip.value || chip.defaultText}
+            </span>
+            <X size={12} weight="bold" aria-hidden="true" />
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={clearFilters}
+          className="ml-auto min-h-8 px-2 text-xs font-semibold text-accent hover:text-accent-hover"
         >
           清除筛选
         </button>
       </div>
-    </div>
+
+      <div
+        id="workspace-advanced-filters"
+        className={`${advancedOpen ? 'grid' : 'hidden'} mt-5 gap-3 border-t border-border/60 pt-5 sm:grid-cols-2 lg:grid-cols-4`}
+      >
+        <label className="space-y-1.5">
+          <span className="text-xs font-medium text-text-secondary">测试阶段</span>
+          <select
+            aria-label="测试阶段"
+            value={selectedStageId}
+            disabled={!selectedProjectId}
+            onChange={(event) =>
+              emit({ stageId: event.target.value, batchScopeId: '' })
+            }
+            className={advancedControl}
+          >
+            <option value="">全部阶段</option>
+            {filteredStages.map((stage) => (
+              <option key={stage.id} value={stage.id}>
+                {stage.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="space-y-1.5">
+          <span className="text-xs font-medium text-text-secondary">批跑范围</span>
+          <select
+            aria-label="批跑范围"
+            value={selectedBatchScopeId}
+            disabled={!selectedStageId}
+            onChange={(event) => emit({ batchScopeId: event.target.value })}
+            className={advancedControl}
+          >
+            <option value="">全部范围</option>
+            {filteredBatches.map((batch) => (
+              <option key={batch.id} value={batch.id}>
+                {batch.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="space-y-1.5">
+          <span className="text-xs font-medium text-text-secondary">结果概要</span>
+          <select
+            aria-label="结果概要"
+            value={resultSummary}
+            onChange={(event) => emit({ resultSummary: event.target.value })}
+            className={advancedControl}
+          >
+            <option value="">全部结果</option>
+            {RESULT_SUMMARIES.map((result) => (
+              <option key={result} value={result}>
+                {result}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="space-y-1.5">
+          <span className="text-xs font-medium text-text-secondary">资产状态</span>
+          <select
+            aria-label="资产状态"
+            value={selectedAssetSaved}
+            onChange={(event) => emit({ assetSaved: event.target.value })}
+            className={advancedControl}
+          >
+            <option value="">全部</option>
+            <option value="true">已保存</option>
+            <option value="false">未保存</option>
+          </select>
+        </label>
+
+        <label className="space-y-1.5">
+          <span className="text-xs font-medium text-text-secondary">责任人</span>
+          <input
+            aria-label="责任人"
+            value={assignee}
+            onChange={(event) => emit({ assignee: event.target.value })}
+            placeholder="输入责任人"
+            className={advancedControl}
+          />
+        </label>
+
+        <label className="space-y-1.5">
+          <span className="text-xs font-medium text-text-secondary">根因</span>
+          <input
+            aria-label="根因"
+            value={rootCause}
+            onChange={(event) => emit({ rootCause: event.target.value })}
+            placeholder="输入根因关键词"
+            className={advancedControl}
+          />
+        </label>
+
+        <label className="space-y-1.5">
+          <span className="text-xs font-medium text-text-secondary">创建日期从</span>
+          <input
+            aria-label="创建日期从"
+            type="text"
+            inputMode="numeric"
+            value={dateFrom}
+            onChange={(event) => emit({ dateFrom: event.target.value })}
+            placeholder="YYYY-MM-DD"
+            className={advancedControl}
+          />
+        </label>
+
+        <label className="space-y-1.5">
+          <span className="text-xs font-medium text-text-secondary">创建日期至</span>
+          <input
+            aria-label="创建日期至"
+            type="text"
+            inputMode="numeric"
+            value={dateTo}
+            onChange={(event) => emit({ dateTo: event.target.value })}
+            placeholder="YYYY-MM-DD"
+            className={advancedControl}
+          />
+        </label>
+      </div>
+    </section>
   );
 }

@@ -21,7 +21,7 @@ describe('MetricCards', () => {
     // MetricCards uses data-metric attributes on wrapper divs
     expect(screen.getByText('100')).toBeInTheDocument();
     expect(screen.getByText('25')).toBeInTheDocument();
-    expect(screen.getByText('10')).toBeInTheDocument();
+    expect(screen.getAllByText('10')).toHaveLength(2);
     expect(screen.getByText('80')).toBeInTheDocument();
     expect(screen.getByText('45')).toBeInTheDocument();
   });
