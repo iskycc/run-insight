@@ -152,6 +152,12 @@ async function main() {
   });
   console.log(`✅ User: ${viewer.username} (VIEWER)`);
 
+  await prisma.instanceSetup.upsert({
+    where: { id: 1 },
+    update: {},
+    create: { id: 1 },
+  });
+
   const organization = await prisma.organization.upsert({
     where: { id: "legacy-default-organization" },
     update: { name: "默认组织", archived: false },

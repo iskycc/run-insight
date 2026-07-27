@@ -22,6 +22,12 @@ export const importRateLimiter = new RateLimiterMemory({
   duration: 60,
 });
 
+export const setupRateLimiter = new RateLimiterMemory({
+  keyPrefix: "instance-setup",
+  points: 5,
+  duration: 60,
+});
+
 function trustedProxyHops(): number {
   const configured = process.env.TRUST_PROXY_HOPS?.trim();
   if (!configured || !/^\d+$/.test(configured)) return 0;
@@ -151,5 +157,14 @@ export function checkImportRateLimit(
   return checkRateLimit(
     importRateLimiter,
     getIdentityRateLimitKey(`import:${userId}`, request),
+  );
+}
+
+export function checkSetupRateLimit(
+  request: NextRequest,
+): Promise<NextResponse<ApiError> | null> {
+  return checkRateLimit(
+    setupRateLimiter,
+    getIdentityRateLimitKey("instance-setup", request),
   );
 }

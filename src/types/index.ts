@@ -160,6 +160,25 @@ export interface LoginResponse {
   user: UserDTO;
 }
 
+export interface InstanceSetupStatusResponse {
+  initialized: boolean;
+  setupAvailable: boolean;
+}
+
+export interface InitializeInstanceRequest {
+  setupToken: string;
+  adminUsername: string;
+  adminPassword: string;
+  viewerUsername: string;
+  viewerPassword: string;
+}
+
+export interface InitializeInstanceResponse {
+  initialized: true;
+  adminUsername: string;
+  viewerUsername: string;
+}
+
 export interface MeResponse {
   user: UserDTO | null;
 }

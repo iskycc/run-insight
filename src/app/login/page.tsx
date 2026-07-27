@@ -14,7 +14,24 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const showDevelopmentCredentials = process.env.NODE_ENV === 'development';
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch('/api/setup', {
+      cache: 'no-store',
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) return;
+        const status = (await response.json()) as { initialized?: boolean };
+        if (status.initialized === false) router.replace('/setup');
+      })
+      .catch(() => {
+        // Keep the normal login form available if the status check is
+        // temporarily unavailable. The setup API remains the source of truth.
+      });
+    return () => controller.abort();
+  }, [router]);
 
   useEffect(() => {
     if (user) router.replace('/workspace');
@@ -92,11 +109,6 @@ export default function LoginPage() {
           </form>
         </div>
 
-        {showDevelopmentCredentials && (
-          <p className="mt-6 text-center text-xs text-text-secondary/60">
-            本地开发账号：admin / admin123
-          </p>
-        )}
       </div>
     </div>
   );

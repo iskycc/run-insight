@@ -3,7 +3,7 @@
  */
 
 import '@testing-library/jest-dom';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import LoginPage from '@/app/login/page';
 
 const mockReplace = jest.fn();
@@ -24,37 +24,38 @@ jest.mock('@/components/shared/AuthProvider', () => ({
   }),
 }));
 
-const originalNodeEnv = process.env.NODE_ENV;
+const originalFetch = globalThis.fetch;
 
-function setNodeEnv(value: string) {
-  Object.defineProperty(process.env, 'NODE_ENV', {
-    configurable: true,
-    enumerable: true,
-    writable: true,
-    value,
+describe('LoginPage', () => {
+  beforeEach(() => {
+    (globalThis as unknown as { fetch: typeof fetch }).fetch = jest.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: async () => ({ initialized: true }),
+      } as Response),
+    ) as unknown as typeof fetch;
   });
-}
 
-describe('LoginPage credential hint', () => {
   afterEach(() => {
     jest.clearAllMocks();
-    setNodeEnv(originalNodeEnv ?? 'test');
+    (globalThis as unknown as { fetch: typeof fetch }).fetch = originalFetch;
   });
 
-  it('does not expose seeded credentials in production', () => {
-    setNodeEnv('production');
-
+  it('renders the login form without exposing demo credentials', () => {
     render(<LoginPage />);
 
     expect(screen.queryByText(/admin123/)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '登录' })).toBeInTheDocument();
   });
 
-  it('shows the seeded account hint during local development', () => {
-    setNodeEnv('development');
+  it('redirects a fresh instance to the setup guide', async () => {
+    (globalThis.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ initialized: false }),
+    });
 
     render(<LoginPage />);
 
-    expect(screen.getByText('本地开发账号：admin / admin123')).toBeInTheDocument();
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/setup'));
   });
 });

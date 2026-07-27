@@ -11,16 +11,13 @@ import {
   LockKey,
   SignOut,
 } from '@phosphor-icons/react';
-import { LoginPrompt } from '@/components/shared/LoginPrompt';
 import { ChangePasswordModal } from '@/components/shared/ChangePasswordModal';
 import { SessionManagerModal } from '@/components/shared/SessionManagerModal';
 import { NotificationCenter } from '@/components/notifications/NotificationCenter';
 import { OrganizationSwitcher } from '@/components/organizations/OrganizationSwitcher';
 
 export function Header() {
-  const { user, login, logout } = useAuth();
-  const [showLogin, setShowLogin] = useState(false);
-  const [loginError, setLoginError] = useState('');
+  const { user, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [sessionManagerOpen, setSessionManagerOpen] = useState(false);
@@ -41,16 +38,6 @@ export function Header() {
       document.removeEventListener('keydown', closeOnEscape);
     };
   }, [menuOpen]);
-
-  const handleLogin = async (username: string, password: string) => {
-    try {
-      setLoginError('');
-      await login(username, password);
-      setShowLogin(false);
-    } catch {
-      setLoginError('用户名或密码错误');
-    }
-  };
 
   return (
     <>
@@ -147,25 +134,16 @@ export function Header() {
               </div>
             </>
           ) : (
-            <button
-              onClick={() => setShowLogin(true)}
-              className="min-h-10 rounded-[12px] bg-accent px-4 text-sm font-medium text-white shadow-sm transition-colors hover:bg-accent-hover"
+            <Link
+              href="/login"
+              className="inline-flex min-h-10 items-center rounded-[12px] bg-accent px-4 text-sm font-medium text-white shadow-sm transition-colors hover:bg-accent-hover hover:text-white"
             >
               登录
-            </button>
+            </Link>
           )}
         </div>
       </header>
 
-      <LoginPrompt
-        open={showLogin}
-        onClose={() => {
-          setShowLogin(false);
-          setLoginError('');
-        }}
-        onLogin={handleLogin}
-        loginError={loginError}
-      />
       <ChangePasswordModal
         open={changePasswordOpen}
         onClose={() => setChangePasswordOpen(false)}

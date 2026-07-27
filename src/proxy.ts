@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { verifyToken, getTokenFromCookies } from "@/lib/auth";
 import { resolveRequestId } from "@/lib/logger";
 
-const PUBLIC_PAGES = new Set(["/", "/login"]);
+const PUBLIC_PAGES = new Set(["/", "/login", "/setup"]);
 const STATIC_FILE_PATTERN = /\/[^/]+\.[A-Za-z0-9]{1,10}$/;
 
 function continueRequest(request: NextRequest, requestId: string) {

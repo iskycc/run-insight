@@ -31,6 +31,7 @@ cp .env.example .env
 ```env
 DATABASE_URL=mysql://root:root123@127.0.0.1:3306/run_insight
 JWT_SECRET=<使用 openssl rand -hex 48 生成>
+INSTANCE_SETUP_TOKEN=<使用 openssl rand -hex 32 生成>
 NEXT_PUBLIC_TIME_ZONE=Asia/Shanghai
 ```
 
@@ -48,11 +49,18 @@ NEXT_PUBLIC_TIME_ZONE=Asia/Shanghai
 # 运行迁移
 npx prisma migrate dev
 
-# 填充种子数据（含管理员账号 + 3 个项目示例数据）
+# 可选：仅本地开发需要演示账号和示例项目时执行
 npx prisma db seed
 ```
 
-本地种子数据默认创建 `admin / admin123` 和 `viewer / viewer123`，也可以通过
+正常部署不需要、也不应执行种子脚本。迁移完成后首次访问登录入口，系统会自动进入
+`/setup` 初始化向导，使用 `INSTANCE_SETUP_TOKEN` 验证部署身份后，引导创建管理员和
+只读账号；管理员会成为默认组织 OWNER，只读账号会成为 MEMBER。初始化采用数据库
+唯一标记保证只能成功一次，完成后公开注册入口永久关闭。初始化密钥至少 32 个字符，
+只通过部署环境传入，不会写入数据库。
+
+仅本地演示需要时，种子数据默认创建 `admin / admin123` 和
+`viewer / viewer123`，也可以通过
 `SEED_ADMIN_PASSWORD`、`SEED_VIEWER_PASSWORD` 覆盖。种子脚本会重建演示项目，
 因此生产环境默认拒绝执行。确需在生产执行时，必须同时设置
 `RUN_INSIGHT_ALLOW_PRODUCTION_SEED=true`，并为两个种子账号提供至少 12 位的独立密码。
@@ -111,6 +119,7 @@ prisma/
 | POST | `/api/auth/login` | 登录 |
 | POST | `/api/auth/logout` | 登出 |
 | GET | `/api/auth/me` | 当前用户信息 |
+| GET / POST | `/api/setup` | 查询初始化状态 / 首次创建管理员与只读账号 |
 | GET / POST | `/api/organizations` | 当前用户的组织列表 / 创建组织 |
 | POST | `/api/organizations/current` | 切换当前组织（安全 HttpOnly Cookie） |
 | GET / POST | `/api/organizations/:id/members` | 组织成员列表 / 添加成员 |
@@ -248,7 +257,8 @@ cp .env.docker.example .env
 ```
 
 编辑 `.env`，填写 `MARIADB_PASSWORD`、`MARIADB_ROOT_PASSWORD`、`DATABASE_URL`、
-`JWT_SECRET`、`CRON_SECRET` 和 `WEBHOOK_ENCRYPTION_KEY`。密码建议使用
+`JWT_SECRET`、`INSTANCE_SETUP_TOKEN`、`CRON_SECRET` 和
+`WEBHOOK_ENCRYPTION_KEY`。密码建议使用
 `openssl rand -hex 24`，JWT 密钥建议使用
 `openssl rand -hex 48`。`DATABASE_URL` 中的账号、密码和数据库名必须与 MariaDB
 变量一致，例如：
@@ -260,6 +270,7 @@ MARIADB_PASSWORD=<URL 安全的随机密码>
 MARIADB_ROOT_PASSWORD=<另一个随机密码>
 DATABASE_URL=mysql://run_insight:<与 MARIADB_PASSWORD 相同>@db:3306/run_insight
 JWT_SECRET=<至少 32 字节的随机密钥>
+INSTANCE_SETUP_TOKEN=<openssl rand -hex 32 的输出>
 CRON_SECRET=<与 JWT_SECRET 不同的随机密钥>
 WEBHOOK_ENCRYPTION_KEY=<openssl rand -base64 32 的输出>
 NEXT_PUBLIC_TIME_ZONE=Asia/Shanghai
@@ -279,6 +290,11 @@ docker compose up -d
 1. `db` 启动 MariaDB，并暴露到宿主机 `3307`。
 2. `migrate` 使用同一个应用镜像执行 `prisma migrate deploy` 自动建表。
 3. `app` 在迁移成功后启动，并通过就绪检查确认数据库可用，访问地址为 http://localhost:3300 。
+4. 首次打开登录入口会进入 `/setup`，按页面引导创建管理员和只读账号。
+
+正常部署不要执行 `prisma db seed`。初始化 API 只在数据库没有用户且不存在初始化标记
+时开放；创建两个账号、组织成员关系和初始化标记在同一个事务中完成。已有数据的升级
+实例会在迁移时自动写入初始化标记，不会出现重新注册管理员的入口。
 
 查看状态和日志：
 

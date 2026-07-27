@@ -53,6 +53,22 @@ describe('Header password management', () => {
     return user;
   }
 
+  it('routes unauthenticated users through the login page', () => {
+    mockUseAuth.mockReturnValue({
+      user: null,
+      isLoading: false,
+      login: mockLogin,
+      logout: mockLogout,
+    });
+
+    render(<Header />);
+
+    expect(screen.getByRole('link', { name: '登录' })).toHaveAttribute(
+      'href',
+      '/login',
+    );
+  });
+
   it('changes the current password and signs out every session', async () => {
     mockFetchJson.mockResolvedValueOnce({ success: true });
     render(<Header />);

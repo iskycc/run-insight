@@ -14,6 +14,7 @@ import {
   checkImportRateLimit,
   checkLoginRateLimit,
   checkRateLimit,
+  checkSetupRateLimit,
   getClientIp,
   getIdentityRateLimitKey,
   loginRateLimiter,
@@ -211,6 +212,21 @@ describe("rate limiter", () => {
     expect(result).toBeNull();
     expect(consumeMock).toHaveBeenCalledWith(
       "identity:import%3Auser-1|source:203.0.113.9",
+    );
+  });
+
+  it("limits first-run initialization by source", async () => {
+    Object.assign(process.env, { NODE_ENV: "development" });
+    process.env.TRUST_PROXY_HOPS = "1";
+    consumeMock.mockResolvedValue(undefined);
+
+    const result = await checkSetupRateLimit(
+      request({ "x-forwarded-for": "203.0.113.10" }),
+    );
+
+    expect(result).toBeNull();
+    expect(consumeMock).toHaveBeenCalledWith(
+      "identity:instance-setup|source:203.0.113.10",
     );
   });
 });

@@ -36,6 +36,12 @@ describe("proxy middleware", () => {
       expect(res).toBeInstanceOf(NextResponse);
     });
 
+    it("should allow /setup", () => {
+      const req = createRequest("/setup");
+      const res = proxy(req);
+      expect(res).toBeInstanceOf(NextResponse);
+    });
+
     it("should allow /api/auth/login", () => {
       const req = createRequest("/api/auth/login");
       const res = proxy(req);
