@@ -112,7 +112,6 @@ jobs:
 
   build-and-push:
     name: Build and push Docker image
-    needs: quality
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
