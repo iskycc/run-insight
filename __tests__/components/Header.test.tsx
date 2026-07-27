@@ -82,6 +82,22 @@ describe('Header password management', () => {
     expect(screen.queryByRole('link', { name: '管理组织' })).not.toBeInTheDocument();
   });
 
+  it('anchors the notification panel to the full user area on narrow screens', async () => {
+    render(<Header />);
+    const user = userEvent.setup();
+
+    const notificationButton = screen.getByRole('button', { name: '通知' });
+    expect(notificationButton.parentElement).toHaveClass('static', 'sm:relative');
+
+    await user.click(notificationButton);
+
+    expect(screen.getByRole('dialog', { name: '通知中心' })).toHaveClass(
+      'right-0',
+      'w-[calc(100vw-2.5rem)]',
+      'sm:w-[min(24rem,calc(100vw-1rem))]',
+    );
+  });
+
   it('changes the current password and signs out every session', async () => {
     mockFetchJson.mockResolvedValueOnce({ success: true });
     render(<Header />);

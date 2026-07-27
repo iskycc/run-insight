@@ -39,7 +39,7 @@ export function Modal({ open, onClose, title, children, footer }: ModalProps) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
       {/* Overlay */}
       <div
         data-testid="modal-overlay"
@@ -48,12 +48,12 @@ export function Modal({ open, onClose, title, children, footer }: ModalProps) {
       />
 
       <div
-        className="relative z-10 mx-4 w-full max-w-lg overflow-hidden rounded-[20px] border border-white/70 bg-surface-solid shadow-lg"
+        className="relative z-10 flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-[20px] border border-white/70 bg-surface-solid shadow-lg sm:max-h-[calc(100dvh-3rem)]"
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
       >
-        <div className="flex items-center justify-between border-b border-border px-6 py-4">
+        <div className="flex shrink-0 items-center justify-between border-b border-border px-6 py-4">
           <h2 id={titleId} className="text-lg font-semibold text-text-primary">
             {title}
           </h2>
@@ -66,10 +66,10 @@ export function Modal({ open, onClose, title, children, footer }: ModalProps) {
           </button>
         </div>
 
-        <div className="px-6 py-4">{children}</div>
+        <div className="min-h-0 overflow-y-auto px-6 py-4">{children}</div>
 
         {footer && (
-          <div className="flex items-center justify-end gap-2 border-t border-border bg-bg/40 px-6 py-4">
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border bg-bg/40 px-6 py-4">
             {footer}
           </div>
         )}

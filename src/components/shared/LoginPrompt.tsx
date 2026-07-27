@@ -27,7 +27,7 @@ export function LoginPrompt({ open, onClose, onLogin, loginError }: LoginPromptP
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-4">
       {/* Backdrop overlay */}
       <div
         aria-hidden="true"
@@ -40,7 +40,7 @@ export function LoginPrompt({ open, onClose, onLogin, loginError }: LoginPromptP
         role="dialog"
         aria-modal="true"
         aria-labelledby="login-prompt-title"
-        className="panel relative z-10 mx-4 w-full max-w-sm p-6 shadow-lg"
+        className="panel relative z-10 max-h-[calc(100dvh-2rem)] w-full max-w-sm overflow-y-auto p-6 shadow-lg"
       >
         <h2 id="login-prompt-title" className="mb-4 text-lg font-semibold text-text-primary">
           请先登录

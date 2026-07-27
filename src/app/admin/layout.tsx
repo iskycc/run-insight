@@ -16,13 +16,13 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="space-y-0 pt-5">
-      <header className="bento-panel mx-3 px-5 py-4 sm:mx-6 sm:px-6 xl:mx-auto xl:w-[calc(100%-3rem)] xl:max-w-[1312px]">
+      <header className="bento-panel mx-3 px-5 py-4 sm:mx-6 sm:px-6 xl:mx-auto xl:w-[calc(100%-2.5rem)] xl:max-w-[1280px]">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-xl font-semibold text-text-primary">平台管理</h1>
             <p className="mt-0.5 text-xs text-text-secondary">仅管理员可访问</p>
           </div>
-          <nav className="flex items-center gap-2">
+          <nav className="grid w-full grid-cols-3 gap-1 sm:flex sm:w-auto sm:items-center sm:gap-2">
             {NAV_ITEMS.map((item) => {
               const isActive = pathname.startsWith(item.href);
               const Icon = item.icon;
@@ -31,7 +31,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                   key={item.href}
                   href={item.href}
                   aria-current={isActive ? 'page' : undefined}
-                  className={`inline-flex min-h-10 items-center gap-2 whitespace-nowrap rounded-[11px] px-3 text-sm font-medium transition-colors no-underline hover:no-underline
+                  className={`flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 whitespace-nowrap rounded-[11px] px-1.5 text-xs font-medium transition-colors no-underline hover:no-underline sm:min-h-10 sm:flex-row sm:gap-2 sm:px-3 sm:text-sm
                     ${
                       isActive
                         ? 'bg-accent text-white shadow-sm'

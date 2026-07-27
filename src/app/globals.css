@@ -204,6 +204,7 @@
 
   .app-user {
     grid-column: 3;
+    position: relative;
   }
 
   .app-nav {
