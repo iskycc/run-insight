@@ -32,6 +32,7 @@ cp .env.example .env
 DATABASE_URL=mysql://root:root123@127.0.0.1:3306/run_insight
 JWT_SECRET=<使用 openssl rand -hex 48 生成>
 INSTANCE_SETUP_TOKEN=<使用 openssl rand -hex 32 生成>
+COOKIE_SECURE=false
 NEXT_PUBLIC_TIME_ZONE=Asia/Shanghai
 ```
 
@@ -271,6 +272,7 @@ MARIADB_ROOT_PASSWORD=<另一个随机密码>
 DATABASE_URL=mysql://run_insight:<与 MARIADB_PASSWORD 相同>@db:3306/run_insight
 JWT_SECRET=<至少 32 字节的随机密钥>
 INSTANCE_SETUP_TOKEN=<openssl rand -hex 32 的输出>
+COOKIE_SECURE=true
 CRON_SECRET=<与 JWT_SECRET 不同的随机密钥>
 WEBHOOK_ENCRYPTION_KEY=<openssl rand -base64 32 的输出>
 NEXT_PUBLIC_TIME_ZONE=Asia/Shanghai
@@ -295,6 +297,25 @@ docker compose up -d
 正常部署不要执行 `prisma db seed`。初始化 API 只在数据库没有用户且不存在初始化标记
 时开放；创建两个账号、组织成员关系和初始化标记在同一个事务中完成。已有数据的升级
 实例会在迁移时自动写入初始化标记，不会出现重新注册管理员的入口。
+
+### HTTP 测试与 Cookie
+
+生产环境默认给认证、退出和组织 Cookie 添加 `Secure`，浏览器只会通过 HTTPS 保存和
+发送这些 Cookie。若测试期间明确使用普通 HTTP 地址，需要在 `.env` 中设置：
+
+```env
+COOKIE_SECURE=false
+```
+
+然后重新创建应用容器使环境变量生效：
+
+```bash
+docker compose up -d --force-recreate app
+```
+
+`COOKIE_SECURE=true` 会强制添加 `Secure`；未配置或填写非法值时，生产环境也会安全
+回退到 `true`。`false` 只适合临时 HTTP 测试，因为登录凭据和会话 Cookie 会通过
+未加密网络传输；正式环境应恢复为 `true` 并启用 HTTPS。
 
 查看状态和日志：
 

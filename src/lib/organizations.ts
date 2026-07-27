@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import type { OrganizationRole } from "@/generated/prisma/enums";
+import { shouldUseSecureCookies } from "@/lib/cookie-security";
 
 export const ORGANIZATION_COOKIE_NAME = "run_insight_organization";
 const ORGANIZATION_COOKIE_MAX_AGE = 7 * 24 * 60 * 60;
@@ -119,7 +120,7 @@ export async function getCurrentOrganization(
 }
 
 export function createOrganizationCookie(organizationId: string): string {
-  const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
+  const secure = shouldUseSecureCookies() ? "; Secure" : "";
   return `${ORGANIZATION_COOKIE_NAME}=${encodeURIComponent(organizationId)}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${ORGANIZATION_COOKIE_MAX_AGE}${secure}`;
 }
 

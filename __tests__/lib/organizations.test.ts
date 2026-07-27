@@ -56,4 +56,28 @@ describe("organization context", () => {
       "run_insight_organization=o%2F1; HttpOnly; Path=/; SameSite=Lax",
     );
   });
+
+  it("honors the explicit HTTP testing override", () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+    const originalCookieSecure = process.env.COOKIE_SECURE;
+    try {
+      Object.assign(process.env, {
+        NODE_ENV: "production",
+        COOKIE_SECURE: "false",
+      });
+
+      expect(createOrganizationCookie("o1")).not.toContain("Secure");
+    } finally {
+      if (originalNodeEnv === undefined) {
+        delete process.env.NODE_ENV;
+      } else {
+        process.env.NODE_ENV = originalNodeEnv;
+      }
+      if (originalCookieSecure === undefined) {
+        delete process.env.COOKIE_SECURE;
+      } else {
+        process.env.COOKIE_SECURE = originalCookieSecure;
+      }
+    }
+  });
 });

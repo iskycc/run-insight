@@ -133,9 +133,19 @@ describe("createLogoutCookie", () => {
 
 describe("cookie secure flag", () => {
   const originalEnv = process.env.NODE_ENV;
+  const originalCookieSecure = process.env.COOKIE_SECURE;
+
+  beforeEach(() => {
+    delete process.env.COOKIE_SECURE;
+  });
 
   afterEach(() => {
     Object.assign(process.env, { NODE_ENV: originalEnv });
+    if (originalCookieSecure === undefined) {
+      delete process.env.COOKIE_SECURE;
+    } else {
+      process.env.COOKIE_SECURE = originalCookieSecure;
+    }
   });
 
   it("createTokenCookie includes Secure in production", () => {
@@ -160,5 +170,25 @@ describe("cookie secure flag", () => {
     Object.assign(process.env, { NODE_ENV: "development" });
     const cookie = createLogoutCookie();
     expect(cookie).not.toContain("Secure");
+  });
+
+  it("allows an explicit insecure cookie override in production", () => {
+    Object.assign(process.env, {
+      NODE_ENV: "production",
+      COOKIE_SECURE: "false",
+    });
+
+    expect(createTokenCookie("test-token")).not.toContain("Secure");
+    expect(createLogoutCookie()).not.toContain("Secure");
+  });
+
+  it("allows Secure cookies to be forced outside production", () => {
+    Object.assign(process.env, {
+      NODE_ENV: "development",
+      COOKIE_SECURE: "true",
+    });
+
+    expect(createTokenCookie("test-token")).toContain("Secure");
+    expect(createLogoutCookie()).toContain("Secure");
   });
 });

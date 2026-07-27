@@ -3,6 +3,7 @@ import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import { NextRequest, NextResponse } from "next/server";
 import { parseApiKeyScopes } from "@/lib/api-keys";
+import { shouldUseSecureCookies } from "@/lib/cookie-security";
 import { prisma } from "@/lib/prisma";
 import type { ApiError, ApiKeyScope, Role } from "@/types";
 
@@ -142,12 +143,12 @@ export function getTokenFromCookies(cookieHeader: string | null): string | null 
 }
 
 export function createTokenCookie(token: string): string {
-  const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
+  const secure = shouldUseSecureCookies() ? "; Secure" : "";
   return `${COOKIE_NAME}=${token}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${SESSION_TTL_SECONDS}${secure}`;
 }
 
 export function createLogoutCookie(): string {
-  const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
+  const secure = shouldUseSecureCookies() ? "; Secure" : "";
   return `${COOKIE_NAME}=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0${secure}`;
 }
 
