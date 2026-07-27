@@ -30,7 +30,12 @@ test('管理员登录后立即获得与角色匹配的导航', async ({ page }) 
   const navigation = page.getByRole('navigation', { name: '主导航' });
   await expect(navigation.getByRole('link', { name: '工作台', exact: true })).toBeVisible();
   await expect(navigation.getByRole('link', { name: '导入', exact: true })).toBeVisible();
-  await expect(navigation.getByRole('link', { name: '系统管理', exact: true })).toBeVisible();
+  await navigation.getByRole('button', { name: '更多', exact: true }).click();
+  const platformManagement = page
+    .getByRole('menu', { name: '更多导航' })
+    .getByRole('menuitem', { name: '平台管理', exact: true });
+  await expect(platformManagement).toBeVisible();
+  await expect(platformManagement).toHaveAttribute('href', '/admin/users');
 });
 
 test('管理员可以打开项目和工作台并完成真实用例筛选', async ({ page }) => {
