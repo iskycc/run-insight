@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import StatCard from '@/components/dashboard/StatCard';
 import ProgressDistribution from '@/components/dashboard/ProgressDistribution';
 import TrendChart from '@/components/dashboard/TrendChart';
+import ResultComposition from '@/components/dashboard/ResultComposition';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { useAuth } from '@/components/shared/AuthProvider';
 import Link from 'next/link';
@@ -131,8 +132,16 @@ export default function DashboardPage() {
           </section>
         </div>
 
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.3fr)]">
-          <ProgressDistribution data={stats?.progressDistribution ?? []} />
+        <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.3fr)]">
+          <div className="grid gap-5">
+            <ProgressDistribution data={stats?.progressDistribution ?? []} />
+            <ResultComposition
+              passed={stats?.passedCaseCount ?? 0}
+              failed={stats?.failedCaseCount ?? 0}
+              blocked={stats?.blockedCaseCount ?? 0}
+              skipped={stats?.skippedCaseCount ?? 0}
+            />
+          </div>
           <TrendChart data={trend?.trends ?? []} />
         </div>
 

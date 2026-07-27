@@ -3,6 +3,7 @@
 import { formatDateTime } from '@/lib/date-time';
 import { getProgressLabel } from '@/lib/progress';
 import { ArrowRight, CaretDown, CaretUp } from '@phosphor-icons/react';
+import { Select } from '@/components/shared/Select';
 
 interface CaseRow {
   id: string;
@@ -190,25 +191,24 @@ export default function CaseTable({
           查看全部
           <ArrowRight size={16} weight="bold" aria-hidden="true" />
         </button>
-        <label className="flex items-center gap-2 text-xs font-medium text-text-secondary md:hidden">
+        <div className="flex items-center gap-2 text-xs font-medium text-text-secondary md:hidden">
           <span>排序</span>
-          <select
+          <Select
             aria-label="移动端排序"
             value={mobileSortValue}
             onChange={(event) => {
               const option = MOBILE_SORT_OPTIONS.find((item) => item.value === event.target.value);
               if (option) onSortChange({ field: option.field, order: option.order });
             }}
-            className="field-control h-9 rounded-[9px] bg-surface-solid px-2.5 text-xs"
-          >
-            {!MOBILE_SORT_OPTIONS.some((option) => option.value === mobileSortValue) && (
-              <option value={mobileSortValue}>当前排序</option>
-            )}
-            {MOBILE_SORT_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
-        </label>
+            className="h-9 min-w-28 rounded-[9px] bg-surface-solid px-2.5 text-xs"
+            options={[
+              ...(!MOBILE_SORT_OPTIONS.some((option) => option.value === mobileSortValue)
+                ? [{ value: mobileSortValue, label: '当前排序' }]
+                : []),
+              ...MOBILE_SORT_OPTIONS,
+            ]}
+          />
+        </div>
       </div>
 
       {canEdit && selectedIds.length > 0 && (

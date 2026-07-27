@@ -39,6 +39,7 @@ describe('Nav', () => {
     renderNav({ id: 'u-1', username: 'admin', role: 'ADMIN' });
 
     await waitFor(() => expect(screen.getByRole('link', { name: '项目' })).toBeInTheDocument());
+    expect(screen.getByRole('link', { name: '大盘' })).toHaveAttribute('href', '/');
     expect(screen.getByRole('link', { name: '责任人报告' })).toHaveAttribute(
       'href',
       '/reports/assignee'

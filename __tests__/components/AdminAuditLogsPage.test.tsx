@@ -5,6 +5,7 @@
 import '@testing-library/jest-dom';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { chooseSelectOption } from '../../test-utils/select';
 import AdminAuditLogsPage from '@/app/admin/audit-logs/page';
 import { ApiError } from '@/lib/fetch';
 
@@ -74,21 +75,27 @@ describe('AdminAuditLogsPage', () => {
     render(<AdminAuditLogsPage />);
 
     expect(await screen.findByText('c1')).toBeInTheDocument();
-    expect(screen.getAllByText('用例').length).toBeGreaterThan(1);
-    expect(screen.getAllByText('admin').length).toBeGreaterThan(1);
+    expect(screen.getAllByText('用例').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('admin').length).toBeGreaterThan(0);
+
+    await user.click(screen.getByLabelText('实体类型'));
     expect(screen.getByRole('option', { name: '知识资产' })).toHaveValue('asset');
     expect(screen.getByRole('option', { name: '项目成员' })).toHaveValue('member');
     expect(screen.getByRole('option', { name: 'API Key' })).toHaveValue('apiKey');
     expect(screen.getByRole('option', { name: '根因分类' })).toHaveValue(
       'rootCauseCategory',
     );
+    expect(screen.getByRole('option', { name: '登录会话' })).toHaveValue('session');
+    expect(screen.getByRole('option', { name: '导入记录' })).toHaveValue('import');
+    await user.keyboard('{Escape}');
+
+    await user.click(screen.getByLabelText('动作'));
     expect(screen.getByRole('option', { name: '登录' })).toHaveValue('LOGIN');
     expect(screen.getByRole('option', { name: '导入' })).toHaveValue('IMPORT');
     expect(screen.getByRole('option', { name: '撤销 API Key' })).toHaveValue(
       'API_KEY_REVOKE',
     );
-    expect(screen.getByRole('option', { name: '登录会话' })).toHaveValue('session');
-    expect(screen.getByRole('option', { name: '导入记录' })).toHaveValue('import');
+    await user.keyboard('{Escape}');
     expect(screen.queryByText(/pending/)).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: '查看详情' }));
@@ -108,9 +115,9 @@ describe('AdminAuditLogsPage', () => {
     await screen.findByText('c1');
     await waitFor(() => expect(screen.getByLabelText('用户')).toHaveValue(''));
 
-    await user.selectOptions(screen.getByLabelText('用户'), 'u1');
-    await user.selectOptions(screen.getByLabelText('动作'), 'UPDATE');
-    await user.selectOptions(screen.getByLabelText('实体类型'), 'case');
+    await chooseSelectOption(user, screen.getByLabelText('用户'), 'admin');
+    await chooseSelectOption(user, screen.getByLabelText('动作'), '更新');
+    await chooseSelectOption(user, screen.getByLabelText('实体类型'), '用例');
     await user.type(screen.getByLabelText('实体 ID'), 'c1');
     fireEvent.change(screen.getByLabelText('开始日期'), { target: { value: '2025-01-01' } });
     fireEvent.change(screen.getByLabelText('结束日期'), { target: { value: '2025-01-31' } });

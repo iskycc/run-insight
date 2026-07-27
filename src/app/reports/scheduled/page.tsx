@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { Select } from "@/components/shared/Select";
 
 type Project = { id: string; name: string; archived: boolean };
 type SnapshotLink = { id: string; generatedAt: string };
@@ -177,43 +178,32 @@ export default function ScheduledReportsPage() {
               className="mt-1.5 w-full rounded-xl border border-border bg-bg px-3 py-2.5 text-text-primary"
             />
           </label>
-          <label className="text-sm text-text-secondary">
-            项目
-            <select
-              required
-              value={projectId}
-              onChange={(event) => setProjectId(event.target.value)}
-              className="mt-1.5 w-full rounded-xl border border-border bg-bg px-3 py-2.5 text-text-primary"
-            >
-              <option value="">请选择</option>
-              {activeProjects.map((project) => (
-                <option key={project.id} value={project.id}>{project.name}</option>
-              ))}
-            </select>
-          </label>
-          <label className="text-sm text-text-secondary">
-            报表类型
-            <select
-              value={type}
-              onChange={(event) => setType(event.target.value as ScheduledReport["type"])}
-              className="mt-1.5 w-full rounded-xl border border-border bg-bg px-3 py-2.5 text-text-primary"
-            >
-              {Object.entries(TYPE_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
-            </select>
-          </label>
-          <label className="text-sm text-text-secondary">
-            频率
-            <select
-              value={cadence}
-              onChange={(event) => setCadence(event.target.value as ScheduledReport["cadence"])}
-              className="mt-1.5 w-full rounded-xl border border-border bg-bg px-3 py-2.5 text-text-primary"
-            >
-              <option value="DAILY">每天</option>
-              <option value="WEEKLY">每周</option>
-            </select>
-          </label>
+          <Select
+            label="项目"
+            required
+            value={projectId}
+            placeholder="请选择"
+            onChange={(event) => setProjectId(event.target.value)}
+            options={activeProjects.map((project) => ({
+              value: project.id,
+              label: project.name,
+            }))}
+          />
+          <Select
+            label="报表类型"
+            value={type}
+            onChange={(event) => setType(event.target.value as ScheduledReport["type"])}
+            options={Object.entries(TYPE_LABELS).map(([value, label]) => ({ value, label }))}
+          />
+          <Select
+            label="频率"
+            value={cadence}
+            onChange={(event) => setCadence(event.target.value as ScheduledReport["cadence"])}
+            options={[
+              { value: "DAILY", label: "每天" },
+              { value: "WEEKLY", label: "每周" },
+            ]}
+          />
           <label className="text-sm text-text-secondary">
             时区
             <input
@@ -235,18 +225,12 @@ export default function ScheduledReportsPage() {
             />
           </label>
           {cadence === "WEEKLY" && (
-            <label className="text-sm text-text-secondary">
-              每周
-              <select
-                value={weekDay}
-                onChange={(event) => setWeekDay(Number(event.target.value))}
-                className="mt-1.5 w-full rounded-xl border border-border bg-bg px-3 py-2.5 text-text-primary"
-              >
-                {WEEKDAY_LABELS.map((label, value) => (
-                  <option key={label} value={value}>{label}</option>
-                ))}
-              </select>
-            </label>
+            <Select
+              label="每周"
+              value={weekDay}
+              onChange={(event) => setWeekDay(Number(event.target.value))}
+              options={WEEKDAY_LABELS.map((label, value) => ({ value, label }))}
+            />
           )}
           {type === "QUALITY_GATE" && (
             <label className="text-sm text-text-secondary">

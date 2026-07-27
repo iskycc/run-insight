@@ -3,7 +3,9 @@
  */
 
 import '@testing-library/jest-dom';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { chooseSelectOption } from '../../test-utils/select';
 import { useRouter } from 'next/navigation';
 import { ToastProvider } from '@/contexts/ToastContext';
 import { AuthProvider } from '@/components/shared/AuthProvider';
@@ -55,6 +57,7 @@ describe('ImportHistoryPage', () => {
   });
 
   it('renders import history records for authenticated user', async () => {
+    const interaction = userEvent.setup();
     const record = {
       id: 'rec-1',
       projectId: 'proj-1',
@@ -94,9 +97,9 @@ describe('ImportHistoryPage', () => {
     expect(screen.getByText('100')).toBeInTheDocument(); // totalRows
     expect(screen.getByText('95')).toBeInTheDocument();  // importedCount
     expect(screen.getByText('5')).toBeInTheDocument();   // errorCount
-    expect(screen.getAllByText('Demo')).toHaveLength(2);
+    expect(screen.getByText('Demo')).toBeInTheDocument();
     expect(screen.getByText('admin')).toBeInTheDocument();
-    expect(screen.getAllByText('部分成功')).toHaveLength(2);
+    expect(screen.getByText('部分成功')).toBeInTheDocument();
     expect(screen.getByText('2026年7月20日 16:30')).toBeInTheDocument();
     expect(
       (globalThis.fetch as jest.Mock).mock.calls.some(([url]) =>
@@ -104,12 +107,8 @@ describe('ImportHistoryPage', () => {
       )
     ).toBe(false);
 
-    fireEvent.change(screen.getByLabelText('项目筛选'), {
-      target: { value: 'proj-1' },
-    });
-    fireEvent.change(screen.getByLabelText('状态筛选'), {
-      target: { value: 'failed' },
-    });
+    await chooseSelectOption(interaction, screen.getByLabelText('项目筛选'), 'Demo');
+    await chooseSelectOption(interaction, screen.getByLabelText('状态筛选'), '失败');
 
     await waitFor(() => {
       expect(

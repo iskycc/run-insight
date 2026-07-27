@@ -5,6 +5,7 @@
 import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { chooseSelectOption } from '../../test-utils/select';
 import FilterBar from '@/components/workspace/FilterBar';
 
 const projects = [
@@ -64,7 +65,8 @@ describe('FilterBar', () => {
     const onFilterChange = jest.fn();
     render(<FilterBar {...defaultProps} onFilterChange={onFilterChange} />);
 
-    await userEvent.setup().selectOptions(screen.getByLabelText('项目'), 'p1');
+    const user = userEvent.setup();
+    await chooseSelectOption(user, screen.getByLabelText('项目'), 'Project A');
 
     expect(onFilterChange).toHaveBeenCalledWith({
       projectId: 'p1',
@@ -84,18 +86,17 @@ describe('FilterBar', () => {
   test('shows empty state for stages when no project selected', () => {
     render(<FilterBar {...defaultProps} />);
 
-    const stageSelect = screen.getByLabelText('测试阶段') as HTMLSelectElement;
-    // Only the default "全部阶段" option should be present
-    const stageOptions = Array.from(stageSelect.options);
-    expect(stageOptions).toHaveLength(1);
-    expect(stageOptions[0].value).toBe('');
+    const stageSelect = screen.getByLabelText('测试阶段');
+    expect(stageSelect).toBeDisabled();
+    expect(stageSelect).toHaveTextContent('全部阶段');
   });
 
   test('changing progress category calls onFilterChange', async () => {
     const onFilterChange = jest.fn();
     render(<FilterBar {...defaultProps} onFilterChange={onFilterChange} />);
 
-    await userEvent.setup().selectOptions(screen.getByLabelText('进展'), 'FIXED');
+    const user = userEvent.setup();
+    await chooseSelectOption(user, screen.getByLabelText('进展'), '已修复');
 
     expect(onFilterChange).toHaveBeenCalledWith({
       projectId: '',
@@ -116,7 +117,8 @@ describe('FilterBar', () => {
     const onFilterChange = jest.fn();
     render(<FilterBar {...defaultProps} onFilterChange={onFilterChange} />);
 
-    await userEvent.setup().selectOptions(screen.getByLabelText('资产状态'), 'true');
+    const user = userEvent.setup();
+    await chooseSelectOption(user, screen.getByLabelText('资产状态'), '已保存');
 
     expect(onFilterChange).toHaveBeenCalledWith({
       projectId: '',
@@ -152,7 +154,7 @@ describe('FilterBar', () => {
         onFilterChange={onFilterChange}
       />,
     );
-    await user.selectOptions(screen.getByLabelText('结果概要'), 'FAIL');
+    await chooseSelectOption(user, screen.getByLabelText('结果概要'), 'FAIL');
     expect(onFilterChange).toHaveBeenLastCalledWith(
       expect.objectContaining({ search: 'TC-1', resultSummary: 'FAIL' }),
     );

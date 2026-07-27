@@ -5,6 +5,7 @@
 import '@testing-library/jest-dom';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { chooseSelectOption } from '../../test-utils/select';
 import { useParams } from 'next/navigation';
 import { ToastProvider } from '@/contexts/ToastContext';
 import { AuthProvider } from '@/components/shared/AuthProvider';
@@ -179,7 +180,11 @@ describe('ProjectSettingsPage', () => {
     await screen.findByText('Demo Project');
     await user.click(screen.getByRole('button', { name: '创建 API Key' }));
     await user.type(screen.getByRole('textbox', { name: '描述' }), 'CI pipeline');
-    await user.selectOptions(screen.getByRole('combobox', { name: '有效期' }), '30');
+    await chooseSelectOption(
+      user,
+      screen.getByRole('combobox', { name: '有效期' }),
+      '30 天',
+    );
     await user.click(screen.getByRole('button', { name: '创建' }));
 
     expect(await screen.findByText('API Key 已创建')).toBeInTheDocument();

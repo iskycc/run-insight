@@ -5,6 +5,7 @@
 import '@testing-library/jest-dom';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { chooseSelectOption } from '../../test-utils/select';
 import ImportPage from '@/app/import/page';
 import { useAuth } from '@/components/shared/AuthProvider';
 import { buildAutoMapping, parseImportFile } from '@/lib/import-file-parser';
@@ -144,13 +145,9 @@ describe('ImportPage preview flow', () => {
     await user.click(screen.getByRole('button', { name: '下一步' }));
     await user.click(screen.getByRole('button', { name: '测试上传' }));
     await screen.findByText('导入目标');
-    await screen.findByRole('option', { name: '项目一' });
-
-    await user.selectOptions(screen.getByLabelText('项目'), 'p1');
-    await screen.findByRole('option', { name: '阶段一' });
-    await user.selectOptions(screen.getByLabelText('测试阶段'), 's1');
-    await screen.findByRole('option', { name: '批跑一' });
-    await user.selectOptions(screen.getByLabelText('批跑范围'), 'b1');
+    await chooseSelectOption(user, screen.getByLabelText('项目'), '项目一');
+    await chooseSelectOption(user, screen.getByLabelText('测试阶段'), '阶段一');
+    await chooseSelectOption(user, screen.getByLabelText('批跑范围'), '批跑一');
     await user.click(screen.getByRole('button', { name: '校验数据' }));
 
     expect(await screen.findByRole('button', { name: '预览导入差异' })).toBeInTheDocument();

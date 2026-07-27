@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { Button } from '@/components/shared/Button';
 import { Input } from '@/components/shared/Input';
+import { Select } from '@/components/shared/Select';
 import { Modal } from '@/components/shared/Modal';
 import { Badge } from '@/components/shared/Badge';
 import { EmptyState } from '@/components/shared/EmptyState';
@@ -387,20 +388,18 @@ export default function ProjectSettingsPage() {
               导入数据（IMPORT）
             </label>
           </fieldset>
-          <label className="block">
-            <span className="text-sm font-medium text-text-primary">有效期</span>
-            <select
-              aria-label="有效期"
-              value={newExpiry}
-              onChange={(event) => setNewExpiry(event.target.value)}
-              className="field-control mt-2 h-11 w-full px-3 text-sm"
-            >
-              <option value="30">30 天</option>
-              <option value="90">90 天</option>
-              <option value="365">1 年</option>
-              <option value="never">永不过期</option>
-            </select>
-          </label>
+          <Select
+            label="有效期"
+            aria-label="有效期"
+            value={newExpiry}
+            onChange={(event) => setNewExpiry(event.target.value)}
+            options={[
+              { value: '30', label: '30 天' },
+              { value: '90', label: '90 天' },
+              { value: '365', label: '1 年' },
+              { value: 'never', label: '永不过期' },
+            ]}
+          />
           <p className="text-xs text-text-secondary">
             创建后将显示一次完整密钥，请妥善保存。权限与有效期创建后不可修改。
           </p>

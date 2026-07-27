@@ -1,5 +1,7 @@
 'use client';
 
+import { Select } from '@/components/shared/Select';
+
 interface FieldMappingProps {
   headers: string[];
   mapping: Record<string, string>;
@@ -49,19 +51,16 @@ export default function FieldMapping({ headers, mapping, onMappingChange, sample
                 )}
               </span>
             </div>
-            <select
+            <Select
               aria-label={`${field.label}对应的文件列`}
               value={mapping[field.key] || ''}
               onChange={(e) => handleFieldChange(field.key, e.target.value)}
-              className="field-control h-11 min-w-0 px-3 text-sm"
-            >
-              <option value="">（不映射）</option>
-              {headers.map((h) => (
-                <option key={h} value={h}>
-                  {h}
-                </option>
-              ))}
-            </select>
+              className="h-11 min-w-0 px-3 text-sm"
+              options={[
+                { value: '', label: '（不映射）' },
+                ...headers.map((header) => ({ value: header, label: header })),
+              ]}
+            />
             <span className="min-w-0 truncate rounded-lg bg-bg/70 px-3 py-2 text-xs text-[var(--color-text-secondary)]">
               {mapping[field.key] && sampleRow[mapping[field.key]] !== undefined
                 ? String(sampleRow[mapping[field.key]])

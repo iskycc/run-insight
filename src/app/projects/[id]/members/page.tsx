@@ -152,16 +152,13 @@ export default function ProjectMembersPage() {
                     <td className="px-4 py-3 font-medium text-text-primary">{member.username}</td>
                     <td className="px-4 py-3">
                       {canManage ? (
-                        <select
+                        <Select
                           aria-label={`修改 ${member.username} 的项目角色`}
                           value={member.role}
                           onChange={(event) => void changeRole(member, event.target.value as ProjectRole)}
-                          className="field-control px-2 py-1 text-sm"
-                        >
-                          {roleOptions.map((option) => (
-                            <option key={option.value} value={option.value}>{option.label}</option>
-                          ))}
-                        </select>
+                          className="h-9 min-w-36 px-2 py-1 text-sm"
+                          options={roleOptions}
+                        />
                       ) : roleLabel[member.role]}
                     </td>
                     <td className="px-4 py-3 text-text-secondary">{member.systemRole}</td>

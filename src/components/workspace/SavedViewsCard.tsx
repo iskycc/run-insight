@@ -8,6 +8,7 @@ import {
   Star,
   Trash,
 } from '@phosphor-icons/react';
+import { Select } from '@/components/shared/Select';
 import type {
   SavedViewDTO,
   SavedViewFilters,
@@ -127,20 +128,19 @@ export default function SavedViewsCard({
             />
           </label>
           <div className="grid grid-cols-2 gap-2">
-            <label className="text-xs text-text-secondary">
-              保存范围
-              <select
-                aria-label="保存范围"
-                value={effectiveScope}
-                onChange={(event) => setScope(event.target.value as SavedViewScope)}
-                className="field-control mt-1 h-9 w-full rounded-[9px] px-2 text-xs"
-              >
-                <option value="PERSONAL">仅自己</option>
-                {canShare && currentProjectId && (
-                  <option value="PROJECT">项目共享</option>
-                )}
-              </select>
-            </label>
+            <Select
+              label="保存范围"
+              aria-label="保存范围"
+              value={effectiveScope}
+              onChange={(event) => setScope(event.target.value as SavedViewScope)}
+              className="h-9 rounded-[9px] px-2 text-xs"
+              options={[
+                { value: 'PERSONAL', label: '仅自己' },
+                ...(canShare && currentProjectId
+                  ? [{ value: 'PROJECT', label: '项目共享' }]
+                  : []),
+              ]}
+            />
             <label className="flex items-end gap-2 pb-2 text-xs text-text-secondary">
               <input
                 type="checkbox"

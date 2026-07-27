@@ -9,6 +9,7 @@ import FieldMapping from '@/components/import/FieldMapping';
 import MappingTemplates from '@/components/import/MappingTemplates';
 import ValidationReport from '@/components/import/ValidationReport';
 import { Button } from '@/components/shared/Button';
+import { Select, type SelectOption } from '@/components/shared/Select';
 import { Check } from '@phosphor-icons/react';
 import { fetchJson, ApiError } from '@/lib/fetch';
 import { buildAutoMapping, parseImportFile } from '@/lib/import-file-parser';
@@ -273,27 +274,23 @@ function SelectField({
   label,
   value,
   disabled,
-  children,
+  options,
   onChange,
 }: {
   label: string;
   value: string;
   disabled?: boolean;
-  children: ReactNode;
+  options: readonly SelectOption[];
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="block">
-      <span className="text-xs font-medium text-[var(--color-text-secondary)]">{label}</span>
-      <select
-        value={value}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.value)}
-        className="field-control mt-2 h-11 w-full px-3 text-sm"
-      >
-        {children}
-      </select>
-    </label>
+    <Select
+      label={label}
+      value={value}
+      disabled={disabled}
+      onValueChange={onChange}
+      options={options}
+    />
   );
 }
 
@@ -1108,6 +1105,14 @@ export default function ImportPage() {
                       <SelectField
                         label="项目"
                         value={creatingProject ? '__new__' : selectedProjectId}
+                        options={[
+                          { value: '', label: '选择项目' },
+                          { value: '__new__', label: '新建项目' },
+                          ...projects.map((project) => ({
+                            value: project.id,
+                            label: project.name,
+                          })),
+                        ]}
                         onChange={(value) => {
                           if (value === '__new__') {
                             setCreatingProject(true);
@@ -1119,13 +1124,7 @@ export default function ImportPage() {
                             handleProjectChange(value);
                           }
                         }}
-                      >
-                        <option value="">选择项目</option>
-                        <option value="__new__">新建项目</option>
-                        {projects.map((project) => (
-                          <option key={project.id} value={project.id}>{project.name}</option>
-                        ))}
-                      </SelectField>
+                      />
                       {creatingProject && (
                         <InlineCreate
                           value={newProjectName}
@@ -1142,6 +1141,14 @@ export default function ImportPage() {
                         label="测试阶段"
                         value={creatingStage ? '__new__' : selectedStageId}
                         disabled={!selectedProjectId}
+                        options={[
+                          { value: '', label: '选择阶段' },
+                          { value: '__new__', label: '新建阶段', disabled: !selectedProjectId },
+                          ...stages.map((stage) => ({
+                            value: stage.id,
+                            label: stage.name,
+                          })),
+                        ]}
                         onChange={(value) => {
                           if (value === '__new__') {
                             setCreatingStage(true);
@@ -1153,13 +1160,7 @@ export default function ImportPage() {
                             handleStageChange(value);
                           }
                         }}
-                      >
-                        <option value="">选择阶段</option>
-                        <option value="__new__" disabled={!selectedProjectId}>新建阶段</option>
-                        {stages.map((stage) => (
-                          <option key={stage.id} value={stage.id}>{stage.name}</option>
-                        ))}
-                      </SelectField>
+                      />
                       {creatingStage && (
                         <InlineCreate
                           value={newStageName}
@@ -1176,6 +1177,14 @@ export default function ImportPage() {
                         label="批跑范围"
                         value={creatingBatch ? '__new__' : selectedBatchScopeId}
                         disabled={!selectedStageId}
+                        options={[
+                          { value: '', label: '选择批跑' },
+                          { value: '__new__', label: '新建批跑', disabled: !selectedStageId },
+                          ...batches.map((batch) => ({
+                            value: batch.id,
+                            label: batch.name,
+                          })),
+                        ]}
                         onChange={(value) => {
                           if (value === '__new__') {
                             setCreatingBatch(true);
@@ -1187,13 +1196,7 @@ export default function ImportPage() {
                             setSelectedBatchScopeId(value);
                           }
                         }}
-                      >
-                        <option value="">选择批跑</option>
-                        <option value="__new__" disabled={!selectedStageId}>新建批跑</option>
-                        {batches.map((batch) => (
-                          <option key={batch.id} value={batch.id}>{batch.name}</option>
-                        ))}
-                      </SelectField>
+                      />
                       {creatingBatch && (
                         <InlineCreate
                           value={newBatchName}

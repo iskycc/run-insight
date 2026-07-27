@@ -3,8 +3,9 @@
  */
 
 import '@testing-library/jest-dom';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { chooseSelectOption } from '../../test-utils/select';
 import ComparePage from '@/app/compare/page';
 import { ToastProvider } from '@/contexts/ToastContext';
 
@@ -117,27 +118,20 @@ describe('ComparePage', () => {
     );
 
     const projectSelect = screen.getAllByRole('combobox')[0];
-    fireEvent.focus(projectSelect);
-    await screen.findByRole('option', { name: '项目一' });
-    await user.selectOptions(projectSelect, 'proj-1');
+    await chooseSelectOption(user, projectSelect, '项目一');
 
     const stageSelect = screen.getAllByRole('combobox')[1];
-    await screen.findByRole('option', { name: '阶段一' });
-    await user.selectOptions(stageSelect, 'stage-1');
-
-    await waitFor(() => {
-      expect(screen.getAllByRole('option', { name: '批跑一' })).toHaveLength(2);
-    });
+    await chooseSelectOption(user, stageSelect, '阶段一');
     await user.click(screen.getByRole('button', { name: '趋势矩阵' }));
 
-    const listbox = screen.getByRole('listbox', { name: '批跑（至少选择 2 个）' });
+    const batchGroup = screen.getByRole('group', { name: '批跑（至少选择 2 个）' });
     const queryButton = screen.getByRole('button', { name: '查询' });
     expect(queryButton).toBeDisabled();
 
-    await user.selectOptions(listbox, ['batch-1']);
+    await user.click(within(batchGroup).getByRole('button', { name: '批跑一' }));
     expect(queryButton).toBeDisabled();
 
-    await user.selectOptions(listbox, ['batch-1', 'batch-2']);
+    await user.click(within(batchGroup).getByRole('button', { name: '批跑二' }));
     expect(queryButton).toBeEnabled();
     expect(document.getElementById('matrix-batches-help')).toHaveTextContent('已选择 2 个。');
 
@@ -158,17 +152,10 @@ describe('ComparePage', () => {
     );
 
     const selects = screen.getAllByRole('combobox');
-    fireEvent.focus(selects[0]);
-    await screen.findByRole('option', { name: '项目一' });
-    await user.selectOptions(selects[0], 'proj-1');
-    await screen.findByRole('option', { name: '阶段一' });
-    await user.selectOptions(selects[1], 'stage-1');
-    await waitFor(() => {
-      expect(screen.getAllByRole('option', { name: '批跑一' })).toHaveLength(2);
-    });
-
-    await user.selectOptions(selects[2], 'batch-1');
-    await user.selectOptions(selects[3], 'batch-1');
+    await chooseSelectOption(user, selects[0], '项目一');
+    await chooseSelectOption(user, selects[1], '阶段一');
+    await chooseSelectOption(user, selects[2], '批跑一');
+    await chooseSelectOption(user, selects[3], '批跑一');
 
     expect(screen.getByRole('button', { name: '对比' })).toBeDisabled();
     expect(screen.getByRole('alert')).toHaveTextContent('批跑 A 和批跑 B 不能相同');
@@ -184,9 +171,7 @@ describe('ComparePage', () => {
 
     await user.click(screen.getByRole('button', { name: '质量门禁' }));
     const projectSelect = screen.getByRole('combobox', { name: '项目' });
-    fireEvent.focus(projectSelect);
-    await screen.findByRole('option', { name: '项目一' });
-    await user.selectOptions(projectSelect, 'proj-1');
+    await chooseSelectOption(user, projectSelect, '项目一');
     await user.type(screen.getByLabelText('批跑 ID（可选）'), 'batch-2');
     await user.clear(screen.getByLabelText('最低通过率（%）'));
     await user.type(screen.getByLabelText('最低通过率（%）'), '90');

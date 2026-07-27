@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { Button } from '@/components/shared/Button';
+import { Select } from '@/components/shared/Select';
 import { Badge } from '@/components/shared/Badge';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { useAuth } from '@/components/shared/AuthProvider';
@@ -115,42 +116,34 @@ export default function ImportHistoryPage() {
     >
       <div className="space-y-5">
         <section className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
-          <label className="block">
-            <span className="text-xs font-semibold text-text-secondary">项目</span>
-            <select
-              aria-label="项目筛选"
-              value={projectId}
-              onChange={(event) => {
-                setProjectId(event.target.value);
-                setPage(1);
-              }}
-              className="field-control mt-2 h-11 w-full px-3 text-sm"
-            >
-              <option value="">全部项目</option>
-              {projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block">
-            <span className="text-xs font-semibold text-text-secondary">状态</span>
-            <select
-              aria-label="状态筛选"
-              value={status}
-              onChange={(event) => {
-                setStatus(event.target.value as ImportRecordStatus | '');
-                setPage(1);
-              }}
-              className="field-control mt-2 h-11 w-full px-3 text-sm"
-            >
-              <option value="">全部状态</option>
-              <option value="success">成功</option>
-              <option value="partial">部分成功</option>
-              <option value="failed">失败</option>
-            </select>
-          </label>
+          <Select
+            label="项目"
+            aria-label="项目筛选"
+            value={projectId}
+            onChange={(event) => {
+              setProjectId(event.target.value);
+              setPage(1);
+            }}
+            options={[
+              { value: '', label: '全部项目' },
+              ...projects.map((project) => ({ value: project.id, label: project.name })),
+            ]}
+          />
+          <Select
+            label="状态"
+            aria-label="状态筛选"
+            value={status}
+            onChange={(event) => {
+              setStatus(event.target.value as ImportRecordStatus | '');
+              setPage(1);
+            }}
+            options={[
+              { value: '', label: '全部状态' },
+              { value: 'success', label: '成功' },
+              { value: 'partial', label: '部分成功' },
+              { value: 'failed', label: '失败' },
+            ]}
+          />
           {(projectId || status) && (
             <Button
               variant="secondary"

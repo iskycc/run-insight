@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { PageContainer } from "@/components/layout/PageContainer";
+import { Select } from "@/components/shared/Select";
 
 type Organization = {
   id: string;
@@ -185,18 +186,16 @@ export default function OrganizationSettingsPage() {
         <section className="rounded-xl border border-border bg-surface-solid p-5">
           <h2 className="font-medium">组织</h2>
           <div className="mt-3 flex flex-wrap gap-2">
-            <select
+            <Select
               aria-label="管理的组织"
               value={currentId}
               onChange={(event) => setCurrentId(event.target.value)}
-              className="rounded-lg border border-border bg-surface-solid px-3 py-2"
-            >
-              {organizations.map((organization) => (
-                <option key={organization.id} value={organization.id}>
-                  {organization.name}
-                </option>
-              ))}
-            </select>
+              className="h-10 min-w-48 rounded-lg bg-surface-solid px-3 py-2"
+              options={organizations.map((organization) => ({
+                value: organization.id,
+                label: organization.name,
+              }))}
+            />
             <input
               aria-label="新组织名称"
               value={newOrganizationName}
@@ -227,16 +226,19 @@ export default function OrganizationSettingsPage() {
                 className="rounded-lg border border-border px-3 py-2"
                 placeholder="用户名"
               />
-              <select
+              <Select
                 aria-label="组织角色"
                 value={role}
                 onChange={(event) => setRole(event.target.value as Organization["role"])}
-                className="rounded-lg border border-border px-3 py-2"
-              >
-                <option value="MEMBER">成员</option>
-                <option value="ADMIN">管理员</option>
-                {actorRole === "OWNER" && <option value="OWNER">所有者</option>}
-              </select>
+                className="h-10 min-w-32 rounded-lg px-3 py-2"
+                options={[
+                  { value: "MEMBER", label: "成员" },
+                  { value: "ADMIN", label: "管理员" },
+                  ...(actorRole === "OWNER"
+                    ? [{ value: "OWNER", label: "所有者" }]
+                    : []),
+                ]}
+              />
               <button
                 type="button"
                 disabled={!username.trim()}
@@ -251,7 +253,7 @@ export default function OrganizationSettingsPage() {
             {members.map((member) => (
               <div key={member.id} className="flex items-center gap-3 py-3">
                 <span className="min-w-0 flex-1 truncate">{member.username}</span>
-                <select
+                <Select
                   aria-label={`修改 ${member.username} 的角色`}
                   value={member.role}
                   disabled={!canManage || (actorRole !== "OWNER" && member.role === "OWNER")}
@@ -259,12 +261,13 @@ export default function OrganizationSettingsPage() {
                     member.id,
                     event.target.value as Organization["role"],
                   )}
-                  className="rounded-lg border border-border px-2 py-1.5"
-                >
-                  <option value="MEMBER">成员</option>
-                  <option value="ADMIN">管理员</option>
-                  <option value="OWNER">所有者</option>
-                </select>
+                  className="h-9 min-w-28 rounded-lg px-2 py-1.5"
+                  options={[
+                    { value: "MEMBER", label: "成员" },
+                    { value: "ADMIN", label: "管理员" },
+                    { value: "OWNER", label: "所有者" },
+                  ]}
+                />
                 {canManage && (
                   <button
                     type="button"

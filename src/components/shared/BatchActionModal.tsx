@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { Modal } from './Modal';
 import { Button } from './Button';
+import { Select } from './Select';
 import { PROGRESS_CATEGORIES, PROGRESS_LABELS, type ProgressCategory } from '@/types';
 
 export type BatchActionType = 'progressCategory' | 'assetSaved' | 'assignee';
@@ -98,50 +99,37 @@ export function BatchActionModal({
         </p>
 
         {action === 'progressCategory' && (
-          <div className="flex flex-col gap-1.5">
-            <label
-              htmlFor="batch-progress"
-              className="text-xs font-semibold text-text-secondary"
-            >
-              进展分类
-            </label>
-            <select
+          <div>
+            <Select
               id="batch-progress"
+              label="进展分类"
               aria-label="进展分类"
               value={progressCategory}
               onChange={(e) => setProgressCategory(e.target.value as ProgressCategory | '')}
-              className="field-control h-10 w-full px-3 text-sm"
-            >
-              <option value="" disabled>
-                请选择进展分类
-              </option>
-              {PROGRESS_CATEGORIES.map((p) => (
-                <option key={p} value={p}>
-                  {PROGRESS_LABELS[p]}
-                </option>
-              ))}
-            </select>
+              placeholder="请选择进展分类"
+              className="h-10"
+              options={PROGRESS_CATEGORIES.map((progress) => ({
+                value: progress,
+                label: PROGRESS_LABELS[progress],
+              }))}
+            />
           </div>
         )}
 
         {action === 'assetSaved' && (
-          <div className="flex flex-col gap-1.5">
-            <label
-              htmlFor="batch-asset"
-              className="text-xs font-semibold text-text-secondary"
-            >
-              资产状态
-            </label>
-            <select
+          <div>
+            <Select
               id="batch-asset"
+              label="资产状态"
               aria-label="资产状态"
               value={assetSaved}
               onChange={(e) => setAssetSaved(e.target.value as 'true' | 'false')}
-              className="field-control h-10 w-full px-3 text-sm"
-            >
-              <option value="true">标记为已保存</option>
-              <option value="false">标记为未保存</option>
-            </select>
+              className="h-10"
+              options={[
+                { value: 'true', label: '标记为已保存' },
+                { value: 'false', label: '标记为未保存' },
+              ]}
+            />
           </div>
         )}
 

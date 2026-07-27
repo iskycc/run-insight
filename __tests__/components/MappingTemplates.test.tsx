@@ -5,6 +5,7 @@
 import '@testing-library/jest-dom';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { chooseSelectOption } from '../../test-utils/select';
 import MappingTemplates from '@/components/import/MappingTemplates';
 import type { ImportMappingTemplateDTO } from '@/types';
 
@@ -95,15 +96,14 @@ describe('MappingTemplates', () => {
       scope: 'PERSONAL',
     });
 
-    await screen.findByRole('option', { name: '标准 CSV' });
-    await user.selectOptions(screen.getByLabelText('已保存映射模板'), 'template_1');
+    await chooseSelectOption(user, screen.getByLabelText('已保存映射模板'), '标准 CSV');
     await user.click(screen.getByRole('button', { name: '应用' }));
     expect(onApply).toHaveBeenCalledWith({ caseNo: '编号' });
 
     await user.click(screen.getByRole('button', { name: '更新' }));
     expect(await screen.findByText('模板已更新为当前映射')).toBeInTheDocument();
 
-    await user.selectOptions(screen.getByLabelText('已保存映射模板'), 'template_1');
+    await chooseSelectOption(user, screen.getByLabelText('已保存映射模板'), '标准 CSV');
     await user.click(screen.getByRole('button', { name: '删除' }));
     expect(await screen.findByText('模板已删除')).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: '标准 CSV' })).not.toBeInTheDocument();
@@ -127,15 +127,19 @@ describe('MappingTemplates', () => {
       />,
     );
 
-    await screen.findByRole('option', { name: '项目共享' });
-    await user.selectOptions(screen.getByLabelText('模板范围'), 'PROJECT');
+    await chooseSelectOption(user, screen.getByLabelText('模板范围'), '项目共享');
+    expect(screen.getByLabelText('模板范围')).toHaveTextContent('项目共享');
     await user.type(screen.getByLabelText('映射模板名称'), '项目分析模板');
     await user.click(screen.getByRole('button', { name: '保存模板' }));
 
-    const postCall = (globalThis.fetch as jest.Mock).mock.calls.find(
-      ([, init]: [RequestInfo | URL, RequestInit | undefined]) =>
-        init?.method === 'POST',
-    );
+    const postCall = await waitFor(() => {
+      const call = (globalThis.fetch as jest.Mock).mock.calls.find(
+        ([, init]: [RequestInfo | URL, RequestInit | undefined]) =>
+          init?.method === 'POST',
+      );
+      expect(call).toBeDefined();
+      return call;
+    });
     expect(JSON.parse(String(postCall?.[1]?.body))).toEqual(
       expect.objectContaining({
         scope: 'PROJECT',

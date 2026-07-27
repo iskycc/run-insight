@@ -14,6 +14,7 @@ import {
   RESULT_SUMMARIES,
   type ProgressCategory,
 } from '@/types';
+import { Select } from '@/components/shared/Select';
 
 export interface WorkspaceFilters {
   projectId: string;
@@ -217,14 +218,13 @@ export default function FilterBar({
           />
         </label>
 
-        <label className="relative block min-w-0">
-          <span className="sr-only">项目</span>
+        <div className="relative min-w-0">
           <Briefcase
             size={18}
             aria-hidden="true"
             className="pointer-events-none absolute left-4 top-1/2 z-10 -translate-y-1/2 text-text-primary"
           />
-          <select
+          <Select
             aria-label="项目"
             value={selectedProjectId}
             onChange={(event) =>
@@ -235,37 +235,33 @@ export default function FilterBar({
               })
             }
             className={`${mainControl} pl-11 font-semibold`}
-          >
-            <option value="">全部项目</option>
-            {projects.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.name}
-              </option>
-            ))}
-          </select>
-        </label>
+            options={[
+              { value: '', label: '全部项目' },
+              ...projects.map((project) => ({ value: project.id, label: project.name })),
+            ]}
+          />
+        </div>
 
-        <label className="relative block min-w-0">
-          <span className="sr-only">进展</span>
+        <div className="relative min-w-0">
           <BookmarkSimple
             size={18}
             aria-hidden="true"
             className="pointer-events-none absolute left-4 top-1/2 z-10 -translate-y-1/2 text-text-secondary"
           />
-          <select
+          <Select
             aria-label="进展"
             value={selectedProgressCategory}
             onChange={(event) => emit({ progressCategory: event.target.value })}
             className={`${mainControl} pl-11 font-semibold`}
-          >
-            <option value="">全部进展</option>
-            {PROGRESS_CATEGORIES.map((category) => (
-              <option key={category} value={category}>
-                {PROGRESS_LABELS[category]}
-              </option>
-            ))}
-          </select>
-        </label>
+            options={[
+              { value: '', label: '全部进展' },
+              ...PROGRESS_CATEGORIES.map((category) => ({
+                value: category,
+                label: PROGRESS_LABELS[category],
+              })),
+            ]}
+          />
+        </div>
 
         <button
           type="button"
@@ -322,9 +318,8 @@ export default function FilterBar({
         id="workspace-advanced-filters"
         className={`${advancedOpen ? 'grid' : 'hidden'} mt-5 gap-3 border-t border-border/60 pt-5 sm:grid-cols-2 lg:grid-cols-4`}
       >
-        <label className="space-y-1.5">
-          <span className="text-xs font-medium text-text-secondary">测试阶段</span>
-          <select
+        <Select
+            label="测试阶段"
             aria-label="测试阶段"
             value={selectedStageId}
             disabled={!selectedProjectId}
@@ -332,64 +327,49 @@ export default function FilterBar({
               emit({ stageId: event.target.value, batchScopeId: '' })
             }
             className={advancedControl}
-          >
-            <option value="">全部阶段</option>
-            {filteredStages.map((stage) => (
-              <option key={stage.id} value={stage.id}>
-                {stage.name}
-              </option>
-            ))}
-          </select>
-        </label>
+            options={[
+              { value: '', label: '全部阶段' },
+              ...filteredStages.map((stage) => ({ value: stage.id, label: stage.name })),
+            ]}
+          />
 
-        <label className="space-y-1.5">
-          <span className="text-xs font-medium text-text-secondary">批跑范围</span>
-          <select
+        <Select
+            label="批跑范围"
             aria-label="批跑范围"
             value={selectedBatchScopeId}
             disabled={!selectedStageId}
             onChange={(event) => emit({ batchScopeId: event.target.value })}
             className={advancedControl}
-          >
-            <option value="">全部范围</option>
-            {filteredBatches.map((batch) => (
-              <option key={batch.id} value={batch.id}>
-                {batch.name}
-              </option>
-            ))}
-          </select>
-        </label>
+            options={[
+              { value: '', label: '全部范围' },
+              ...filteredBatches.map((batch) => ({ value: batch.id, label: batch.name })),
+            ]}
+          />
 
-        <label className="space-y-1.5">
-          <span className="text-xs font-medium text-text-secondary">结果概要</span>
-          <select
+        <Select
+            label="结果概要"
             aria-label="结果概要"
             value={resultSummary}
             onChange={(event) => emit({ resultSummary: event.target.value })}
             className={advancedControl}
-          >
-            <option value="">全部结果</option>
-            {RESULT_SUMMARIES.map((result) => (
-              <option key={result} value={result}>
-                {result}
-              </option>
-            ))}
-          </select>
-        </label>
+            options={[
+              { value: '', label: '全部结果' },
+              ...RESULT_SUMMARIES.map((result) => ({ value: result, label: result })),
+            ]}
+          />
 
-        <label className="space-y-1.5">
-          <span className="text-xs font-medium text-text-secondary">资产状态</span>
-          <select
+        <Select
+            label="资产状态"
             aria-label="资产状态"
             value={selectedAssetSaved}
             onChange={(event) => emit({ assetSaved: event.target.value })}
             className={advancedControl}
-          >
-            <option value="">全部</option>
-            <option value="true">已保存</option>
-            <option value="false">未保存</option>
-          </select>
-        </label>
+            options={[
+              { value: '', label: '全部' },
+              { value: 'true', label: '已保存' },
+              { value: 'false', label: '未保存' },
+            ]}
+          />
 
         <label className="space-y-1.5">
           <span className="text-xs font-medium text-text-secondary">责任人</span>

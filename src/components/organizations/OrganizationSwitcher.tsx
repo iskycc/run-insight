@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { Select } from "@/components/shared/Select";
 
 type Organization = {
   id: string;
@@ -63,23 +64,18 @@ export function OrganizationSwitcher() {
 
   return (
     <div className="flex items-center gap-1.5">
-      <label htmlFor="organization-switcher" className="sr-only">
-        当前组织
-      </label>
-      <select
+      <Select
         id="organization-switcher"
         aria-label="当前组织"
         value={currentId}
         disabled={busy}
         onChange={(event) => void switchOrganization(event.target.value)}
-        className="max-w-40 rounded-lg border border-border bg-surface-solid px-2.5 py-2 text-sm text-text-primary"
-      >
-        {organizations.map((organization) => (
-          <option key={organization.id} value={organization.id}>
-            {organization.name}
-          </option>
-        ))}
-      </select>
+        className="h-10 max-w-40 rounded-lg bg-surface-solid px-2.5 py-2 text-sm text-text-primary"
+        options={organizations.map((organization) => ({
+          value: organization.id,
+          label: organization.name,
+        }))}
+      />
       <Link
         href="/organizations/settings"
         aria-label="管理组织"

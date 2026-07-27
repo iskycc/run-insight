@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/shared/Button';
+import { Select } from '@/components/shared/Select';
 import { fetchJson, ApiError } from '@/lib/fetch';
 import type { ImportType } from '@/lib/validations';
 import type {
@@ -268,26 +269,23 @@ export default function MappingTemplates({
       )}
 
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_160px_auto] lg:items-end">
-        <label className="block">
-          <span className="text-xs font-medium text-text-secondary">账号模板</span>
-          <select
-            aria-label="已保存映射模板"
-            value={selectedId}
-            disabled={loading}
-            onChange={(event) => {
-              setSelectedId(event.target.value);
-              setMessage('');
-            }}
-            className="field-control mt-2 h-11 w-full px-3 text-sm"
-          >
-            <option value="">{loading ? '加载中…' : '选择模板'}</option>
-            {templates.map((template) => (
-              <option key={template.id} value={template.id}>
-                {template.name}{template.scope === 'PROJECT' ? ' · 项目共享' : ''}
-              </option>
-            ))}
-          </select>
-        </label>
+        <Select
+          label="账号模板"
+          aria-label="已保存映射模板"
+          value={selectedId}
+          disabled={loading}
+          onChange={(event) => {
+            setSelectedId(event.target.value);
+            setMessage('');
+          }}
+          options={[
+            { value: '', label: loading ? '加载中…' : '选择模板' },
+            ...templates.map((template) => ({
+              value: template.id,
+              label: `${template.name}${template.scope === 'PROJECT' ? ' · 项目共享' : ''}`,
+            })),
+          ]}
+        />
 
         <div className="flex gap-2">
           <Button
@@ -334,20 +332,20 @@ export default function MappingTemplates({
           />
         </label>
 
-        <label className="block">
-          <span className="text-xs font-medium text-text-secondary">模板范围</span>
-          <select
-            aria-label="模板范围"
-            value={effectiveScope}
-            onChange={(event) =>
-              setScope(event.target.value as ImportMappingTemplateScope)
-            }
-            className="field-control mt-2 h-11 w-full px-3 text-sm"
-          >
-            <option value="PERSONAL">仅自己</option>
-            {canShare && projectId && <option value="PROJECT">项目共享</option>}
-          </select>
-        </label>
+        <Select
+          label="模板范围"
+          aria-label="模板范围"
+          value={effectiveScope}
+          onChange={(event) =>
+            setScope(event.target.value as ImportMappingTemplateScope)
+          }
+          options={[
+            { value: 'PERSONAL', label: '仅自己' },
+            ...(canShare && projectId
+              ? [{ value: 'PROJECT', label: '项目共享' }]
+              : []),
+          ]}
+        />
 
         <Button
           type="button"

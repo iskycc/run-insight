@@ -407,7 +407,12 @@ export default function ComparePage() {
                     已选 {batchIds.length}
                   </span>
                 </div>
-                <div className="flex min-h-10 flex-wrap gap-2" aria-label="批跑多选">
+                <div
+                  className="flex min-h-10 flex-wrap gap-2"
+                  role="group"
+                  aria-label="批跑（至少选择 2 个）"
+                  aria-describedby="matrix-batches-help"
+                >
                   {!stageId ? (
                     <span className="text-sm text-text-secondary">请先选择阶段</span>
                   ) : batches.length === 0 ? (
@@ -441,26 +446,6 @@ export default function ComparePage() {
                     })
                   )}
                 </div>
-                <label htmlFor="matrix-batches" className="sr-only">
-                  批跑（至少选择 2 个）
-                </label>
-                <select
-                  id="matrix-batches"
-                  aria-label="批跑（至少选择 2 个）"
-                  aria-describedby="matrix-batches-help"
-                  className="sr-only"
-                  multiple
-                  disabled={!stageId}
-                  value={batchIds}
-                  onChange={(event) => {
-                    setBatchIds(Array.from(event.currentTarget.selectedOptions, (option) => option.value));
-                    setMatrixData(null);
-                  }}
-                >
-                  {batches.map((batch) => (
-                    <option key={batch.value} value={batch.value}>{batch.label}</option>
-                  ))}
-                </select>
                 <p id="matrix-batches-help" className="mt-3 text-xs text-text-secondary">
                   点击标签选择，已选择 {batchIds.length} 个。
                 </p>

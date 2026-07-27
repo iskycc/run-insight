@@ -6,6 +6,7 @@ import type { ReactNode } from 'react';
 import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { chooseSelectOption } from '../../test-utils/select';
 import FailureQualityCard from '@/components/workspace/FailureQualityCard';
 import SavedViewsCard from '@/components/workspace/SavedViewsCard';
 
@@ -123,7 +124,7 @@ describe('workspace insight cards', () => {
 
     await user.click(screen.getByRole('button', { name: '保存当前' }));
     await user.type(screen.getByLabelText('视图名称'), '项目失败');
-    await user.selectOptions(screen.getByLabelText('保存范围'), 'PROJECT');
+    await chooseSelectOption(user, screen.getByLabelText('保存范围'), '项目共享');
     await user.click(screen.getByText('设为默认'));
     await user.click(screen.getByRole('button', { name: '确认保存' }));
 

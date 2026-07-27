@@ -71,8 +71,6 @@ export function Nav() {
       }
     >
         {visibleItems.map((item) => {
-          if (!isMobile && user && item.href === '/' && pathname !== '/') return null;
-
           const isActive =
             item.href === '/'
               ? pathname === '/'

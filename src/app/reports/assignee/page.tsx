@@ -317,19 +317,19 @@ export default function AssigneeReportPage() {
                 最多展示 10 位责任人，条形长度代表当前指标值
               </p>
             </div>
-            <label className="flex items-center gap-2 text-xs font-semibold text-text-secondary">
-              图表指标
-              <select
+            <div className="flex items-center gap-2 text-xs font-semibold text-text-secondary">
+              <span>图表指标</span>
+              <Select
                 aria-label="图表指标"
                 value={chartMetric}
                 onChange={(event) => setChartMetric(event.target.value as ChartMetric)}
-                className="field-control h-9 rounded-xl bg-white px-3 text-xs font-semibold text-text-primary"
-              >
-                {(Object.keys(CHART_METRIC_LABELS) as ChartMetric[]).map((metric) => (
-                  <option key={metric} value={metric}>{CHART_METRIC_LABELS[metric]}</option>
-                ))}
-              </select>
-            </label>
+                className="h-9 min-w-32 rounded-xl bg-white px-3 text-xs font-semibold text-text-primary"
+                options={(Object.keys(CHART_METRIC_LABELS) as ChartMetric[]).map((metric) => ({
+                  value: metric,
+                  label: CHART_METRIC_LABELS[metric],
+                }))}
+              />
+            </div>
           </div>
 
           <div style={{ height: Math.max(260, rankedStats.length * 44) }}>
