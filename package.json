@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "check:offline": "node scripts/check-offline-runtime.mjs",
     "test": "jest",
     "test:integration": "tsx scripts/integration-check.ts",
     "test:e2e": "playwright test",

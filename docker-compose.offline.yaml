@@ -1,0 +1,20 @@
+services:
+  db:
+    pull_policy: never
+
+  migrate:
+    pull_policy: never
+
+  app:
+    pull_policy: never
+
+  background-worker:
+    pull_policy: never
+    # 离线环境不处理需要公网或其他外部网络的 Webhook 投递。导入任务和定时报表
+    # 仍通过 Compose 内部网络顺序处理。
+    command:
+      [
+        "/bin/sh",
+        "-c",
+        "tick=0; while true; do wget -qO- -T 20 --post-data='' --header=\"Authorization: Bearer $$CRON_SECRET\" http://app:3000/api/cron/import-jobs/process >/dev/null 2>&1 || true; if [ $$((tick % 2)) -eq 0 ]; then wget -qO- -T 20 --post-data='' --header=\"Authorization: Bearer $$CRON_SECRET\" http://app:3000/api/cron/scheduled-reports/process >/dev/null 2>&1 || true; fi; tick=$$((tick + 1)); sleep 30; done",
+      ]

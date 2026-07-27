@@ -7,7 +7,10 @@ async function loginAsAdmin(page: Page) {
   await page.goto('/login');
   await page.getByLabel('用户名').fill(adminUsername);
   await page.getByLabel('密码').fill(adminPassword);
-  await page.getByRole('button', { name: '登录' }).click();
+  await page
+    .getByRole('main')
+    .getByRole('button', { name: '登录', exact: true })
+    .click();
 
   await expect(page).toHaveURL(/\/workspace(?:\?|$)/);
 }

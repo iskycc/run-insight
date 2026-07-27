@@ -189,6 +189,7 @@ npm run dev        # 开发服务器
 npm run build      # 生产构建
 npm run start      # 启动生产服务器
 npm run lint       # ESLint 检查
+npm run check:offline # 检查前端是否误引入远程静态资源
 npm run test       # 运行测试
 npm run test:integration # 对隔离 MariaDB 执行迁移与事务冒烟检查
 npm run test:e2e   # 运行 Chromium 关键路径测试
@@ -358,7 +359,7 @@ BACKUP_DIR=/var/backups/run-insight \
 ```bash
 curl --fail --request POST \
   --header "Authorization: Bearer ${CRON_SECRET}" \
-  https://你的域名/api/cron/due-reminders
+  http://localhost:3300/api/cron/due-reminders
 ```
 
 任务会按用户通知偏好创建站内临期/逾期提醒。相同用例、负责人、截止时间和提醒类型
@@ -414,6 +415,57 @@ ID，不记录签名密钥或原始响应正文。
 三个后台入口由一个 Worker 顺序调用，避免导入、报表和 Webhook 处理器在同一节点上
 并发争抢 CPU；如使用 Kubernetes 或云调度器，也建议维持单并发策略。
 
+## 完全离线部署
+
+运行中的页面不依赖 CDN 或公网静态资源：中文字体来自
+`@fontsource-variable/noto-sans-sc` 并在构建时打进 `/_next/static`，图标来自本地
+React 包，应用脚本、样式和 favicon 也全部由应用自身提供。生产环境的 CSP 进一步将
+字体、脚本、样式、图片和浏览器请求限制为同源资源。可以随时执行以下检查：
+
+```bash
+npm run check:offline
+```
+
+离线主机不能现场从 Docker Hub 拉取应用和 MariaDB 镜像，因此需要先在联网主机准备
+镜像包。此操作只打包已经构建好的运行镜像，不需要在离线主机执行 `npm install`：
+
+```bash
+# 联网主机：确保两个镜像已经存在，然后导出并生成 SHA-256
+docker pull iskycc/run-insight:latest
+docker pull mariadb:11.4
+scripts/export-offline-images.sh run-insight-offline-images.tar
+```
+
+将下列文件通过可信介质复制到离线主机：
+
+- `run-insight-offline-images.tar` 及其 `.sha256`
+- `docker-compose.yaml`
+- `docker-compose.offline.yaml`
+- `.env.docker.example`
+- `scripts/import-offline-images.sh`
+
+在离线主机校验并导入镜像，然后使用离线 Compose 覆盖文件启动：
+
+```bash
+scripts/import-offline-images.sh run-insight-offline-images.tar
+cp .env.docker.example .env
+# 填写 .env 中的所有密钥和数据库连接串
+docker compose \
+  -f docker-compose.yaml \
+  -f docker-compose.offline.yaml \
+  config
+docker compose \
+  -f docker-compose.yaml \
+  -f docker-compose.offline.yaml \
+  up -d
+```
+
+离线覆盖文件为所有服务设置 `pull_policy: never`，因此镜像缺失时会立即报错，不会
+尝试访问镜像仓库。导入任务、定时报表、数据库和全部页面功能仍在 Compose 内部网络
+运行；Webhook 本质上需要访问用户配置的外部接收端，离线模式不会启动其出站投递。
+页面中的流水线、执行日志和 MR/工单地址是用户保存的业务引用，不属于应用资源，
+也不会在页面渲染时被自动请求；只有用户主动点击时才会尝试打开。
+
 ### 监控与结构化日志
 
 服务端日志采用单行 JSON，核心字段为 `timestamp`、`level`、`event` 和
@@ -436,13 +488,14 @@ UUID，并将最终值同时传给 API 和响应。排障时可用同一个 `req
 `.github/workflows/docker-publish.yml` 会在拉取请求和 `main` 分支推送时依次执行：
 
 1. `npm ci`
-2. `prisma generate`
-3. 对隔离 MariaDB 应用迁移并执行真实事务、关联和级联检查
-4. 向隔离 MariaDB 写入 E2E 种子数据
-5. ESLint
-6. Jest 全量测试与覆盖率阈值检查
-7. Next.js 生产构建
-8. 安装 Chromium 并执行关键路径 E2E
+2. 离线运行资源检查
+3. `prisma generate`
+4. 对隔离 MariaDB 应用迁移并执行真实事务、关联和级联检查
+5. 向隔离 MariaDB 写入 E2E 种子数据
+6. ESLint
+7. Jest 全量测试与覆盖率阈值检查
+8. Next.js 生产构建
+9. 安装 Chromium 并执行关键路径 E2E
 
 只有以上检查全部通过后，`main` 分支或版本标签才会构建并发布 Docker 镜像。
 CI 使用临时 MariaDB 服务、独立种子密码和占位 `JWT_SECRET`，不会连接生产数据库。

@@ -34,9 +34,12 @@ junit.xml
 /.tmp/
 /artifacts/
 /backups/
+/offline-bundles/
 /screenshots/
 /tmp/
 /design-qa.md
+run-insight-offline-images*.tar
+run-insight-offline-images*.tar.sha256
 *.log
 *.pid
 *.temp
