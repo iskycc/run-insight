@@ -63,26 +63,19 @@ export function OrganizationSwitcher() {
   }
 
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="min-w-0">
       <Select
         id="organization-switcher"
         aria-label="当前组织"
         value={currentId}
         disabled={busy}
         onChange={(event) => void switchOrganization(event.target.value)}
-        className="h-10 max-w-40 rounded-lg bg-surface-solid px-2.5 py-2 text-sm text-text-primary"
+        className="h-10 max-w-24 rounded-lg bg-surface-solid px-2.5 py-2 text-sm text-text-primary sm:max-w-40"
         options={organizations.map((organization) => ({
           value: organization.id,
           label: organization.name,
         }))}
       />
-      <Link
-        href="/organizations/settings"
-        aria-label="管理组织"
-        className="rounded-lg px-2 py-2 text-sm text-text-secondary hover:bg-bg"
-      >
-        管理
-      </Link>
     </div>
   );
 }

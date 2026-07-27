@@ -14,7 +14,7 @@ describe("OrganizationSwitcher", () => {
     jest.clearAllMocks();
   });
 
-  it("shows the server-validated current organization and management link", async () => {
+  it("shows only the server-validated current organization in the compact header control", async () => {
     globalThis.fetch = jest.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -30,8 +30,8 @@ describe("OrganizationSwitcher", () => {
 
     expect(await screen.findByRole("combobox", { name: "当前组织" }))
       .toHaveValue("o2");
-    expect(screen.getByRole("link", { name: "管理组织" }))
-      .toHaveAttribute("href", "/organizations/settings");
+    expect(screen.queryByRole("link", { name: "管理组织" }))
+      .not.toBeInTheDocument();
     expect(globalThis.fetch).toHaveBeenCalledWith("/api/organizations", {
       cache: "no-store",
     });

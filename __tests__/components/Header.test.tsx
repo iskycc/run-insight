@@ -69,6 +69,19 @@ describe('Header password management', () => {
     );
   });
 
+  it('places the clearly named organization settings entry in the user menu', async () => {
+    render(<Header />);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: /admin/ }));
+
+    expect(screen.getByRole('menuitem', { name: '组织设置' })).toHaveAttribute(
+      'href',
+      '/organizations/settings',
+    );
+    expect(screen.queryByRole('link', { name: '管理组织' })).not.toBeInTheDocument();
+  });
+
   it('changes the current password and signs out every session', async () => {
     mockFetchJson.mockResolvedValueOnce({ success: true });
     render(<Header />);

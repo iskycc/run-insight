@@ -19,7 +19,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       <header className="bento-panel mx-3 px-5 py-4 sm:mx-6 sm:px-6 xl:mx-auto xl:w-[calc(100%-3rem)] xl:max-w-[1312px]">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-xl font-semibold text-text-primary">系统管理</h1>
+            <h1 className="text-xl font-semibold text-text-primary">平台管理</h1>
             <p className="mt-0.5 text-xs text-text-secondary">仅管理员可访问</p>
           </div>
           <nav className="flex items-center gap-2">

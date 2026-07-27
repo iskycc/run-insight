@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useAuth } from '@/components/shared/AuthProvider';
 import { useEffect, useRef, useState } from 'react';
 import {
+  Buildings,
   CaretDown,
   CalendarDots,
   ChartLineUp,
@@ -49,7 +50,7 @@ export function Header() {
           <span className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-accent text-white shadow-[0_8px_24px_rgba(17,96,242,0.20)] transition-transform group-hover:-translate-y-0.5">
             <ChartLineUp size={22} weight="bold" aria-hidden="true" />
           </span>
-          <span className="text-[17px] font-semibold tracking-[-0.025em]">
+          <span className="hidden text-[17px] font-semibold tracking-[-0.025em] sm:inline">
             Run Insight
           </span>
         </Link>
@@ -70,7 +71,9 @@ export function Header() {
                   <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#34405a] text-xs font-semibold text-white">
                     {user.username.slice(0, 1).toUpperCase()}
                   </span>
-                  <span className="hidden sm:inline">{user.username}</span>
+                  <span className="hidden max-w-24 truncate sm:inline" title={user.username}>
+                    {user.username}
+                  </span>
                   <CaretDown
                     size={13}
                     weight="bold"
@@ -84,6 +87,15 @@ export function Header() {
                     role="menu"
                     aria-label="用户菜单"
                   >
+                    <Link
+                      href="/organizations/settings"
+                      role="menuitem"
+                      className="flex w-full items-center gap-2 rounded-[9px] px-3 py-2 text-left text-sm text-text-secondary transition-colors hover:bg-bg hover:text-text-primary"
+                      onClick={() => setMenuOpen(false)}
+                    >
+                      <Buildings size={17} aria-hidden="true" />
+                      组织设置
+                    </Link>
                     <Link
                       href="/reports/scheduled"
                       role="menuitem"

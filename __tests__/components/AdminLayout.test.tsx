@@ -22,7 +22,7 @@ describe('AdminLayout', () => {
       </AdminLayout>,
     );
 
-    expect(screen.getByText('系统管理')).toBeInTheDocument();
+    expect(screen.getByText('平台管理')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '用户管理' })).toHaveAttribute('href', '/admin/users');
     expect(screen.getByRole('link', { name: '审计日志' })).toHaveAttribute('href', '/admin/audit-logs');
     expect(screen.getByText('child-content')).toBeInTheDocument();
