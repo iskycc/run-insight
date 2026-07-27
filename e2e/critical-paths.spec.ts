@@ -46,9 +46,11 @@ test('管理员可以打开项目和工作台并完成真实用例筛选', async
   await expect(page).toHaveURL(/\/workspace(?:\?|$)/);
 
   const projectFilter = page.getByLabel('项目', { exact: true });
-  await expect(projectFilter.getByRole('option', { name: '支付系统' })).toBeAttached();
-  await projectFilter.selectOption({ label: '支付系统' });
-  await expect(projectFilter.locator('option:checked')).toHaveText('支付系统');
+  await projectFilter.click();
+  const projectOption = page.getByRole('option', { name: '支付系统', exact: true });
+  await expect(projectOption).toBeVisible();
+  await projectOption.click();
+  await expect(projectFilter).toContainText('支付系统');
   await expect.poll(() => new URL(page.url()).searchParams.has('projectId')).toBe(true);
 
   const searchTerm = '微信支付-超时退款';
