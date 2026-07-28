@@ -18,7 +18,7 @@ import { NotificationCenter } from '@/components/notifications/NotificationCente
 import { OrganizationSwitcher } from '@/components/organizations/OrganizationSwitcher';
 
 export function Header() {
-  const { user, logout } = useAuth();
+  const { user, isLoading, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [sessionManagerOpen, setSessionManagerOpen] = useState(false);
@@ -56,7 +56,19 @@ export function Header() {
         </Link>
 
         <div className="app-user flex items-center gap-2">
-          {user ? (
+          {isLoading ? (
+            <div
+              role="status"
+              aria-label="正在加载用户信息"
+              className="flex min-h-10 items-center gap-2 px-2"
+            >
+              <span className="skeleton-line h-8 w-8 rounded-full" aria-hidden="true" />
+              <span
+                className="skeleton-line hidden h-3 w-16 rounded-full sm:block"
+                aria-hidden="true"
+              />
+            </div>
+          ) : user ? (
             <>
               <OrganizationSwitcher />
               <NotificationCenter />

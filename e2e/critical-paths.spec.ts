@@ -21,7 +21,11 @@ test('未登录用户可以查看公开质量大盘，但看不到“大盘”�
   expect(response?.ok()).toBe(true);
   await expect(page.getByRole('heading', { name: '质量大盘', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: '大盘', exact: true })).toHaveCount(0);
-  await expect(page.getByText('登录后可查看详细数据、分析用例和保存资产')).toBeVisible();
+  const loginCallToAction = page.getByRole('link', {
+    name: '登录后查看详细数据、分析用例和保存资产',
+  });
+  await expect(loginCallToAction).toBeVisible();
+  await expect(loginCallToAction).toHaveAttribute('href', '/login');
 });
 
 test('管理员登录后立即获得与角色匹配的导航', async ({ page }) => {

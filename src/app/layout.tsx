@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 import { AuthProvider } from "@/components/shared/AuthProvider";
 import { ToastProvider } from "@/contexts/ToastContext";
 import { ToastContainer } from "@/components/shared/Toast";
-import { Header } from "@/components/layout/Header";
-import { Nav } from "@/components/layout/Nav";
+import { AppFrame } from "@/components/layout/AppFrame";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -21,13 +20,7 @@ export default function RootLayout({
       <body className="min-h-screen bg-bg font-sans text-text-primary">
         <ToastProvider>
           <AuthProvider>
-            <div className="app-chrome">
-              <div className="app-chrome-inner">
-                <Header />
-                <Nav />
-              </div>
-            </div>
-            <main className="min-h-[calc(100vh-86px)]">{children}</main>
+            <AppFrame>{children}</AppFrame>
           </AuthProvider>
           <ToastContainer />
         </ToastProvider>

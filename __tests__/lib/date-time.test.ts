@@ -4,6 +4,7 @@ import {
   formatDate,
   formatDateTime,
   formatRelativeTime,
+  formatTime,
   resolveTimeZone,
   toDateInputValue,
   toDateTimeLocalValue,
@@ -21,12 +22,15 @@ describe('date-time', () => {
 
     expect(formatDate(value)).toBe('2026年7月27日');
     expect(formatDateTime(value)).toBe('2026年7月27日 00:30');
+    expect(formatTime(value)).toBe('00:30');
     expect(formatDateTime(value, { timeZone: 'UTC' })).toBe('2026年7月26日 16:30');
+    expect(formatTime(value, { timeZone: 'UTC' })).toBe('16:30');
   });
 
   it('returns a safe placeholder for invalid values', () => {
     expect(formatDate('invalid')).toBe('—');
     expect(formatDateTime('invalid', { fallback: '时间未知' })).toBe('时间未知');
+    expect(formatTime('invalid')).toBe('—');
     expect(formatRelativeTime('invalid')).toBe('—');
   });
 

@@ -25,7 +25,7 @@ const ADMIN_ITEMS = [
 ] as const;
 
 export function PlatformManagementShell({ children }: { children: ReactNode }) {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
   const items = user?.role === 'ADMIN'
     ? [...ADMIN_ITEMS, ...REPORT_ITEMS]
     : REPORT_ITEMS;
@@ -36,6 +36,7 @@ export function PlatformManagementShell({ children }: { children: ReactNode }) {
         title="平台管理"
         subtitle="统一管理平台账号、运行记录与分析报告"
         items={items}
+        loading={isLoading}
       />
       <div>{children}</div>
     </div>

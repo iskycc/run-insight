@@ -14,9 +14,15 @@ type SecondaryNavProps = {
   title: string;
   subtitle: string;
   items: readonly SecondaryNavItem[];
+  loading?: boolean;
 };
 
-export function SecondaryNav({ title, subtitle, items }: SecondaryNavProps) {
+export function SecondaryNav({
+  title,
+  subtitle,
+  items,
+  loading = false,
+}: SecondaryNavProps) {
   const pathname = usePathname();
 
   return (
@@ -28,30 +34,40 @@ export function SecondaryNav({ title, subtitle, items }: SecondaryNavProps) {
         </div>
         <nav
           aria-label={`${title}导航`}
-          className="flex w-full items-stretch gap-1 overflow-x-auto pb-1 sm:w-auto sm:items-center sm:gap-2 sm:pb-0"
+          aria-busy={loading || undefined}
+          className="scrollbar-hidden flex w-full items-stretch gap-1 overflow-x-auto pb-1 sm:w-auto sm:items-center sm:gap-2 sm:pb-0"
         >
-          {items.map((item) => {
-            const isActive =
-              pathname === item.href || pathname.startsWith(`${item.href}/`);
-            const IconComponent = item.icon;
+          {loading
+            ? Array.from({ length: 3 }, (_, index) => (
+                <span
+                  key={index}
+                  aria-hidden="true"
+                  className="skeleton-line min-h-12 min-w-[88px] flex-1 rounded-[11px] sm:min-h-10 sm:flex-none"
+                  style={{ width: `${92 + index * 12}px` }}
+                />
+              ))
+            : items.map((item) => {
+                const isActive =
+                  pathname === item.href || pathname.startsWith(`${item.href}/`);
+                const IconComponent = item.icon;
 
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                aria-current={isActive ? 'page' : undefined}
-                className={`flex min-h-12 min-w-[88px] flex-1 flex-col items-center justify-center gap-1 whitespace-nowrap rounded-[11px] px-2 text-xs font-medium transition-colors no-underline hover:no-underline sm:min-h-10 sm:min-w-0 sm:flex-none sm:flex-row sm:gap-2 sm:px-3 sm:text-sm
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    aria-current={isActive ? 'page' : undefined}
+                    className={`flex min-h-12 min-w-[88px] flex-1 flex-col items-center justify-center gap-1 whitespace-nowrap rounded-[11px] px-2 text-xs font-medium transition-colors no-underline hover:no-underline sm:min-h-10 sm:min-w-0 sm:flex-none sm:flex-row sm:gap-2 sm:px-3 sm:text-sm
                   ${
                     isActive
                       ? 'bg-accent text-white shadow-sm'
                       : 'text-text-secondary hover:bg-bg hover:text-text-primary'
                   }`}
-              >
-                <IconComponent size={17} aria-hidden="true" />
-                {item.label}
-              </Link>
-            );
-          })}
+                  >
+                    <IconComponent size={17} aria-hidden="true" />
+                    {item.label}
+                  </Link>
+                );
+              })}
         </nav>
       </div>
     </header>

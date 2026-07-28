@@ -406,6 +406,14 @@
     animation: progress-slide 1.25s ease-in-out infinite;
   }
 
+  .scrollbar-hidden {
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hidden::-webkit-scrollbar {
+    display: none;
+  }
+
   @media (max-width: 1180px) {
     .app-chrome {
       padding: 8px 10px 0;

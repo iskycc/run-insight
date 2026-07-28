@@ -6,6 +6,10 @@ import { Select } from "@/components/shared/Select";
 import { Input } from "@/components/shared/Input";
 import { LoadingState } from "@/components/shared/LoadingState";
 import { Button } from "@/components/shared/Button";
+import { EmptyState } from "@/components/shared/EmptyState";
+import { PageContainer } from "@/components/layout/PageContainer";
+import { formatDateTime } from "@/lib/date-time";
+import { CalendarDots } from "@phosphor-icons/react";
 
 type Project = { id: string; name: string; archived: boolean };
 type SnapshotLink = { id: string; generatedAt: string };
@@ -151,36 +155,36 @@ export default function ScheduledReportsPage() {
   };
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
-      <div className="mb-8">
-        <p className="text-sm font-medium text-accent">Reports</p>
-        <h1 className="mt-1 text-3xl font-semibold tracking-tight text-text-primary">
-          定时报表
-        </h1>
-        <p className="mt-2 text-sm text-text-secondary">
-          按项目时区自动保存不可变快照，或随时立即生成。
-        </p>
-      </div>
-
+    <PageContainer
+      title="定时报表"
+      subtitle="按项目时区自动保存不可变快照，也可以随时手动生成"
+    >
       {error && (
-        <p role="alert" className="mb-5 rounded-xl border border-danger/20 bg-danger/5 px-4 py-3 text-sm text-danger">
+        <p
+          role="alert"
+          className="mb-5 rounded-[12px] border border-danger/20 bg-danger/5 px-4 py-3 text-sm text-danger"
+        >
           {error}
         </p>
       )}
 
-      <section className="mb-8 rounded-2xl border border-border bg-surface-solid p-5 shadow-sm">
+      <section className="bento-panel mb-8 p-5 sm:p-6">
         <h2 className="text-lg font-semibold text-text-primary">新建计划</h2>
-        <form onSubmit={createReport} className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <label className="text-sm text-text-secondary">
-            名称
-            <input
-              required
-              maxLength={100}
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              className="mt-1.5 w-full rounded-xl border border-border bg-bg px-3 py-2.5 text-text-primary"
-            />
-          </label>
+        <p className="mt-1 text-xs leading-5 text-text-secondary">
+          选择项目、频率和执行时间，系统会按计划生成可追溯的报表快照。
+        </p>
+        <form
+          onSubmit={createReport}
+          className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4"
+        >
+          <Input
+            label="名称"
+            required
+            maxLength={100}
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="例如：每日质量概览"
+          />
           <Select
             label="项目"
             required
@@ -207,23 +211,20 @@ export default function ScheduledReportsPage() {
               { value: "WEEKLY", label: "每周" },
             ]}
           />
-          <label className="text-sm text-text-secondary">
-            时区
-            <input
-              required
-              value={timezone}
-              onChange={(event) => setTimezone(event.target.value)}
-              placeholder="Asia/Shanghai"
-              className="mt-1.5 w-full rounded-xl border border-border bg-bg px-3 py-2.5 text-text-primary"
-            />
-          </label>
           <Input
-              label="执行时间"
-              type="time"
-              required
-              value={runTime}
-              onChange={(event) => setRunTime(event.target.value)}
-            />
+            label="时区"
+            required
+            value={timezone}
+            onChange={(event) => setTimezone(event.target.value)}
+            placeholder="Asia/Shanghai"
+          />
+          <Input
+            label="执行时间"
+            type="time"
+            required
+            value={runTime}
+            onChange={(event) => setRunTime(event.target.value)}
+          />
           {cadence === "WEEKLY" && (
             <Select
               label="每周"
@@ -233,30 +234,24 @@ export default function ScheduledReportsPage() {
             />
           )}
           {type === "QUALITY_GATE" && (
-            <label className="text-sm text-text-secondary">
-              最低通过率（%）
-              <input
-                type="number"
-                min={0}
-                max={100}
-                value={minPassRate}
-                onChange={(event) => setMinPassRate(Number(event.target.value))}
-                className="mt-1.5 w-full rounded-xl border border-border bg-bg px-3 py-2.5 text-text-primary"
-              />
-            </label>
+            <Input
+              label="最低通过率（%）"
+              type="number"
+              min={0}
+              max={100}
+              value={minPassRate}
+              onChange={(event) => setMinPassRate(Number(event.target.value))}
+            />
           )}
           {type === "TREND" && (
-            <label className="text-sm text-text-secondary">
-              最近批次数
-              <input
-                type="number"
-                min={1}
-                max={30}
-                value={trendLimit}
-                onChange={(event) => setTrendLimit(Number(event.target.value))}
-                className="mt-1.5 w-full rounded-xl border border-border bg-bg px-3 py-2.5 text-text-primary"
-              />
-            </label>
+            <Input
+              label="最近批次数"
+              type="number"
+              min={1}
+              max={30}
+              value={trendLimit}
+              onChange={(event) => setTrendLimit(Number(event.target.value))}
+            />
           )}
           <div className="flex items-end">
             <Button
@@ -273,60 +268,89 @@ export default function ScheduledReportsPage() {
       </section>
 
       <section aria-label="定时报表列表">
-        {loading ? (
-          <LoadingState label="正在加载定时报表" rows={4} className="my-3" />
-        ) : reports.length === 0 ? (
-          <p className="rounded-2xl border border-dashed border-border py-12 text-center text-text-secondary">
-            暂无定时报表
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold text-text-primary">已创建计划</h2>
+          <p className="mt-1 text-xs text-text-secondary">
+            查看运行状态、最近快照和下一次执行时间
           </p>
+        </div>
+        {loading ? (
+          <LoadingState label="正在加载定时报表" rows={4} />
+        ) : reports.length === 0 ? (
+          <div className="bento-panel">
+            <EmptyState
+              title="暂无定时报表"
+              description="填写上方计划信息后，系统会在这里展示运行状态和历史快照。"
+              icon={<CalendarDots size={44} weight="duotone" aria-hidden="true" />}
+            />
+          </div>
         ) : (
           <div className="grid gap-4">
             {reports.map((report) => (
-              <article key={report.id} className="rounded-2xl border border-border bg-surface-solid p-5 shadow-sm">
+              <article key={report.id} className="bento-panel p-5 sm:p-6">
                 <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div>
-                    <div className="flex items-center gap-2">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
                       <h2 className="font-semibold text-text-primary">{report.name}</h2>
-                      <span className={`rounded-full px-2 py-0.5 text-xs ${report.active ? "bg-success/10 text-success" : "bg-bg text-text-secondary"}`}>
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${
+                          report.active
+                            ? "bg-success/10 text-success"
+                            : "bg-bg text-text-secondary"
+                        }`}
+                      >
+                        <span
+                          className={`h-1.5 w-1.5 rounded-full ${
+                            report.active ? "bg-success" : "bg-text-secondary/50"
+                          }`}
+                          aria-hidden="true"
+                        />
                         {report.active ? "运行中" : "已停用"}
                       </span>
                     </div>
-                    <p className="mt-1 text-sm text-text-secondary">
+                    <p className="mt-2 text-sm leading-6 text-text-secondary">
                       {report.project.name} · {TYPE_LABELS[report.type]} ·
                       {report.cadence === "DAILY" ? " 每天" : ` ${WEEKDAY_LABELS[report.weekDay]}`}{" "}
                       {String(report.runHour).padStart(2, "0")}:{String(report.runMinute).padStart(2, "0")} ({report.timezone})
                     </p>
-                    <p className="mt-2 text-xs text-text-secondary">
-                      下次执行：{new Date(report.nextRunAt).toLocaleString("zh-CN")}
-                      {report.lastRunAt ? ` · 上次：${new Date(report.lastRunAt).toLocaleString("zh-CN")}` : ""}
+                    <p className="mt-1 text-xs leading-5 text-text-secondary">
+                      下次执行：{formatDateTime(report.nextRunAt)}
+                      {report.lastRunAt ? ` · 上次：${formatDateTime(report.lastRunAt)}` : ""}
                     </p>
                     {report.lastError && (
-                      <p className="mt-2 text-xs text-danger">上次失败：{report.lastError}</p>
+                      <p
+                        role="status"
+                        className="mt-3 rounded-[10px] bg-danger/8 px-3 py-2 text-xs text-danger"
+                      >
+                        上次失败：{report.lastError}
+                      </p>
                     )}
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex shrink-0 flex-wrap gap-2">
                     {report.snapshots[0] && (
                       <Link
                         href={`/reports/snapshots/${report.snapshots[0].id}`}
-                        className="rounded-lg border border-border px-3 py-2 text-sm text-text-secondary hover:text-text-primary"
+                        className="inline-flex h-9 items-center justify-center rounded-[10px] border border-border bg-bg px-3 text-xs font-medium text-text-primary transition-colors hover:border-accent/25 hover:bg-surface-solid hover:text-text-primary"
                       >
                         最新快照
                       </Link>
                     )}
-                    <button
+                    <Button
                       type="button"
+                      size="sm"
+                      variant="secondary"
                       onClick={() => void runNow(report)}
-                      className="rounded-lg border border-border px-3 py-2 text-sm text-text-secondary hover:text-text-primary"
                     >
                       立即运行
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
+                      size="sm"
+                      variant={report.active ? "danger" : "primary"}
                       onClick={() => void updateActive(report, !report.active)}
-                      className={`rounded-lg px-3 py-2 text-sm ${report.active ? "bg-danger/10 text-danger" : "bg-accent/10 text-accent"}`}
                     >
                       {report.active ? "停用" : "启用"}
-                    </button>
+                    </Button>
                   </div>
                 </div>
               </article>
@@ -334,6 +358,6 @@ export default function ScheduledReportsPage() {
           </div>
         )}
       </section>
-    </main>
+    </PageContainer>
   );
 }

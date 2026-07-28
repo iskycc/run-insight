@@ -75,6 +75,12 @@ export function formatDateTime(
   return `${parts.year}年${parts.month}月${parts.day}日 ${parts.hour}:${parts.minute}`;
 }
 
+export function formatTime(value: DateTimeInput, options: FormatOptions = {}): string {
+  const parts = dateParts(value, options, true);
+  if (!parts) return options.fallback ?? '—';
+  return `${parts.hour}:${parts.minute}`;
+}
+
 export function formatRelativeTime(
   value: DateTimeInput,
   options: RelativeTimeOptions = {},

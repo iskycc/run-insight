@@ -3,7 +3,7 @@
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
-import { formatDate, formatDateTime } from '@/lib/date-time';
+import { formatDate, formatDateTime, formatTime } from '@/lib/date-time';
 
 interface TrendDataPoint {
   batchId: string;
@@ -23,10 +23,6 @@ interface TrendChartProps {
   data: TrendDataPoint[];
 }
 
-function formatBatchLabel(executedAt: string) {
-  return formatDate(executedAt);
-}
-
 function formatBatchTooltipDate(executedAt: string) {
   return formatDateTime(executedAt, { fallback: '时间未知' });
 }
@@ -43,6 +39,11 @@ export default function TrendChart({ data }: TrendChartProps) {
   const chartData = [...data].sort(
     (a, b) => new Date(a.executedAt).getTime() - new Date(b.executedAt).getTime()
   );
+  const showTimeOnAxis =
+    chartData.length > 1
+    && new Set(chartData.map((item) => formatDate(item.executedAt))).size === 1;
+  const formatAxisLabel = (executedAt: string) =>
+    showTimeOnAxis ? formatTime(executedAt) : formatDate(executedAt);
 
   return (
     <section className="bento-panel h-full p-5 sm:p-6" aria-labelledby="quality-trend-title">
@@ -79,7 +80,7 @@ export default function TrendChart({ data }: TrendChartProps) {
               dataKey="executedAt"
               interval="preserveStartEnd"
               minTickGap={22}
-              tickFormatter={(value: string) => formatBatchLabel(value)}
+              tickFormatter={formatAxisLabel}
               tick={{ fontSize: 11, fill: 'var(--color-text-secondary)' }}
               axisLine={{ stroke: 'var(--color-border)' }}
               tickLine={false}
@@ -163,7 +164,7 @@ export default function TrendChart({ data }: TrendChartProps) {
                 dataKey="executedAt"
                 interval="preserveStartEnd"
                 minTickGap={22}
-                tickFormatter={formatBatchLabel}
+                tickFormatter={formatAxisLabel}
                 tick={{ fontSize: 11, fill: 'var(--color-text-secondary)' }}
                 axisLine={{ stroke: 'var(--color-border)' }}
                 tickLine={false}

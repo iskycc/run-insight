@@ -69,6 +69,20 @@ describe('Header password management', () => {
     );
   });
 
+  it('shows a neutral account placeholder while authentication is loading', () => {
+    mockUseAuth.mockReturnValue({
+      user: null,
+      isLoading: true,
+      login: mockLogin,
+      logout: mockLogout,
+    });
+
+    render(<Header />);
+
+    expect(screen.getByRole('status', { name: '正在加载用户信息' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '登录' })).not.toBeInTheDocument();
+  });
+
   it('places the clearly named organization settings entry in the user menu', async () => {
     render(<Header />);
     const user = userEvent.setup();

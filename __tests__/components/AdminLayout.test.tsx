@@ -6,18 +6,24 @@ import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
 import AdminLayout from '@/app/admin/layout';
 
+const mockUseAuth = jest.fn();
+
 jest.mock('next/navigation', () => ({
   usePathname: () => '/admin/users',
 }));
 
 jest.mock('@/components/shared/AuthProvider', () => ({
-  useAuth: () => ({
-    user: { id: 'u1', username: 'admin', role: 'ADMIN' },
-    isLoading: false,
-  }),
+  useAuth: () => mockUseAuth(),
 }));
 
 describe('AdminLayout', () => {
+  beforeEach(() => {
+    mockUseAuth.mockReturnValue({
+      user: { id: 'u1', username: 'admin', role: 'ADMIN' },
+      isLoading: false,
+    });
+  });
+
   it('renders one platform shell with admin, report and history links', () => {
     render(
       <AdminLayout>
@@ -51,5 +57,25 @@ describe('AdminLayout', () => {
       '/import-history',
     );
     expect(screen.getByText('child-content')).toBeInTheDocument();
+  });
+
+  it('does not flash lower-permission tabs while the current user is loading', () => {
+    mockUseAuth.mockReturnValue({
+      user: null,
+      isLoading: true,
+    });
+
+    render(
+      <AdminLayout>
+        <div>child-content</div>
+      </AdminLayout>,
+    );
+
+    expect(screen.getByRole('navigation', { name: '平台管理导航' })).toHaveAttribute(
+      'aria-busy',
+      'true',
+    );
+    expect(screen.queryByRole('link', { name: '责任人报告' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '导入历史' })).not.toBeInTheDocument();
   });
 });
