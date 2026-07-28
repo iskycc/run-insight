@@ -28,8 +28,9 @@ describe("OrganizationSwitcher", () => {
 
     render(<OrganizationSwitcher />);
 
-    expect(await screen.findByRole("combobox", { name: "当前组织" }))
-      .toHaveValue("o2");
+    const switcher = await screen.findByRole("combobox", { name: "当前组织" });
+    expect(switcher).toHaveValue("o2");
+    expect(switcher).toHaveClass("max-w-28", "sm:max-w-40");
     expect(screen.queryByRole("link", { name: "管理组织" }))
       .not.toBeInTheDocument();
     expect(globalThis.fetch).toHaveBeenCalledWith("/api/organizations", {

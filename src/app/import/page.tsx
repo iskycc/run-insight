@@ -1000,7 +1000,7 @@ export default function ImportPage() {
       <div className="mx-auto max-w-6xl space-y-5 sm:space-y-6">
         <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="eyebrow">Import</p>
+            <p className="eyebrow">数据导入</p>
             <h1 className="mt-1 text-3xl font-semibold tracking-[-0.035em] text-text-primary sm:text-4xl">
               导入用例数据
             </h1>

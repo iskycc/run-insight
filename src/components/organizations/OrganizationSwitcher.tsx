@@ -70,7 +70,7 @@ export function OrganizationSwitcher() {
         value={currentId}
         disabled={busy}
         onChange={(event) => void switchOrganization(event.target.value)}
-        className="h-10 max-w-24 rounded-lg bg-surface-solid px-2.5 py-2 text-sm text-text-primary sm:max-w-40"
+        className="h-10 max-w-28 rounded-lg bg-surface-solid px-2.5 py-2 text-sm text-text-primary sm:max-w-40"
         options={organizations.map((organization) => ({
           value: organization.id,
           label: organization.name,
