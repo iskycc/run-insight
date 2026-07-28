@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { PageContainer } from "@/components/layout/PageContainer";
+import { Button } from "@/components/shared/Button";
+import { Input } from "@/components/shared/Input";
 import { Select } from "@/components/shared/Select";
 
 type Organization = {
@@ -177,14 +179,14 @@ export default function OrganizationSettingsPage() {
 
   return (
     <PageContainer
-      title="组织管理"
+      title="组织设置"
       subtitle="项目和数据始终隔离在当前组织内。"
     >
-      <div className="mx-auto max-w-4xl space-y-6">
-        {message && <p role="status" className="rounded-lg bg-bg p-3 text-sm">{message}</p>}
+      <div className="space-y-6">
+        {message && <p role="status" className="surface-subtle p-3 text-sm">{message}</p>}
 
-        <section className="rounded-xl border border-border bg-surface-solid p-5">
-          <h2 className="font-medium">组织</h2>
+        <section className="bento-panel p-5 sm:p-6">
+          <h2 className="text-lg font-semibold text-text-primary">组织</h2>
           <div className="mt-3 flex flex-wrap gap-2">
             <Select
               aria-label="管理的组织"
@@ -196,34 +198,33 @@ export default function OrganizationSettingsPage() {
                 label: organization.name,
               }))}
             />
-            <input
+            <Input
               aria-label="新组织名称"
               value={newOrganizationName}
               maxLength={100}
               onChange={(event) => setNewOrganizationName(event.target.value)}
-              className="rounded-lg border border-border px-3 py-2"
+              className="h-10 w-full sm:w-52"
               placeholder="新组织名称"
             />
-            <button
+            <Button
               type="button"
               disabled={!newOrganizationName.trim()}
               onClick={() => void createOrganization()}
-              className="rounded-lg bg-accent px-4 py-2 text-white disabled:opacity-50"
             >
               创建组织
-            </button>
+            </Button>
           </div>
         </section>
 
-        <section className="rounded-xl border border-border bg-surface-solid p-5">
-          <h2 className="font-medium">组织成员</h2>
+        <section className="bento-panel p-5 sm:p-6">
+          <h2 className="text-lg font-semibold text-text-primary">组织成员</h2>
           {canManage && (
             <div className="mt-3 flex flex-wrap gap-2">
-              <input
+              <Input
                 aria-label="成员用户名"
                 value={username}
                 onChange={(event) => setUsername(event.target.value)}
-                className="rounded-lg border border-border px-3 py-2"
+                className="h-10 w-full sm:w-52"
                 placeholder="用户名"
               />
               <Select
@@ -239,19 +240,21 @@ export default function OrganizationSettingsPage() {
                     : []),
                 ]}
               />
-              <button
+              <Button
                 type="button"
                 disabled={!username.trim()}
                 onClick={() => void addMember()}
-                className="rounded-lg bg-accent px-4 py-2 text-white disabled:opacity-50"
               >
                 添加成员
-              </button>
+              </Button>
             </div>
           )}
           <div className="mt-4 divide-y divide-border">
             {members.map((member) => (
-              <div key={member.id} className="flex items-center gap-3 py-3">
+              <div
+                key={member.id}
+                className="flex flex-col items-stretch gap-2 py-3 sm:flex-row sm:items-center sm:gap-3"
+              >
                 <span className="min-w-0 flex-1 truncate">{member.username}</span>
                 <Select
                   aria-label={`修改 ${member.username} 的角色`}
@@ -272,7 +275,7 @@ export default function OrganizationSettingsPage() {
                   <button
                     type="button"
                     onClick={() => void removeMember(member.id)}
-                    className="rounded-lg px-3 py-1.5 text-danger hover:bg-danger/10"
+                    className="min-h-9 rounded-[10px] px-3 py-1.5 text-sm font-medium text-danger transition-colors hover:bg-danger/10"
                   >
                     移除
                   </button>
