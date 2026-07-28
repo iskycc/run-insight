@@ -278,7 +278,7 @@ export function decryptLdapBindPassword(
 function defaultPublicConfiguration(): LdapConfigurationDTO {
   return {
     enabled: false,
-    url: "ldaps://ldap.example.com:636",
+    url: "ldap://ldap.example.com:389",
     bindDn: "",
     passwordConfigured: false,
     searchBase: "",

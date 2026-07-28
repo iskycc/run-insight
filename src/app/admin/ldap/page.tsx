@@ -24,7 +24,7 @@ type FormState = Omit<LdapConfigurationDTO, 'updatedAt'> & {
 
 const INITIAL_FORM: FormState = {
   enabled: false,
-  url: 'ldaps://ldap.example.com:636',
+  url: 'ldap://ldap.example.com:389',
   bindDn: '',
   bindPassword: '',
   passwordConfigured: false,
@@ -247,7 +247,7 @@ export default function LdapConfigurationPage() {
               label="LDAP 地址"
               value={form.url}
               onChange={(event) => updateForm('url', event.target.value)}
-              placeholder="ldaps://ldap.example.com:636"
+              placeholder="ldap://ldap.example.com:389"
               disabled={loading || saving || testing}
             />
             <Input
@@ -305,7 +305,7 @@ export default function LdapConfigurationPage() {
           <div className="mt-4 grid gap-3 lg:grid-cols-3">
             <ToggleField
               checked={form.startTls}
-              disabled={loading || saving || testing || form.url.startsWith('ldaps://')}
+              disabled={loading || saving || testing}
               label="使用 StartTLS"
               description="用于 ldap:// 连接；ldaps:// 会直接建立 TLS。"
               onChange={(checked) => updateForm('startTls', checked)}

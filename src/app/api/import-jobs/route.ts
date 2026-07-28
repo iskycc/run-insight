@@ -4,12 +4,15 @@ import { getProjectAccess } from "@/lib/project-access";
 import { internalError, jsonError } from "@/lib/api-helpers";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
+import {
+  MAX_IMPORT_JOB_PAYLOAD_BYTES,
+  MAX_IMPORT_JOB_PAYLOAD_LABEL,
+  MAX_IMPORT_ROWS,
+} from "@/lib/import-limits";
 
-const MAX_ROWS = 10_000;
 // ImportJob currently persists its JSON payload in MariaDB. Keep the request
-// comfortably below common max_allowed_packet defaults after Prisma/JSON
-// serialization overhead; larger imports should be split into multiple jobs.
-const MAX_PAYLOAD_BYTES = 8 * 1024 * 1024;
+// bounded after Prisma/JSON serialization. The bundled MariaDB service raises
+// max_allowed_packet to the same practical range for 100,000-row jobs.
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ALLOWED_FIELDS = new Set([
   "rows",
@@ -86,14 +89,25 @@ export async function POST(request: NextRequest) {
     return jsonError("UNSUPPORTED_MEDIA_TYPE", "Content-Type 必须为 application/json", 415);
   }
   const contentLength = Number(request.headers.get("content-length"));
-  if (Number.isFinite(contentLength) && contentLength > MAX_PAYLOAD_BYTES) {
-    return jsonError("PAYLOAD_TOO_LARGE", "导入任务数据不能超过 8MB", 413);
+  if (
+    Number.isFinite(contentLength)
+    && contentLength > MAX_IMPORT_JOB_PAYLOAD_BYTES
+  ) {
+    return jsonError(
+      "PAYLOAD_TOO_LARGE",
+      `导入任务数据不能超过 ${MAX_IMPORT_JOB_PAYLOAD_LABEL}`,
+      413,
+    );
   }
 
   try {
     const raw = await request.text();
-    if (Buffer.byteLength(raw) > MAX_PAYLOAD_BYTES) {
-      return jsonError("PAYLOAD_TOO_LARGE", "导入任务数据不能超过 8MB", 413);
+    if (Buffer.byteLength(raw) > MAX_IMPORT_JOB_PAYLOAD_BYTES) {
+      return jsonError(
+        "PAYLOAD_TOO_LARGE",
+        `导入任务数据不能超过 ${MAX_IMPORT_JOB_PAYLOAD_LABEL}`,
+        413,
+      );
     }
     let parsed: unknown;
     try {
@@ -110,8 +124,15 @@ export async function POST(request: NextRequest) {
       return jsonError("VALIDATION_ERROR", `不支持的字段：${unknownField}`);
     }
     const rows = body.rows;
-    if (!Array.isArray(rows) || rows.length < 1 || rows.length > MAX_ROWS) {
-      return jsonError("VALIDATION_ERROR", "导入行数必须为 1 到 10000");
+    if (
+      !Array.isArray(rows)
+      || rows.length < 1
+      || rows.length > MAX_IMPORT_ROWS
+    ) {
+      return jsonError(
+        "VALIDATION_ERROR",
+        `导入行数必须为 1 到 ${MAX_IMPORT_ROWS}`,
+      );
     }
     if (
       rows.some(

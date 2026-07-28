@@ -266,10 +266,7 @@ describe("POST /api/import", () => {
   });
 
   it("should return 400 if rows exceed the import limit", async () => {
-    const rows = Array.from({ length: 10_001 }, (_, index) => ({
-      ...validPreRow,
-      caseNo: `TC-${index}`,
-    }));
+    const rows = Array.from({ length: 100_001 }, () => ({}));
     const req = createRequest("/api/import", {
       method: "POST",
       body: JSON.stringify({ ...basePayload, rows }),
@@ -280,7 +277,7 @@ describe("POST /api/import", () => {
     expect(res.status).toBe(400);
 
     const body = await res.json();
-    expect(body.message).toContain("超过上限 10000");
+    expect(body.message).toContain("超过上限 100000");
     expect(txMock).not.toHaveBeenCalled();
     expect(txUpsert).not.toHaveBeenCalled();
   });

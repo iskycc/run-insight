@@ -4,6 +4,7 @@ services:
   db:
     image: mariadb:11.4
     container_name: run-insight-db
+    command: ["--max-allowed-packet=64M"]
     environment:
       MARIADB_DATABASE: ${MARIADB_DATABASE:-run_insight}
       MARIADB_USER: ${MARIADB_USER:-run_insight}

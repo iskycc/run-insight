@@ -1,5 +1,6 @@
 import { PROGRESS_CATEGORIES, RESULT_SUMMARIES } from "@/types";
 import type { ProgressCategory, ResultSummary, Role } from "@/types";
+import { MAX_IMPORT_ROWS } from "@/lib/import-limits";
 
 const ROLES: readonly Role[] = ["ADMIN", "EDITOR", "VIEWER"];
 const PROJECT_ROLES = ["ADMIN", "EDITOR", "VIEWER"] as const;
@@ -211,8 +212,6 @@ export function validateImportData(
 }
 
 // ============ 客户端预校验 ============
-
-const MAX_IMPORT_ROWS = 10_000;
 
 export function validateResultSummary(value: string): string | null {
   if (!value || value.trim().length === 0) {

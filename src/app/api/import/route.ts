@@ -18,8 +18,8 @@ import { getProjectAccess } from "@/lib/project-access";
 import { writeAuditLog } from "@/lib/audit";
 import { secretsEqual } from "@/lib/secrets";
 import { emitWebhookEvent } from "@/lib/webhooks";
+import { MAX_IMPORT_ROWS } from "@/lib/import-limits";
 
-const MAX_IMPORT_ROWS = 10_000;
 const DEFAULT_FILE_NAME = "unknown";
 const PREVIEW_SAMPLE_LIMIT = 5;
 const EXISTING_ROW_QUERY_CHUNK_SIZE = 5_000;

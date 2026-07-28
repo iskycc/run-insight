@@ -98,6 +98,19 @@ describe('LDAP configuration page', () => {
     expect(body).not.toHaveProperty('bindPassword');
   });
 
+  it('allows StartTLS to be disabled for any LDAP URL', async () => {
+    render(<LdapConfigurationPage />);
+    const user = userEvent.setup();
+    await screen.findByText(/最近保存/);
+
+    const startTls = screen.getByRole('switch', { name: /使用 StartTLS/ });
+    expect(startTls).toBeEnabled();
+    expect(startTls).toHaveAttribute('aria-checked', 'true');
+
+    await user.click(startTls);
+    expect(startTls).toHaveAttribute('aria-checked', 'false');
+  });
+
   it('tests the current form with a password that is never retained', async () => {
     mockFetchJson
       .mockResolvedValueOnce(configuration)

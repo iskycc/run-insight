@@ -1,0 +1,3 @@
+export const MAX_IMPORT_ROWS = 100_000;
+export const MAX_IMPORT_JOB_PAYLOAD_BYTES = 64 * 1024 * 1024;
+export const MAX_IMPORT_JOB_PAYLOAD_LABEL = "64MB";

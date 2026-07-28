@@ -128,6 +128,23 @@ describe("LDAP configuration and authentication", () => {
     ).toThrow(LdapConfigurationError);
   });
 
+  it("allows ldap without StartTLS when plaintext LDAP is explicitly enabled", () => {
+    expect(
+      parseLdapConfigurationInput({
+        ...validInput,
+        url: "ldap://ldap.example.com:389",
+        startTls: false,
+        allowInsecure: true,
+      }),
+    ).toEqual(
+      expect.objectContaining({
+        url: "ldap://ldap.example.com:389",
+        startTls: false,
+        allowInsecure: true,
+      }),
+    );
+  });
+
   it("encrypts bind passwords with authenticated AES encryption", () => {
     const ciphertext = encryptLdapBindPassword(
       "service-password",

@@ -149,19 +149,19 @@ describe("import job APIs", () => {
     expect((await unknown.json()).message).toContain("unexpected");
   });
 
-  it("enforces the 8MB payload and 10000 row limits", async () => {
+  it("enforces the 64MB payload and 100000 row limits", async () => {
     const tooLarge = request(
       "/api/import-jobs",
       "POST",
       payload,
-      { "content-length": String(8 * 1024 * 1024 + 1) },
+      { "content-length": String(64 * 1024 * 1024 + 1) },
     );
     expect((await createJob(tooLarge)).status).toBe(413);
 
     const tooMany = await createJob(
       request("/api/import-jobs", "POST", {
         ...payload,
-        rows: Array.from({ length: 10_001 }, () => ({})),
+        rows: Array.from({ length: 100_001 }, () => ({})),
       }),
     );
     expect(tooMany.status).toBe(400);

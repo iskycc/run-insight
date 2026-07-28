@@ -14,6 +14,7 @@ import { ProgressBar } from '@/components/shared/ProgressBar';
 import { Check } from '@phosphor-icons/react';
 import { fetchJson, ApiError } from '@/lib/fetch';
 import { buildAutoMapping, parseImportFile } from '@/lib/import-file-parser';
+import { MAX_IMPORT_ROWS } from '@/lib/import-limits';
 import type { ValidationError, ImportType } from '@/lib/validations';
 import { validateImportDataClient } from '@/lib/validations';
 import type {
@@ -1008,7 +1009,9 @@ export default function ImportPage() {
             </p>
           </div>
           <div className="grid w-full grid-cols-3 gap-px overflow-hidden rounded-2xl border border-white/80 bg-border shadow-[0_12px_30px_rgba(15,23,42,0.06)] sm:w-auto">
-            <div className="bg-white px-4 py-3 sm:min-w-24"><Metric label="行数上限" value="10,000" /></div>
+            <div className="bg-white px-4 py-3 sm:min-w-24">
+              <Metric label="行数上限" value={MAX_IMPORT_ROWS.toLocaleString('en-US')} />
+            </div>
             <div className="bg-white px-4 py-3 sm:min-w-24">
             <Metric label="字段数" value={headers.length || '—'} />
             </div>

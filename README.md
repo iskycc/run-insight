@@ -320,8 +320,8 @@ docker compose up -d --force-recreate app
 ### LDAP 登录（可选）
 
 管理员在“平台管理 → LDAP 配置”中完成配置、启停和真实用户登录测试，无需设置
-LDAP 环境变量。配置支持 LDAPS、StartTLS、私有 CA、连接/操作超时、OpenLDAP 与
-Active Directory 用户过滤器。
+LDAP 环境变量。配置支持 LDAPS、LDAP + StartTLS，以及显式确认后的明文 LDAP；
+同时支持私有 CA、连接/操作超时、OpenLDAP 与 Active Directory 用户过滤器。
 
 LDAP 是本地账号之外的附加认证来源，不是替代模式。开启后，现有管理员、viewer
 和其他本地账号仍使用原密码登录；本地不存在的用户名才会尝试 LDAP。LDAP 用户首次
