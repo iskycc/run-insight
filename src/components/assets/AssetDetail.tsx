@@ -6,6 +6,7 @@ import { Button } from '@/components/shared/Button';
 import { Input } from '@/components/shared/Input';
 import { Modal } from '@/components/shared/Modal';
 import { Select } from '@/components/shared/Select';
+import { Textarea } from '@/components/shared/Textarea';
 import { formatDateTime } from '@/lib/date-time';
 import { ApiError, fetchJson } from '@/lib/fetch';
 import type {
@@ -368,8 +369,8 @@ export function AssetDetail({ asset, onClose, onUpdated }: Props) {
         footer={
           <>
             <Button variant="secondary" onClick={() => setEditOpen(false)}>取消</Button>
-            <Button onClick={() => void save()} disabled={saving}>
-              {saving ? '保存中…' : '保存'}
+            <Button onClick={() => void save()} loading={saving} loadingLabel="保存中…">
+              保存
             </Button>
           </>
         }
@@ -400,15 +401,13 @@ export function AssetDetail({ asset, onClose, onUpdated }: Props) {
             ['摘要', summary, setSummary, 6],
             ['解决方案', solution, setSolution, 8],
           ].map(([label, value, setter, rows]) => (
-            <label key={String(label)} className="block text-sm font-medium">
-              {String(label)}
-              <textarea
-                value={String(value)}
-                rows={Number(rows)}
-                onChange={(event) => (setter as (value: string) => void)(event.target.value)}
-                className="field-control mt-1 w-full resize-y px-3 py-2 text-sm"
-              />
-            </label>
+            <Textarea
+              key={String(label)}
+              label={String(label)}
+              value={String(value)}
+              rows={Number(rows)}
+              onChange={(event) => (setter as (value: string) => void)(event.target.value)}
+            />
           ))}
           {error && <p className="text-sm text-danger">{error}</p>}
         </div>

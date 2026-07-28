@@ -9,6 +9,7 @@ import { Button } from '@/components/shared/Button';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { Input } from '@/components/shared/Input';
 import { Modal } from '@/components/shared/Modal';
+import { LoadingState } from '@/components/shared/LoadingState';
 import { useAuth } from '@/components/shared/AuthProvider';
 import { useToast } from '@/contexts/ToastContext';
 import {
@@ -416,7 +417,7 @@ export default function ProjectDetailPage() {
   if (authLoading) {
     return (
       <PageContainer title="项目详情">
-        <div className="panel p-10 text-center text-sm text-text-secondary">加载中...</div>
+        <LoadingState label="正在加载项目详情" rows={5} />
       </PageContainer>
     );
   }
@@ -572,7 +573,7 @@ export default function ProjectDetailPage() {
 
           <div className="panel overflow-hidden">
             {loading ? (
-              <div className="p-10 text-center text-sm text-text-secondary">加载中...</div>
+              <LoadingState label="正在加载测试阶段" rows={4} className="m-4" />
             ) : stages.length === 0 ? (
               <EmptyState
                 title="暂无阶段"
@@ -679,7 +680,7 @@ export default function ProjectDetailPage() {
                       {expanded && (
                         <div className="border-t border-border bg-bg/35 px-4 py-4 sm:pl-16">
                           {batchState?.loading ? (
-                            <p className="text-sm text-text-secondary">批跑加载中...</p>
+                            <LoadingState compact label="正在加载批跑…" />
                           ) : !batchState?.loaded ? (
                             <Button size="sm" variant="secondary" onClick={() => loadBatches(stage.id, true)}>
                               重新加载批跑
@@ -842,8 +843,8 @@ export default function ProjectDetailPage() {
             <Button variant="secondary" onClick={() => setCreateStageOpen(false)}>
               取消
             </Button>
-            <Button onClick={createStage} disabled={creatingStage}>
-              {creatingStage ? '创建中...' : '创建阶段'}
+            <Button onClick={createStage} loading={creatingStage} loadingLabel="创建中…">
+              创建阶段
             </Button>
           </>
         }
@@ -874,8 +875,8 @@ export default function ProjectDetailPage() {
             <Button variant="secondary" onClick={() => setBatchStage(null)}>
               取消
             </Button>
-            <Button onClick={createBatch} disabled={creatingBatch}>
-              {creatingBatch ? '创建中...' : '创建批跑'}
+            <Button onClick={createBatch} loading={creatingBatch} loadingLabel="创建中…">
+              创建批跑
             </Button>
           </>
         }
@@ -956,8 +957,8 @@ export default function ProjectDetailPage() {
             <Button variant="secondary" onClick={() => setEditingBatch(null)}>
               取消
             </Button>
-            <Button onClick={editBatch} disabled={creatingBatch}>
-              {creatingBatch ? '保存中...' : '保存修改'}
+            <Button onClick={editBatch} loading={creatingBatch} loadingLabel="保存中…">
+              保存修改
             </Button>
           </>
         }

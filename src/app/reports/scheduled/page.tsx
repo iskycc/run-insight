@@ -3,6 +3,9 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Select } from "@/components/shared/Select";
+import { Input } from "@/components/shared/Input";
+import { LoadingState } from "@/components/shared/LoadingState";
+import { Button } from "@/components/shared/Button";
 
 type Project = { id: string; name: string; archived: boolean };
 type SnapshotLink = { id: string; generatedAt: string };
@@ -214,16 +217,13 @@ export default function ScheduledReportsPage() {
               className="mt-1.5 w-full rounded-xl border border-border bg-bg px-3 py-2.5 text-text-primary"
             />
           </label>
-          <label className="text-sm text-text-secondary">
-            执行时间
-            <input
+          <Input
+              label="执行时间"
               type="time"
               required
               value={runTime}
               onChange={(event) => setRunTime(event.target.value)}
-              className="mt-1.5 w-full rounded-xl border border-border bg-bg px-3 py-2.5 text-text-primary"
             />
-          </label>
           {cadence === "WEEKLY" && (
             <Select
               label="每周"
@@ -259,20 +259,22 @@ export default function ScheduledReportsPage() {
             </label>
           )}
           <div className="flex items-end">
-            <button
+            <Button
               type="submit"
-              disabled={submitting || !projectId}
-              className="min-h-11 w-full rounded-xl bg-accent px-4 text-sm font-medium text-white disabled:opacity-50"
+              disabled={!projectId}
+              loading={submitting}
+              loadingLabel="创建中…"
+              className="w-full"
             >
-              {submitting ? "创建中…" : "创建定时报表"}
-            </button>
+              创建定时报表
+            </Button>
           </div>
         </form>
       </section>
 
       <section aria-label="定时报表列表">
         {loading ? (
-          <p className="py-12 text-center text-text-secondary">加载中…</p>
+          <LoadingState label="正在加载定时报表" rows={4} className="my-3" />
         ) : reports.length === 0 ? (
           <p className="rounded-2xl border border-dashed border-border py-12 text-center text-text-secondary">
             暂无定时报表

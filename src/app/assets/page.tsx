@@ -8,6 +8,7 @@ import { AssetList } from '@/components/assets/AssetList';
 import { Input } from '@/components/shared/Input';
 import { Select } from '@/components/shared/Select';
 import { Button } from '@/components/shared/Button';
+import { LoadingState } from '@/components/shared/LoadingState';
 import { useAuth } from '@/components/shared/AuthProvider';
 import { ApiError, fetchJson } from '@/lib/fetch';
 import { FunnelSimple } from '@phosphor-icons/react';
@@ -195,7 +196,7 @@ export default function AssetsPage() {
           }}
         />
       ) : loading ? (
-        <div className="panel p-8 text-center text-sm text-text-secondary">加载中…</div>
+        <LoadingState label="正在加载资产库" rows={5} />
       ) : (
         <AssetList
           assets={assets}

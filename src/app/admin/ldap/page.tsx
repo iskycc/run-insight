@@ -6,6 +6,8 @@ import { CheckCircle, FloppyDisk, PlugsConnected } from '@phosphor-icons/react';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { Button } from '@/components/shared/Button';
 import { Input } from '@/components/shared/Input';
+import { Switch } from '@/components/shared/Switch';
+import { Textarea } from '@/components/shared/Textarea';
 import { useAuth } from '@/components/shared/AuthProvider';
 import { useToast } from '@/contexts/ToastContext';
 import { formatDateTime } from '@/lib/date-time';
@@ -69,21 +71,13 @@ function ToggleField({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <label className="flex cursor-pointer items-start gap-3 rounded-[12px] border border-border bg-bg/45 p-3">
-      <input
-        type="checkbox"
-        checked={checked}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.checked)}
-        className="mt-0.5 h-4 w-4 accent-accent"
-      />
-      <span className="min-w-0">
-        <span className="block text-sm font-medium text-text-primary">{label}</span>
-        <span className="mt-0.5 block text-xs leading-5 text-text-secondary">
-          {description}
-        </span>
-      </span>
-    </label>
+    <Switch
+      checked={checked}
+      disabled={disabled}
+      onCheckedChange={onChange}
+      label={label}
+      description={description}
+    />
   );
 }
 
@@ -200,9 +194,14 @@ export default function LdapConfigurationPage() {
       title="LDAP 配置"
       subtitle="配置目录认证、加密保存绑定密码，并在启用前完成真实用户登录测试"
       actions={
-        <Button onClick={() => void save()} disabled={loading || saving || testing}>
+        <Button
+          onClick={() => void save()}
+          disabled={loading || testing}
+          loading={saving}
+          loadingLabel="保存中…"
+        >
           <FloppyDisk size={17} aria-hidden="true" />
-          {saving ? '保存中...' : '保存配置'}
+          保存配置
         </Button>
       }
     >
@@ -352,22 +351,19 @@ export default function LdapConfigurationPage() {
               disabled={loading || saving || testing}
             />
           </div>
-          <label className="mt-4 flex flex-col gap-1.5">
-            <span className="text-xs font-semibold text-text-secondary">
-              私有 CA 证书（PEM，可选）
-            </span>
-            <textarea
-              value={form.tlsCaCertificate}
-              onChange={(event) =>
-                updateForm('tlsCaCertificate', event.target.value)
-              }
-              rows={6}
-              spellCheck={false}
-              placeholder="-----BEGIN CERTIFICATE-----"
-              disabled={loading || saving || testing}
-              className="field-control w-full resize-y px-3 py-2 font-mono text-xs placeholder:text-text-secondary/55"
-            />
-          </label>
+          <Textarea
+            label="私有 CA 证书（PEM，可选）"
+            value={form.tlsCaCertificate}
+            onChange={(event) =>
+              updateForm('tlsCaCertificate', event.target.value)
+            }
+            rows={6}
+            spellCheck={false}
+            placeholder="-----BEGIN CERTIFICATE-----"
+            disabled={loading || saving || testing}
+            wrapperClassName="mt-4"
+            className="font-mono text-xs"
+          />
         </section>
 
         <section className="bento-panel p-5 sm:p-6">
@@ -382,10 +378,12 @@ export default function LdapConfigurationPage() {
             <Button
               variant="secondary"
               onClick={() => void testConnection()}
-              disabled={loading || saving || testing}
+              disabled={loading || saving}
+              loading={testing}
+              loadingLabel="测试中…"
             >
               <PlugsConnected size={17} aria-hidden="true" />
-              {testing ? '测试中...' : '测试连接'}
+              测试连接
             </Button>
           </div>
           <div className="mt-4 grid gap-4 lg:grid-cols-2">

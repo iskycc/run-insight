@@ -9,6 +9,7 @@ import { CaretDown, CaretUp } from '@phosphor-icons/react';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { Select } from '@/components/shared/Select';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { LoadingState } from '@/components/shared/LoadingState';
 import { useAuth } from '@/components/shared/AuthProvider';
 import { useToast } from '@/contexts/ToastContext';
 import { fetchJson, ApiError } from '@/lib/fetch';
@@ -417,7 +418,7 @@ export default function AssigneeReportPage() {
           </div>
           {loading ? (
             <div className="flex items-center justify-center p-10 text-sm text-text-secondary">
-              加载中...
+              <LoadingState label="正在加载责任人报告" rows={5} />
             </div>
           ) : sortedStats.length === 0 ? (
             <EmptyState

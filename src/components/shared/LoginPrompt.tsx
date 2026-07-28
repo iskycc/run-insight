@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
+import { Button } from '@/components/shared/Button';
 
 type LoginPromptProps = {
   open: boolean;
@@ -100,13 +101,14 @@ export function LoginPrompt({ open, onClose, onLogin, loginError }: LoginPromptP
             >
               取消
             </button>
-            <button
+            <Button
               type="submit"
-              disabled={isSubmitting}
-              className="flex-1 rounded-md bg-accent px-4 py-2 font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
+              loading={isSubmitting}
+              loadingLabel="登录中…"
+              className="flex-1"
             >
-              {isSubmitting ? '登录中…' : '登录'}
-            </button>
+              登录
+            </Button>
           </div>
         </form>
       </div>

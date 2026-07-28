@@ -156,7 +156,7 @@ export function Nav() {
             <div
               role="menu"
               aria-label="更多导航"
-              className="absolute right-0 top-full z-50 mt-2 w-44 rounded-[14px] border border-border bg-surface-solid p-1.5 shadow-lg"
+              className="dropdown-surface absolute right-0 top-full z-50 mt-2 w-44 rounded-[14px] border border-border bg-surface-solid p-1.5 shadow-lg"
             >
               {moreItems.map((item) => renderNavLink(item, false, true))}
             </div>
@@ -185,7 +185,7 @@ export function Nav() {
             {mobileOpen ? <X size={18} aria-hidden="true" /> : <List size={18} aria-hidden="true" />}
             {mobileOpen ? '收起导航' : '打开导航'}
           </button>
-          {mobileOpen && <div className="pt-2">{mobileNav}</div>}
+          {mobileOpen && <div className="dropdown-surface pt-2">{mobileNav}</div>}
         </>
       ) : (
         desktopNav

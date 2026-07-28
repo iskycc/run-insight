@@ -4,6 +4,7 @@ import { formatDateTime } from '@/lib/date-time';
 import { getProgressLabel } from '@/lib/progress';
 import { ArrowRight, CaretDown, CaretUp } from '@phosphor-icons/react';
 import { Select } from '@/components/shared/Select';
+import { Checkbox } from '@/components/shared/Checkbox';
 
 interface CaseRow {
   id: string;
@@ -255,15 +256,11 @@ export default function CaseTable({
             <tr className="border-y border-border/60 text-left text-xs text-text-secondary">
               {canEdit && (
                 <th className="w-10 px-3 py-3">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     aria-label="全选当前页"
                     checked={allOnPageSelected}
-                    ref={(el) => {
-                      if (el) el.indeterminate = someOnPageSelected;
-                    }}
+                    indeterminate={someOnPageSelected}
                     onChange={handleHeaderCheckbox}
-                    className="h-4 w-4 cursor-pointer rounded border-border text-accent focus:ring-accent/30"
                   />
                 </th>
               )}
@@ -291,12 +288,10 @@ export default function CaseTable({
                 >
                   {canEdit && (
                     <td className="mb-2 block md:mb-0 md:table-cell md:w-10 md:px-3 md:py-2.5 md:align-middle">
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         aria-label={`选择用例 ${c.caseNo}`}
                         checked={checked}
                         onChange={(e) => handleRowCheckbox(c.id, e.target.checked)}
-                        className="h-4 w-4 cursor-pointer rounded border-border text-accent focus:ring-accent/30"
                       />
                     </td>
                   )}

@@ -7,6 +7,7 @@ import { Button } from '@/components/shared/Button';
 import { Select } from '@/components/shared/Select';
 import { Badge } from '@/components/shared/Badge';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { LoadingState } from '@/components/shared/LoadingState';
 import { useAuth } from '@/components/shared/AuthProvider';
 import { useToast } from '@/contexts/ToastContext';
 import { formatDateTime } from '@/lib/date-time';
@@ -174,7 +175,7 @@ export default function ImportHistoryPage() {
           </div>
           {loading ? (
             <div className="flex min-h-72 items-center justify-center p-10">
-              <p className="text-sm text-text-secondary">加载中...</p>
+              <LoadingState label="正在加载导入历史" rows={5} />
             </div>
           ) : records.length === 0 ? (
             <EmptyState

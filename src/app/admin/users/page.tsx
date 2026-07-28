@@ -6,6 +6,7 @@ import { Button } from '@/components/shared/Button';
 import { Input } from '@/components/shared/Input';
 import { Modal } from '@/components/shared/Modal';
 import { Select } from '@/components/shared/Select';
+import { LoadingState } from '@/components/shared/LoadingState';
 import { useAuth } from '@/components/shared/AuthProvider';
 import { useToast } from '@/contexts/ToastContext';
 import { formatDateTime } from '@/lib/date-time';
@@ -254,7 +255,7 @@ export default function AdminUsersPage() {
     return (
       <PageContainer title="用户管理" subtitle="创建用户、调整角色">
         <div className="panel flex items-center justify-center p-10">
-          <p className="text-sm text-text-secondary">加载中...</p>
+          <LoadingState label="正在加载用户" rows={5} />
         </div>
       </PageContainer>
     );
@@ -407,9 +408,10 @@ export default function AdminUsersPage() {
             <Button
               type="submit"
               form="rename-user-form"
-              disabled={isRenaming}
+              loading={isRenaming}
+              loadingLabel="保存中…"
             >
-              {isRenaming ? '保存中...' : '保存'}
+              保存
             </Button>
           </>
         }
@@ -461,8 +463,8 @@ export default function AdminUsersPage() {
             >
               取消
             </Button>
-            <Button onClick={handleCreate} disabled={isCreating}>
-              {isCreating ? '创建中...' : '创建'}
+            <Button onClick={handleCreate} loading={isCreating} loadingLabel="创建中…">
+              创建
             </Button>
           </>
         }

@@ -10,6 +10,8 @@ import { Select } from '@/components/shared/Select';
 import { Modal } from '@/components/shared/Modal';
 import { Badge } from '@/components/shared/Badge';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { Checkbox } from '@/components/shared/Checkbox';
+import { LoadingState } from '@/components/shared/LoadingState';
 import { useAuth } from '@/components/shared/AuthProvider';
 import { useToast } from '@/contexts/ToastContext';
 import { formatDateTime } from '@/lib/date-time';
@@ -236,7 +238,7 @@ export default function ProjectSettingsPage() {
         <div className="panel p-6">
           <h2 className="text-lg font-semibold text-text-primary">项目信息</h2>
           {projectLoading ? (
-            <p className="mt-4 text-sm text-text-secondary">加载中...</p>
+            <LoadingState label="正在加载项目设置" rows={3} className="mt-4" />
           ) : projectName ? (
             <dl className="mt-4 grid grid-cols-1 gap-4 text-sm sm:grid-cols-3">
               <div>
@@ -283,7 +285,7 @@ export default function ProjectSettingsPage() {
             </div>
           ) : keysLoading ? (
             <div className="mt-4 flex items-center justify-center p-4">
-              <p className="text-sm text-text-secondary">加载中...</p>
+              <LoadingState compact label="正在加载 API Key…" />
             </div>
           ) : keys.length === 0 ? (
             <div className="mt-4">
@@ -364,8 +366,8 @@ export default function ProjectSettingsPage() {
             <Button variant="secondary" onClick={closeCreate}>
               取消
             </Button>
-            <Button onClick={handleCreate} disabled={creating}>
-              {creating ? '创建中...' : '创建'}
+            <Button onClick={handleCreate} loading={creating} loadingLabel="创建中…">
+              创建
             </Button>
           </>
         }
@@ -383,10 +385,12 @@ export default function ProjectSettingsPage() {
           />
           <fieldset>
             <legend className="text-sm font-medium text-text-primary">权限范围</legend>
-            <label className="mt-2 flex items-center gap-2 text-sm text-text-secondary">
-              <input type="checkbox" checked disabled />
-              导入数据（IMPORT）
-            </label>
+            <Checkbox
+              wrapperClassName="mt-2"
+              checked
+              disabled
+              label="导入数据（IMPORT）"
+            />
           </fieldset>
           <Select
             label="有效期"

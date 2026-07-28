@@ -105,10 +105,11 @@ export default function LoginPage() {
 
             <Button
               type="submit"
-              disabled={isSubmitting}
+              loading={isSubmitting}
+              loadingLabel="登录中…"
               className="w-full"
             >
-              {isSubmitting ? '登录中…' : '登录'}
+              登录
             </Button>
           </form>
         </div>

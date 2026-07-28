@@ -84,8 +84,13 @@ export function BatchActionModal({
           <Button variant="secondary" onClick={onClose} disabled={submitting}>
             取消
           </Button>
-          <Button onClick={handleConfirm} disabled={!canSubmit || submitting}>
-            {submitting ? '提交中…' : `确认 (${selectedCount})`}
+          <Button
+            onClick={handleConfirm}
+            disabled={!canSubmit}
+            loading={submitting}
+            loadingLabel="提交中…"
+          >
+            确认 ({selectedCount})
           </Button>
         </>
       }

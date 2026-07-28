@@ -6,6 +6,8 @@ import { Button } from "@/components/shared/Button";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Input } from "@/components/shared/Input";
 import { Modal } from "@/components/shared/Modal";
+import { Checkbox } from "@/components/shared/Checkbox";
+import { LoadingState } from "@/components/shared/LoadingState";
 import { useToast } from "@/contexts/ToastContext";
 import { formatDateTime } from "@/lib/date-time";
 import { ApiError, fetchJson } from "@/lib/fetch";
@@ -266,7 +268,7 @@ export function WebhookSettings({
           Webhook 管理仅对项目管理员开放
         </p>
       ) : loading ? (
-        <p className="mt-4 text-sm text-text-secondary">加载中...</p>
+        <LoadingState label="正在加载 Webhook" rows={3} className="mt-4" />
       ) : webhooks.length === 0 ? (
         <div className="mt-4">
           <EmptyState
@@ -332,7 +334,7 @@ export function WebhookSettings({
             最近投递记录
           </h3>
           {deliveriesLoading ? (
-            <p className="mt-3 text-sm text-text-secondary">加载中...</p>
+            <LoadingState compact label="正在加载投递记录…" className="mt-3" />
           ) : deliveries.length === 0 ? (
             <p className="mt-3 text-sm text-text-secondary">暂无投递记录</p>
           ) : (
@@ -387,8 +389,8 @@ export function WebhookSettings({
             <Button variant="secondary" onClick={() => setModalOpen(false)}>
               取消
             </Button>
-            <Button onClick={save} disabled={saving}>
-              {saving ? "保存中..." : "保存"}
+            <Button onClick={save} loading={saving} loadingLabel="保存中…">
+              保存
             </Button>
           </>
         }
@@ -405,9 +407,8 @@ export function WebhookSettings({
             <legend className="text-sm font-medium text-text-primary">订阅事件</legend>
             <div className="mt-2 grid gap-2 sm:grid-cols-2">
               {ALL_EVENTS.map((event) => (
-                <label key={event} className="flex items-center gap-2 text-sm text-text-secondary">
-                  <input
-                    type="checkbox"
+                <Checkbox
+                    key={event}
                     checked={events.includes(event)}
                     onChange={(change) =>
                       setEvents((current) =>
@@ -416,20 +417,16 @@ export function WebhookSettings({
                           : current.filter((item) => item !== event),
                       )
                     }
+                    label={EVENT_LABELS[event]}
                   />
-                  {EVENT_LABELS[event]}
-                </label>
               ))}
             </div>
           </fieldset>
-          <label className="flex items-center gap-2 text-sm text-text-secondary">
-            <input
-              type="checkbox"
+          <Checkbox
               checked={active}
               onChange={(event) => setActive(event.target.checked)}
+              label="创建后立即启用"
             />
-            创建后立即启用
-          </label>
         </div>
       </Modal>
 

@@ -5,6 +5,8 @@ import { Button } from '@/components/shared/Button';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { Input } from '@/components/shared/Input';
 import { Modal } from '@/components/shared/Modal';
+import { Textarea } from '@/components/shared/Textarea';
+import { LoadingState } from '@/components/shared/LoadingState';
 import { ApiError, fetchJson } from '@/lib/fetch';
 import type {
   RootCauseCategoriesResponse,
@@ -119,7 +121,7 @@ export function RootCauseManager({ projectId }: Props) {
   };
 
   if (loading) {
-    return <div className="panel p-6 text-sm text-text-secondary">加载中…</div>;
+    return <LoadingState label="正在加载根因分类" rows={4} />;
   }
 
   return (
@@ -207,8 +209,8 @@ export function RootCauseManager({ projectId }: Props) {
             <Button variant="secondary" onClick={() => setModalOpen(false)}>
               取消
             </Button>
-            <Button onClick={() => void save()} disabled={saving}>
-              {saving ? '保存中…' : '保存'}
+            <Button onClick={() => void save()} loading={saving} loadingLabel="保存中…">
+              保存
             </Button>
           </>
         }
@@ -220,19 +222,14 @@ export function RootCauseManager({ projectId }: Props) {
             maxLength={100}
             onChange={(event) => setName(event.target.value)}
           />
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="root-cause-description" className="text-sm font-medium">
-              分类说明
-            </label>
-            <textarea
-              id="root-cause-description"
-              value={description}
-              maxLength={1000}
-              rows={4}
-              onChange={(event) => setDescription(event.target.value)}
-              className="field-control w-full resize-y px-3 py-2 text-sm"
-            />
-          </div>
+          <Textarea
+            id="root-cause-description"
+            label="分类说明"
+            value={description}
+            maxLength={1000}
+            rows={4}
+            onChange={(event) => setDescription(event.target.value)}
+          />
           {error && <p className="text-sm text-danger">{error}</p>}
         </div>
       </Modal>

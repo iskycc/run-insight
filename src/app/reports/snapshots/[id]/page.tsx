@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
+import { LoadingState } from "@/components/shared/LoadingState";
 
 type Snapshot = {
   id: string;
@@ -113,7 +114,11 @@ export default function ReportSnapshotPage({
     return <main className="mx-auto max-w-4xl px-4 py-12"><p role="alert" className="text-danger">{error}</p></main>;
   }
   if (!snapshot) {
-    return <main className="mx-auto max-w-4xl px-4 py-12 text-text-secondary">加载中…</main>;
+    return (
+      <main className="page-shell animate-page-enter">
+        <LoadingState label="正在加载报表快照" rows={5} />
+      </main>
+    );
   }
 
   return (

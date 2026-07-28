@@ -12,6 +12,7 @@ import CaseTable, {
 } from '@/components/workspace/CaseTable';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { SaveAssetModal } from '@/components/shared/SaveAssetModal';
+import { LoadingState } from '@/components/shared/LoadingState';
 import {
   BatchActionModal,
   type BatchActionType,
@@ -866,7 +867,7 @@ export default function WorkspacePage() {
       fallback={
         <PageContainer title="工作台" subtitle="按项目、阶段和批跑筛选用例，推进分析闭环">
           <div className="panel flex items-center justify-center p-10">
-            <p className="text-sm text-text-secondary">加载中…</p>
+            <LoadingState label="正在加载工作台" rows={5} />
           </div>
         </PageContainer>
       }

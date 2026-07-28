@@ -7,6 +7,7 @@ import { CaseDetail, type CaseDetailData } from '@/components/case/CaseDetail';
 import { ActivityTimeline } from '@/components/case/ActivityTimeline';
 import { EditAnalysisModal } from '@/components/case/EditAnalysisModal';
 import { SaveAssetModal } from '@/components/shared/SaveAssetModal';
+import { LoadingState } from '@/components/shared/LoadingState';
 import { useAuth } from '@/components/shared/AuthProvider';
 import type {
   CaseActivityDTO,
@@ -292,7 +293,7 @@ export default function CaseDetailPage() {
     return (
       <PageContainer title="用例明细">
         <div className="flex items-center justify-center py-12">
-          <div className="text-text-secondary text-sm">加载中…</div>
+          <LoadingState label="正在加载用例详情" rows={5} />
         </div>
       </PageContainer>
     );

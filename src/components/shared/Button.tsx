@@ -1,4 +1,5 @@
 import { type ButtonHTMLAttributes, forwardRef } from 'react';
+import { CircleNotch } from '@phosphor-icons/react';
 
 type ButtonVariant = 'primary' | 'secondary' | 'danger';
 type ButtonSize = 'sm' | 'md' | 'lg';
@@ -6,6 +7,8 @@ type ButtonSize = 'sm' | 'md' | 'lg';
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ButtonVariant;
   size?: ButtonSize;
+  loading?: boolean;
+  loadingLabel?: string;
 };
 
 const variantClasses: Record<ButtonVariant, string> = {
@@ -24,11 +27,21 @@ const sizeClasses: Record<ButtonSize, string> = {
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ variant = 'primary', size = 'md', className = '', disabled, children, ...props }, ref) => {
+  ({
+    variant = 'primary',
+    size = 'md',
+    className = '',
+    disabled,
+    loading = false,
+    loadingLabel,
+    children,
+    ...props
+  }, ref) => {
     return (
       <button
         ref={ref}
-        disabled={disabled}
+        disabled={disabled || loading}
+        aria-busy={loading || undefined}
         className={`inline-flex items-center justify-center gap-2 rounded-[10px] font-medium
           transition-[background-color,border-color,box-shadow,transform] focus:outline-none focus:ring-2
           active:scale-[0.98]
@@ -37,7 +50,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
           ${variantClasses[variant]} ${sizeClasses[size]} ${className}`}
         {...props}
       >
-        {children}
+        {loading && <CircleNotch className="motion-spin" size={16} aria-hidden="true" />}
+        {loading && loadingLabel ? loadingLabel : children}
       </button>
     );
   },

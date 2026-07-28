@@ -352,9 +352,11 @@ export default function MappingTemplates({
           size="sm"
           variant="secondary"
           onClick={() => void handleSave()}
-          disabled={!newName.trim() || busy}
+          disabled={!newName.trim()}
+          loading={busy}
+          loadingLabel="处理中…"
         >
-          {busy ? '处理中…' : '保存模板'}
+          保存模板
         </Button>
       </div>
       {message && <p className="mt-2 text-xs text-text-secondary">{message}</p>}

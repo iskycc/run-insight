@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { Button } from '@/components/shared/Button';
+import { ProgressBar } from '@/components/shared/ProgressBar';
+import { LoadingState } from '@/components/shared/LoadingState';
 import { Input } from '@/components/shared/Input';
 import { Modal } from '@/components/shared/Modal';
 import { Badge } from '@/components/shared/Badge';
@@ -190,7 +192,7 @@ export default function ProjectsPage() {
         <div className="panel overflow-hidden p-3 sm:p-4">
           {loading ? (
             <div className="flex items-center justify-center p-10">
-              <p className="text-sm text-text-secondary">加载中...</p>
+              <LoadingState label="正在加载项目" rows={5} />
             </div>
           ) : projects.length === 0 ? (
             <EmptyState
@@ -296,12 +298,12 @@ export default function ProjectsPage() {
                           {total > 0 ? `${passRate}%` : '暂无结果'}
                         </span>
                       </div>
-                      <div className="h-1.5 overflow-hidden rounded-full bg-border/70">
-                        <div
-                          className="h-full rounded-full bg-success transition-[width]"
-                          style={{ width: `${passRate}%` }}
-                        />
-                      </div>
+                      <ProgressBar
+                        label={`${project.name} 通过率`}
+                        value={passRate}
+                        tone="success"
+                        className="h-1.5"
+                      />
                     </div>
 
                     <Link
@@ -339,8 +341,8 @@ export default function ProjectsPage() {
             >
               取消
             </Button>
-            <Button onClick={handleCreate} disabled={isCreating}>
-              {isCreating ? '创建中...' : '创建'}
+            <Button onClick={handleCreate} loading={isCreating} loadingLabel="创建中…">
+              创建
             </Button>
           </>
         }

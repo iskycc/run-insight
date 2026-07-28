@@ -304,7 +304,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
             id={listboxId}
             role="listbox"
             aria-label={ariaLabel ?? (typeof label === 'string' ? label : '选择选项')}
-            className="fixed z-[100] overflow-y-auto rounded-[14px] border border-border bg-surface-solid p-1.5 shadow-[0_18px_50px_rgba(25,32,52,0.16)]"
+            className="dropdown-surface fixed z-[100] overflow-y-auto rounded-[14px] border border-border bg-surface-solid p-1.5 shadow-[0_18px_50px_rgba(25,32,52,0.16)]"
             style={{
               left: menuPosition.left,
               top: menuPosition.top,

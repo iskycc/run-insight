@@ -9,6 +9,9 @@ import {
   Trash,
 } from '@phosphor-icons/react';
 import { Select } from '@/components/shared/Select';
+import { Checkbox } from '@/components/shared/Checkbox';
+import { LoadingState } from '@/components/shared/LoadingState';
+import { Button } from '@/components/shared/Button';
 import type {
   SavedViewDTO,
   SavedViewFilters,
@@ -141,24 +144,25 @@ export default function SavedViewsCard({
                   : []),
               ]}
             />
-            <label className="flex items-end gap-2 pb-2 text-xs text-text-secondary">
-              <input
-                type="checkbox"
+            <div className="flex items-end pb-2">
+              <Checkbox
                 checked={isDefault}
                 onChange={(event) => setIsDefault(event.target.checked)}
-                className="h-4 w-4 rounded border-border text-accent"
+                label="设为默认"
               />
-              设为默认
-            </label>
+            </div>
           </div>
-          <button
+          <Button
             type="submit"
-            disabled={saving || !name.trim()}
-            className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-[9px] bg-accent text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            size="sm"
+            disabled={!name.trim()}
+            loading={saving}
+            loadingLabel="保存中…"
+            className="w-full"
           >
             <FloppyDisk size={15} weight="bold" aria-hidden="true" />
-            {saving ? '保存中…' : '确认保存'}
-          </button>
+            确认保存
+          </Button>
         </form>
       )}
 
@@ -167,7 +171,7 @@ export default function SavedViewsCard({
           已保存
         </p>
         {loading ? (
-          <p className="py-3 text-xs text-text-secondary">正在加载保存视图…</p>
+          <LoadingState compact label="正在加载保存视图…" className="py-3 text-xs" />
         ) : views.length === 0 ? (
           <p className="rounded-[10px] bg-bg/60 px-3 py-3 text-xs leading-5 text-text-secondary">
             暂无保存视图。保存后会在这里显示。

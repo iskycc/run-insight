@@ -5,6 +5,7 @@ import { Modal } from '@/components/shared/Modal';
 import { Button } from '@/components/shared/Button';
 import { Input } from '@/components/shared/Input';
 import { Select } from '@/components/shared/Select';
+import { Textarea } from '@/components/shared/Textarea';
 import {
   PROGRESS_CATEGORIES,
   PROGRESS_LABELS,
@@ -205,18 +206,15 @@ export function EditAnalysisModal({
           placeholder="输入 MR 链接或工单号"
         />
 
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="analysis-notes" className="text-sm font-medium text-text-primary">
-            备注
-          </label>
-          <textarea
+        <div>
+          <Textarea
             id="analysis-notes"
+            label="备注"
             value={notes}
             maxLength={5000}
             rows={5}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="补充分析过程、结论或处理说明"
-            className="field-control w-full resize-y px-3 py-2 text-sm"
           />
           <span className="text-right text-xs text-text-secondary">{notes.length}/5000</span>
         </div>

@@ -83,7 +83,7 @@ export function Header() {
                 </button>
                 {menuOpen && (
                   <div
-                    className="absolute right-0 top-full mt-2 w-44 overflow-hidden rounded-[14px] border border-border bg-surface-solid p-1.5 shadow-lg"
+                    className="dropdown-surface absolute right-0 top-full mt-2 w-44 overflow-hidden rounded-[14px] border border-border bg-surface-solid p-1.5 shadow-lg"
                     role="menu"
                     aria-label="用户菜单"
                   >

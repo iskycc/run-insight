@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/shared/Button';
+import { Textarea } from '@/components/shared/Textarea';
 import { formatDateTime } from '@/lib/date-time';
 import type { CaseActivityDTO } from '@/types';
 
@@ -95,14 +96,13 @@ export function ActivityTimeline({
 
       {canComment && (
         <div className="mb-6 flex flex-col gap-2">
-          <textarea
+          <Textarea
             aria-label="发表评论"
             value={comment}
             maxLength={5000}
             rows={3}
             onChange={(event) => onCommentChange(event.target.value)}
             placeholder="记录分析过程或补充说明"
-            className="field-control w-full resize-y px-3 py-2 text-sm"
           />
           {mentionSuggestions.length > 0 && (
             <div
@@ -168,13 +168,12 @@ export function ActivityTimeline({
 
                 {editing ? (
                   <div className="mt-3 space-y-2">
-                    <textarea
+                    <Textarea
                       aria-label="编辑评论"
                       value={editComment}
                       maxLength={5000}
                       rows={3}
                       onChange={(event) => setEditComment(event.target.value)}
-                      className="field-control w-full resize-y px-3 py-2 text-sm"
                       autoFocus
                     />
                     <div className="flex justify-end gap-2">
@@ -193,12 +192,13 @@ export function ActivityTimeline({
                         size="sm"
                         onClick={() => void saveEdit(activity.id)}
                         disabled={
-                          savingId === activity.id ||
                           !editComment.trim() ||
                           editComment.trim() === activity.comment
                         }
+                        loading={savingId === activity.id}
+                        loadingLabel="保存中…"
                       >
-                        {savingId === activity.id ? '保存中...' : '保存修改'}
+                        保存修改
                       </Button>
                     </div>
                   </div>

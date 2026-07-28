@@ -10,6 +10,7 @@ import MappingTemplates from '@/components/import/MappingTemplates';
 import ValidationReport from '@/components/import/ValidationReport';
 import { Button } from '@/components/shared/Button';
 import { Select, type SelectOption } from '@/components/shared/Select';
+import { ProgressBar } from '@/components/shared/ProgressBar';
 import { Check } from '@phosphor-icons/react';
 import { fetchJson, ApiError } from '@/lib/fetch';
 import { buildAutoMapping, parseImportFile } from '@/lib/import-file-parser';
@@ -189,26 +190,11 @@ function ProgressPanel({ progress }: { progress: ImportProgress }) {
             {indeterminate ? '处理中' : `${Math.round(progressValue)}%`}
           </span>
         </div>
-        <div
-          className="h-2 overflow-hidden rounded-full bg-[#e8edf5]"
-          role="progressbar"
-          aria-label={progress.label}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={indeterminate ? undefined : Math.round(progressValue)}
-          aria-valuetext={indeterminate ? '后台处理中' : undefined}
-        >
-          <div
-            className={`h-full rounded-full transition-all duration-500 ${
-              progress.status === 'error'
-                ? 'bg-[var(--color-danger)]'
-                : isDone
-                  ? 'bg-[var(--color-success)]'
-                  : 'bg-[var(--color-accent)]'
-            } ${indeterminate ? 'animate-pulse' : ''}`}
-            style={{ width: indeterminate ? '100%' : `${progressValue}%` }}
-          />
-        </div>
+        <ProgressBar
+          label={progress.label}
+          value={indeterminate ? undefined : progressValue}
+          tone={progress.status === 'error' ? 'danger' : isDone ? 'success' : 'accent'}
+        />
         <div className="grid grid-cols-2 gap-3 border-t border-border pt-4">
           <Metric label="状态" value={isActive ? '处理中' : isDone ? '已完成' : progress.status === 'error' ? '失败' : '待开始'} />
           <Metric label="耗时" value={formatDuration(progress.finishedMs)} />
@@ -1344,14 +1330,21 @@ export default function ImportPage() {
                   {preValidationErrors.length === 0 && errors.length === 0 && !preview && !activeJob && (
                     <Button
                       onClick={handlePreview}
-                      disabled={isPreviewing || !targetReady || rows.length === 0}
+                      disabled={!targetReady || rows.length === 0}
+                      loading={isPreviewing}
+                      loadingLabel="预览中…"
                     >
-                      {isPreviewing ? '预览中' : '预览导入差异'}
+                      预览导入差异
                     </Button>
                   )}
                   {preValidationErrors.length === 0 && errors.length === 0 && preview && !activeJob && (
-                    <Button onClick={handleImport} disabled={isImporting || !targetReady}>
-                      {isImporting ? '导入中' : '确认并导入'}
+                    <Button
+                      onClick={handleImport}
+                      disabled={!targetReady}
+                      loading={isImporting}
+                      loadingLabel="导入中…"
+                    >
+                      确认并导入
                     </Button>
                   )}
                 </div>

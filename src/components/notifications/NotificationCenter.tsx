@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Bell, Check, Trash } from '@phosphor-icons/react';
+import { LoadingState } from '@/components/shared/LoadingState';
 import type {
   NotificationDTO,
   NotificationsResponse,
@@ -157,7 +158,7 @@ export function NotificationCenter() {
         <section
           role="dialog"
           aria-label="通知中心"
-          className="absolute right-0 top-full z-50 mt-2 w-[calc(100vw-2.5rem)] overflow-hidden rounded-[18px] border border-border bg-surface-solid shadow-xl sm:w-[min(24rem,calc(100vw-1rem))]"
+          className="dropdown-surface absolute right-0 top-full z-50 mt-2 w-[calc(100vw-2.5rem)] overflow-hidden rounded-[18px] border border-border bg-surface-solid shadow-xl sm:w-[min(24rem,calc(100vw-1rem))]"
         >
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
             <div>
@@ -185,9 +186,7 @@ export function NotificationCenter() {
           )}
           <div className="max-h-[min(26rem,calc(100dvh-12rem))] overflow-y-auto">
             {loading ? (
-              <p className="px-4 py-10 text-center text-sm text-text-secondary">
-                加载中…
-              </p>
+              <LoadingState compact label="正在加载通知…" className="justify-center px-4 py-10" />
             ) : notifications.length === 0 ? (
               <p className="px-4 py-10 text-center text-sm text-text-secondary">
                 暂无通知

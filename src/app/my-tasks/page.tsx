@@ -6,6 +6,7 @@ import { PageContainer } from '@/components/layout/PageContainer';
 import { Select } from '@/components/shared/Select';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { Button } from '@/components/shared/Button';
+import { LoadingState } from '@/components/shared/LoadingState';
 import { useAuth } from '@/components/shared/AuthProvider';
 import { ApiError, fetchJson } from '@/lib/fetch';
 import { formatDate } from '@/lib/date-time';
@@ -129,7 +130,7 @@ export default function MyTasksPage() {
       </section>
 
       {authLoading || loading ? (
-        <div className="bento-panel p-10 text-center text-sm text-text-secondary">加载中...</div>
+        <LoadingState label="正在加载待办" rows={5} />
       ) : (
         <div className="bento-panel overflow-hidden">
           <div className="hidden overflow-x-auto sm:block">

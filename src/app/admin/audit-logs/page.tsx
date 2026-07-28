@@ -6,6 +6,7 @@ import { Button } from '@/components/shared/Button';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { Input } from '@/components/shared/Input';
 import { Select } from '@/components/shared/Select';
+import { LoadingState } from '@/components/shared/LoadingState';
 import { useToast } from '@/contexts/ToastContext';
 import { formatDateTime, toDateInputValue } from '@/lib/date-time';
 import { ApiError, fetchJson } from '@/lib/fetch';
@@ -322,7 +323,7 @@ export default function AdminAuditLogsPage() {
         <div className="bento-panel overflow-hidden">
           {loading ? (
             <div className="flex items-center justify-center p-10">
-              <p className="text-sm text-text-secondary">加载中...</p>
+              <LoadingState label="正在加载审计日志" rows={5} />
             </div>
           ) : logs.length === 0 ? (
             <EmptyState

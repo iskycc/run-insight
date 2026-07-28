@@ -43,12 +43,12 @@ export function Modal({ open, onClose, title, children, footer }: ModalProps) {
       {/* Overlay */}
       <div
         data-testid="modal-overlay"
-        className="absolute inset-0 bg-slate-950/35 backdrop-blur-sm"
+        className="modal-backdrop absolute inset-0 bg-slate-950/35 backdrop-blur-sm"
         onClick={onClose}
       />
 
       <div
-        className="relative z-10 flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-[20px] border border-white/70 bg-surface-solid shadow-lg sm:max-h-[calc(100dvh-3rem)]"
+        className="modal-panel relative z-10 flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-[20px] border border-white/70 bg-surface-solid shadow-lg sm:max-h-[calc(100dvh-3rem)]"
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}

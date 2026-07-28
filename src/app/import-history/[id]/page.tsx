@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { Button } from '@/components/shared/Button';
 import { Badge } from '@/components/shared/Badge';
+import { LoadingState } from '@/components/shared/LoadingState';
 import { useAuth } from '@/components/shared/AuthProvider';
 import { useToast } from '@/contexts/ToastContext';
 import { formatDateTime } from '@/lib/date-time';
@@ -123,7 +124,7 @@ export default function ImportHistoryDetailPage() {
     >
       {loading ? (
         <div className="panel flex items-center justify-center p-10">
-          <p className="text-sm text-text-secondary">加载中...</p>
+          <LoadingState label="正在加载导入详情" rows={5} />
         </div>
       ) : notFound ? (
         <div className="panel flex items-center justify-center p-10">

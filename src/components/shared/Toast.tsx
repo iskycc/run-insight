@@ -30,7 +30,7 @@ export function ToastContainer() {
         <div
           key={toast.id}
           role="status"
-          className={`rounded-[14px] border bg-surface-solid/95 px-4 py-3 text-sm shadow-lg backdrop-blur-xl ${typeStyles[toast.type]}`}
+          className={`toast-enter rounded-[14px] border bg-surface-solid/95 px-4 py-3 text-sm shadow-lg backdrop-blur-xl ${typeStyles[toast.type]}`}
         >
           <div className="flex items-start gap-2">
             <span className="font-semibold">{typeLabels[toast.type]}</span>

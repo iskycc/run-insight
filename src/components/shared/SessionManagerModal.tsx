@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/shared/Button';
 import { Modal } from '@/components/shared/Modal';
+import { LoadingState } from '@/components/shared/LoadingState';
 import { formatDateTime, formatRelativeTime } from '@/lib/date-time';
 import { ApiError, fetchJson } from '@/lib/fetch';
 import type { SessionDTO, SessionsResponse } from '@/types';
@@ -124,7 +125,7 @@ export function SessionManagerModal({
         设备信息由浏览器类型和操作系统概括生成，不保存原始令牌或 IP 地址。
       </p>
       {loading ? (
-        <p className="py-6 text-center text-sm text-text-secondary">加载中...</p>
+        <LoadingState compact label="正在加载登录会话…" className="justify-center py-6" />
       ) : sessions.length === 0 ? (
         <p className="py-6 text-center text-sm text-text-secondary">暂无登录会话</p>
       ) : (

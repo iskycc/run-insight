@@ -7,6 +7,7 @@ import { PageContainer } from '@/components/layout/PageContainer';
 import { Button } from '@/components/shared/Button';
 import { Input } from '@/components/shared/Input';
 import { Select } from '@/components/shared/Select';
+import { LoadingState } from '@/components/shared/LoadingState';
 import { useAuth } from '@/components/shared/AuthProvider';
 import { useToast } from '@/contexts/ToastContext';
 import { ApiError, fetchJson } from '@/lib/fetch';
@@ -113,7 +114,7 @@ export default function ProjectMembersPage() {
       actions={<Link href={`/projects/${id}`} className="text-sm text-accent">返回项目详情</Link>}
     >
       {authLoading || loading ? (
-        <div className="panel p-10 text-center text-sm text-text-secondary">加载中...</div>
+        <LoadingState label="正在加载项目成员" rows={4} />
       ) : (
         <div className="space-y-5">
           {canManage && (

@@ -15,6 +15,7 @@ import {
   type ProgressCategory,
 } from '@/types';
 import { Select } from '@/components/shared/Select';
+import { Input } from '@/components/shared/Input';
 
 export interface WorkspaceFilters {
   projectId: string;
@@ -393,9 +394,8 @@ export default function FilterBar({
           />
         </label>
 
-        <label className="space-y-1.5">
-          <span className="text-xs font-medium text-text-secondary">创建日期从</span>
-          <input
+        <Input
+            label="创建日期从"
             aria-label="创建日期从"
             type="date"
             lang="zh-CN"
@@ -404,11 +404,9 @@ export default function FilterBar({
             onChange={(event) => emit({ dateFrom: event.target.value })}
             className={advancedControl}
           />
-        </label>
 
-        <label className="space-y-1.5">
-          <span className="text-xs font-medium text-text-secondary">创建日期至</span>
-          <input
+        <Input
+            label="创建日期至"
             aria-label="创建日期至"
             type="date"
             lang="zh-CN"
@@ -417,7 +415,6 @@ export default function FilterBar({
             onChange={(event) => emit({ dateTo: event.target.value })}
             className={advancedControl}
           />
-        </label>
       </div>
     </section>
   );
