@@ -230,11 +230,15 @@ export async function PATCH(request: NextRequest) {
       data.dueDate = updates.dueDate ? new Date(updates.dueDate) : null;
     }
     if (updates.progressCategory !== undefined) {
-      const valid = validateProgressCategory(updates.progressCategory);
-      if (!valid) {
-        return jsonError("VALIDATION_ERROR", "进展分类不合法");
+      if (updates.progressCategory === null) {
+        data.progressCategory = null;
+      } else {
+        const valid = validateProgressCategory(updates.progressCategory);
+        if (!valid) {
+          return jsonError("VALIDATION_ERROR", "进展分类不合法");
+        }
+        data.progressCategory = valid;
       }
-      data.progressCategory = updates.progressCategory;
     }
     if (updates.rootCause !== undefined) {
       const err = validateStringMaxLength(updates.rootCause, 200, "根因");

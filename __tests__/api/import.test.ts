@@ -521,6 +521,45 @@ describe("POST /api/import", () => {
     expect(txImportCreate).toHaveBeenCalledTimes(1);
   });
 
+  it("imports PASS and non-PASS rows together into the same batch", async () => {
+    const rows = (["PASS", "FAIL", "BLOCK", "SKIP"] as const).map(
+      (resultSummary, index) => ({
+        caseNo: `TC-MIX-${index + 1}`,
+        name: `${resultSummary} 用例`,
+        resultSummary,
+      }),
+    );
+    txUpsert.mockImplementation(({ create }: { create: { caseNo: string } }) =>
+      Promise.resolve({
+        id: `case-${create.caseNo}`,
+        updatedAt: new Date("2026-07-25T00:00:00.000Z"),
+      }),
+    );
+    const req = createRequest("/api/import", {
+      method: "POST",
+      body: JSON.stringify({ ...basePayload, rows }),
+      headers: { "Content-Type": "application/json", cookie: authCookie() },
+    });
+
+    const res = await POST(req);
+    const body = await res.json();
+
+    expect(res.status).toBe(201);
+    expect(body).toEqual(expect.objectContaining({
+      imported: 4,
+      created: 4,
+      updated: 0,
+    }));
+    expect(txUpsert).toHaveBeenCalledTimes(4);
+    expect(txUpsert.mock.calls.map(([args]) => args.create.resultSummary)).toEqual([
+      "PASS",
+      "FAIL",
+      "BLOCK",
+      "SKIP",
+    ]);
+    expect(txUpsert.mock.calls.every(([args]) => args.create.batchScopeId === "b1")).toBe(true);
+  });
+
   it("keeps a successful import when the best-effort audit write fails", async () => {
     const consoleError = jest.spyOn(console, "error").mockImplementation(() => undefined);
     txAuditCreate.mockRejectedValueOnce(new Error("audit unavailable"));

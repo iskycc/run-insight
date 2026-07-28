@@ -4,8 +4,10 @@ import { authenticateRequest } from "@/lib/auth";
 import {
   isValidCasePriority,
   isValidCuid,
+  validateLogUrl,
   validateOptionalDate,
   validateProgressCategory,
+  validateRequired,
   validateStringMaxLength,
 } from "@/lib/validations";
 import { internalError, jsonError } from "@/lib/api-helpers";
@@ -14,6 +16,7 @@ import { writeAuditLog } from "@/lib/audit";
 import { getProjectAccess } from "@/lib/project-access";
 import { notifyCaseUpdatesBestEffort } from "@/lib/notifications";
 import type { Prisma } from "@/generated/prisma/client";
+import { RESULT_SUMMARIES } from "@/types";
 import type {
   CaseDetailResponse,
   UpdateCaseRequest,
@@ -88,7 +91,35 @@ export async function PATCH(
 
     const body: UpdateCaseRequest = await request.json();
     const data: Record<string, unknown> = {};
-    if (body.assignee !== undefined) data.assignee = body.assignee;
+    if (body.name !== undefined) {
+      const name = typeof body.name === "string" ? body.name.trim() : "";
+      const required = validateRequired(name, "用例名称");
+      if (required) return jsonError("VALIDATION_ERROR", required);
+      const error = validateStringMaxLength(name, 191, "用例名称");
+      if (error) return jsonError("VALIDATION_ERROR", error);
+      data.name = name;
+    }
+    if (body.resultSummary !== undefined) {
+      if (!RESULT_SUMMARIES.includes(body.resultSummary)) {
+        return jsonError("VALIDATION_ERROR", "结果概要必须为 PASS/FAIL/BLOCK/SKIP 之一");
+      }
+      data.resultSummary = body.resultSummary;
+    }
+    if (body.logUrl !== undefined) {
+      if (body.logUrl !== null && typeof body.logUrl !== "string") {
+        return jsonError("VALIDATION_ERROR", "日志链接格式不正确");
+      }
+      const logUrl = body.logUrl?.trim() ?? null;
+      const error = validateLogUrl(logUrl || undefined);
+      if (error) return jsonError("VALIDATION_ERROR", error);
+      data.logUrl = logUrl || null;
+    }
+    if (body.assignee !== undefined) {
+      if (typeof body.assignee !== "string") {
+        return jsonError("VALIDATION_ERROR", "责任人格式不正确");
+      }
+      data.assignee = body.assignee.trim() || null;
+    }
     if (body.assigneeId !== undefined) {
       if (body.assigneeId === null || body.assigneeId === "") {
         data.assigneeId = null;
@@ -122,11 +153,15 @@ export async function PATCH(
       data.dueDate = body.dueDate ? new Date(body.dueDate) : null;
     }
     if (body.progressCategory !== undefined) {
-      const valid = validateProgressCategory(body.progressCategory);
-      if (!valid) {
-        return jsonError("VALIDATION_ERROR", "进展分类不合法");
+      if (body.progressCategory === null) {
+        data.progressCategory = null;
+      } else {
+        const valid = validateProgressCategory(body.progressCategory);
+        if (!valid) {
+          return jsonError("VALIDATION_ERROR", "进展分类不合法");
+        }
+        data.progressCategory = valid;
       }
-      data.progressCategory = body.progressCategory;
     }
     if (body.rootCause !== undefined) {
       const err = validateStringMaxLength(body.rootCause, 200, "根因");
@@ -166,6 +201,9 @@ export async function PATCH(
     data.updatedBy = authResult.userId;
 
     const trackedFields = [
+      "name",
+      "resultSummary",
+      "logUrl",
       "assignee",
       "assigneeId",
       "priority",

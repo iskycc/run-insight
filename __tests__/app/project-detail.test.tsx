@@ -119,9 +119,9 @@ describe('ProjectDetailPage', () => {
 
     expect(await screen.findByText('回归批跑 01')).toBeInTheDocument();
     expect(screen.getByText(/^2026年7月1日 16:30/)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '查看用例' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: '查看结果' })).toHaveAttribute(
       'href',
-      '/workspace?projectId=project-1&testStageId=stage-1&batchScopeId=batch-1'
+      '/projects/project-1/batches/batch-1'
     );
     expect(
       screen.getByRole('link', { name: '打开 回归批跑 01 的流水线链接（新窗口）' }),

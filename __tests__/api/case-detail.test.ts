@@ -225,6 +225,55 @@ describe("PATCH /api/cases/[id]", () => {
     expect(body.case.assignee).toBe("张三");
   });
 
+  it("updates an individual execution result from the batch results page", async () => {
+    (mockPrisma.caseResult.findUnique as jest.Mock).mockResolvedValue(sampleCase);
+    (mockPrisma.caseResult.update as jest.Mock).mockImplementation(
+      ({ data }: { data: Record<string, unknown> }) =>
+        Promise.resolve({ ...sampleCase, ...data }),
+    );
+    const req = createRequest(`/api/cases/${validId}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        name: "更新后的名称",
+        resultSummary: "PASS",
+        logUrl: "https://example.com/logs/TC-001",
+        progressCategory: null,
+      }),
+      headers: { "Content-Type": "application/json", cookie: authCookie() },
+    });
+
+    const res = await PATCH(req, { params: Promise.resolve({ id: validId }) });
+    const data = (mockPrisma.caseResult.update as jest.Mock).mock.calls[0][0].data;
+
+    expect(res.status).toBe(200);
+    expect(data).toEqual(expect.objectContaining({
+      name: "更新后的名称",
+      resultSummary: "PASS",
+      logUrl: "https://example.com/logs/TC-001",
+      progressCategory: null,
+      updatedBy: "user_1",
+    }));
+  });
+
+  it.each([
+    [{ name: " " }, "用例名称"],
+    [{ resultSummary: "UNKNOWN" }, "结果概要"],
+    [{ logUrl: "javascript:alert(1)" }, "日志链接"],
+  ])("rejects an invalid execution-result update %#", async (body, message) => {
+    (mockPrisma.caseResult.findUnique as jest.Mock).mockResolvedValue(sampleCase);
+    const req = createRequest(`/api/cases/${validId}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+      headers: { "Content-Type": "application/json", cookie: authCookie() },
+    });
+
+    const res = await PATCH(req, { params: Promise.resolve({ id: validId }) });
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).message).toContain(message);
+    expect(mockPrisma.caseResult.update).not.toHaveBeenCalled();
+  });
+
   it("should update notes and return the authenticated updater name", async () => {
     (mockPrisma.caseResult.findUnique as jest.Mock).mockResolvedValue(sampleCase);
     (mockPrisma.caseResult.update as jest.Mock).mockResolvedValue({

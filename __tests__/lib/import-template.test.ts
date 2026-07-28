@@ -5,15 +5,17 @@ import {
 } from '@/lib/import-template';
 
 describe('import templates', () => {
-  it('builds a concise pre-analysis sample', () => {
-    expect(getImportTemplateRows('pre-analysis')).toEqual([
-      {
-        caseNo: 'TC-001',
-        name: '用户登录',
-        resultSummary: 'FAIL',
-        logUrl: 'https://example.com/logs/TC-001',
-      },
+  it('builds a mixed-result pre-analysis sample for one batch', () => {
+    const rows = getImportTemplateRows('pre-analysis');
+
+    expect(rows).toHaveLength(4);
+    expect(rows.map((row) => row.resultSummary)).toEqual([
+      'PASS',
+      'FAIL',
+      'BLOCK',
+      'SKIP',
     ]);
+    expect(new Set(rows.map((row) => row.caseNo)).size).toBe(4);
   });
 
   it('adds analysis fields to the post-analysis sample', () => {

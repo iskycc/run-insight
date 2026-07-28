@@ -15,6 +15,14 @@ const HELP_ROUTES: Array<{
   content: HelpContent;
 }> = [
   {
+    matches: (pathname) => /^\/projects\/[^/]+\/batches\/[^/]+$/.test(pathname),
+    content: {
+      title: '批跑结果',
+      description: '查看某次批跑的完整结果、统计分布和单条执行数据。',
+      steps: ['先查看通过率与结果分布', '使用搜索或结果类型定位数据', '可编辑单条结果，或导出全量 CSV / Excel'],
+    },
+  },
+  {
     matches: (pathname) => /^\/case\/[^/]+$/.test(pathname),
     content: {
       title: '用例详情',

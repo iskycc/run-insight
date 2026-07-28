@@ -1095,7 +1095,9 @@ export default function ImportPage() {
                       }`}
                     >
                       <span className="text-sm font-semibold text-[var(--color-text-primary)]">分析前数据</span>
-                      <span className="mt-2 block text-xs leading-5 text-[var(--color-text-secondary)]">导入用例编号、名称、结果概要与日志链接</span>
+                      <span className="mt-2 block text-xs leading-5 text-[var(--color-text-secondary)]">
+                        同一文件可混合导入 PASS、FAIL、BLOCK、SKIP 结果
+                      </span>
                     </button>
                     <button
                       type="button"

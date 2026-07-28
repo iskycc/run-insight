@@ -745,10 +745,10 @@ export default function ProjectDetailPage() {
                                     )}
                                   </div>
                                   <Link
-                                    href={`/workspace?projectId=${id}&testStageId=${stage.id}&batchScopeId=${batch.id}`}
+                                    href={`/projects/${id}/batches/${batch.id}`}
                                     className="rounded-lg bg-accent/10 px-3 py-2 text-xs font-semibold text-accent hover:bg-accent/15"
                                   >
-                                    查看用例
+                                    查看结果
                                   </Link>
                                   {(canEdit || canDelete) && !projectInactive && (
                                     <details className="relative">

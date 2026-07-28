@@ -298,13 +298,35 @@ export interface BatchesResponse {
   batches: BatchScopeWithStats[];
 }
 
+export interface BatchResultStats {
+  totalCount: number;
+  passCount: number;
+  failCount: number;
+  blockCount: number;
+  skipCount: number;
+  nonPassCount: number;
+  passRate: number;
+}
+
+export interface BatchResultsSummaryResponse {
+  batch: BatchScopeDTO & {
+    project: { id: string; name: string };
+    stage: { id: string; name: string };
+  };
+  stats: BatchResultStats;
+  canEdit: boolean;
+}
+
 // --- 用例 ---
 export interface UpdateCaseRequest {
+  name?: string;
+  resultSummary?: ResultSummary;
+  logUrl?: string | null;
   assignee?: string;
   assigneeId?: string | null;
   priority?: CasePriority | null;
   dueDate?: string | null;
-  progressCategory?: ProgressCategory;
+  progressCategory?: ProgressCategory | null;
   rootCause?: string;
   rootCauseCategoryId?: string | null;
   mrOrTicket?: string;
