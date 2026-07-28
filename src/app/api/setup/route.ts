@@ -8,6 +8,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { checkSetupRateLimit } from "@/lib/rate-limiter";
 import { secretsEqual } from "@/lib/secrets";
+import { normalizeUsername } from "@/lib/validations";
 import type {
   InitializeInstanceResponse,
   InstanceSetupStatusResponse,
@@ -16,7 +17,6 @@ import type {
 const SETUP_MARKER_ID = 1;
 const MIN_PASSWORD_LENGTH = 12;
 const MAX_PASSWORD_LENGTH = 128;
-const MAX_USERNAME_LENGTH = 50;
 const MIN_SETUP_TOKEN_LENGTH = 32;
 
 class InstanceAlreadyInitializedError extends Error {}
@@ -40,19 +40,6 @@ async function isInstanceInitialized(): Promise<boolean> {
 function configuredSetupToken(): string | null {
   const token = process.env.INSTANCE_SETUP_TOKEN;
   return token && token.length >= MIN_SETUP_TOKEN_LENGTH ? token : null;
-}
-
-function normalizeUsername(value: unknown): string | null {
-  if (typeof value !== "string") return null;
-  const username = value.normalize("NFKC").trim();
-  if (
-    username.length < 3
-    || username.length > MAX_USERNAME_LENGTH
-    || /[\s\u0000-\u001f\u007f]/u.test(username)
-  ) {
-    return null;
-  }
-  return username;
 }
 
 function validatePassword(

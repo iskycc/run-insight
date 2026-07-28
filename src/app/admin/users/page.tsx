@@ -30,7 +30,7 @@ interface ResetPasswordForm {
 }
 
 export default function AdminUsersPage() {
-  const { user } = useAuth();
+  const { user, updateCurrentUser } = useAuth();
   const { showToast } = useToast();
 
   const [users, setUsers] = useState<UserWithRole[] | null>(null);
@@ -54,6 +54,10 @@ export default function AdminUsersPage() {
   });
   const [resetError, setResetError] = useState('');
   const [isResetting, setIsResetting] = useState(false);
+  const [renameTarget, setRenameTarget] = useState<UserWithRole | null>(null);
+  const [renameUsername, setRenameUsername] = useState('');
+  const [renameError, setRenameError] = useState('');
+  const [isRenaming, setIsRenaming] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -84,6 +88,7 @@ export default function AdminUsersPage() {
   const adminCount = users?.filter((u) => u.role === 'ADMIN').length ?? 0;
   const editorCount = users?.filter((u) => u.role === 'EDITOR').length ?? 0;
   const viewerCount = users?.filter((u) => u.role === 'VIEWER').length ?? 0;
+  const currentUserId = user?.id;
 
   const handleCreate = useCallback(async () => {
     const username = createForm.username.trim();
@@ -139,9 +144,59 @@ export default function AdminUsersPage() {
     [showToast],
   );
 
-  const isSelf = (target: UserWithRole) => !!user && target.id === user.id;
+  const isSelf = (target: UserWithRole) => !!currentUserId && target.id === currentUserId;
   const isLastAdmin = (target: UserWithRole) =>
     target.role === 'ADMIN' && adminCount <= 1;
+
+  const closeRenameModal = useCallback(() => {
+    if (isRenaming) return;
+    setRenameTarget(null);
+    setRenameUsername('');
+    setRenameError('');
+  }, [isRenaming]);
+
+  const handleRename = useCallback(async () => {
+    if (!renameTarget) return;
+    const username = renameUsername.normalize('NFKC').trim();
+    if (
+      username.length < 3
+      || username.length > 50
+      || /[\s\u0000-\u001f\u007f]/u.test(username)
+    ) {
+      setRenameError('用户名必须为 3 到 50 个字符，且不能包含空格或控制字符');
+      return;
+    }
+
+    setRenameError('');
+    setIsRenaming(true);
+    try {
+      const updated = await fetchJson<UserWithRole>(
+        `/api/users/${renameTarget.id}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username }),
+        },
+      );
+      if (renameTarget.id === currentUserId) {
+        updateCurrentUser({ username: updated.username });
+      }
+      showToast({ message: '用户名已更新', type: 'success' });
+      setRenameTarget(null);
+      setRenameUsername('');
+      setReloadKey((key) => key + 1);
+    } catch (error) {
+      setRenameError(error instanceof ApiError ? error.message : '修改用户名失败');
+    } finally {
+      setIsRenaming(false);
+    }
+  }, [
+    renameTarget,
+    renameUsername,
+    showToast,
+    updateCurrentUser,
+    currentUserId,
+  ]);
 
   const closeResetModal = useCallback(() => {
     if (isResetting) return;
@@ -226,10 +281,11 @@ export default function AdminUsersPage() {
       </div>
       <div className="bento-panel overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[960px] text-sm">
             <thead className="bg-bg/60 text-left text-xs font-semibold text-text-secondary">
               <tr>
                 <th className="px-4 py-3">用户名</th>
+                <th className="px-4 py-3">认证方式</th>
                 <th className="px-4 py-3">角色</th>
                 <th className="px-4 py-3">创建时间</th>
                 <th className="px-4 py-3">更新时间</th>
@@ -240,6 +296,7 @@ export default function AdminUsersPage() {
               {users.map((u) => {
                 const self = isSelf(u);
                 const lastAdmin = isLastAdmin(u);
+                const ldapUser = u.authSource === 'LDAP';
                 const disabled = self || lastAdmin;
                 const reason = self
                   ? '不能修改自己的角色'
@@ -253,6 +310,17 @@ export default function AdminUsersPage() {
                       {self && (
                         <span className="ml-2 text-xs text-text-secondary">(我)</span>
                       )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
+                          ldapUser
+                            ? 'bg-accent/10 text-accent'
+                            : 'bg-bg text-text-secondary'
+                        }`}
+                      >
+                        {ldapUser ? 'LDAP' : '本地'}
+                      </span>
                     </td>
                     <td className="px-4 py-3">
                       <Select
@@ -271,28 +339,49 @@ export default function AdminUsersPage() {
                     </td>
                     <td className="px-4 py-3 text-text-secondary">{formatDateTime(u.createdAt)}</td>
                     <td className="px-4 py-3 text-text-secondary">{formatDateTime(u.updatedAt)}</td>
-                    <td className="px-4 py-3 text-right">
-                      {u.id !== user?.id && (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => {
-                            setResetTarget(u);
-                            setResetForm({ newPassword: '', confirmPassword: '' });
-                            setResetError('');
-                          }}
-                          aria-label={`重置 ${u.username} 的密码`}
-                        >
-                          重置密码
-                        </Button>
-                      )}
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-2 whitespace-nowrap">
+                        {!ldapUser && (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => {
+                              setRenameTarget(u);
+                              setRenameUsername(u.username);
+                              setRenameError('');
+                            }}
+                            aria-label={`修改 ${u.username} 的用户名`}
+                          >
+                            修改用户名
+                          </Button>
+                        )}
+                        {!ldapUser && u.id !== user?.id && (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => {
+                              setResetTarget(u);
+                              setResetForm({ newPassword: '', confirmPassword: '' });
+                              setResetError('');
+                            }}
+                            aria-label={`重置 ${u.username} 的密码`}
+                          >
+                            重置密码
+                          </Button>
+                        )}
+                        {ldapUser && (
+                          <span className="text-xs text-text-secondary">
+                            目录管理
+                          </span>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
               })}
               {pendingId && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-2 text-xs text-text-secondary">
+                  <td colSpan={6} className="px-4 py-2 text-xs text-text-secondary">
                     更新中...
                   </td>
                 </tr>
@@ -301,6 +390,54 @@ export default function AdminUsersPage() {
           </table>
         </div>
       </div>
+
+      <Modal
+        open={renameTarget !== null}
+        onClose={closeRenameModal}
+        title="修改用户名"
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              onClick={closeRenameModal}
+              disabled={isRenaming}
+            >
+              取消
+            </Button>
+            <Button
+              type="submit"
+              form="rename-user-form"
+              disabled={isRenaming}
+            >
+              {isRenaming ? '保存中...' : '保存'}
+            </Button>
+          </>
+        }
+      >
+        <form
+          id="rename-user-form"
+          className="space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void handleRename();
+          }}
+          noValidate
+        >
+          <p className="text-sm text-text-secondary">
+            修改后请使用新用户名登录。其他登录会话将被注销。
+          </p>
+          <Input
+            label="新用户名"
+            value={renameUsername}
+            onChange={(event) => setRenameUsername(event.target.value)}
+            disabled={isRenaming}
+            minLength={3}
+            maxLength={50}
+            required
+            error={renameError}
+          />
+        </form>
+      </Modal>
 
       <Modal
         open={createOpen}

@@ -24,6 +24,7 @@ describe('ImportPage permissions', () => {
       isLoading: false,
       login: jest.fn(),
       logout: jest.fn(),
+      updateCurrentUser: jest.fn(),
     });
 
     render(<ImportPage />);
@@ -42,6 +43,7 @@ describe('ImportPage permissions', () => {
       isLoading: false,
       login: jest.fn(),
       logout: jest.fn(),
+      updateCurrentUser: jest.fn(),
     });
     const originalFetch = globalThis.fetch;
     globalThis.fetch = jest.fn(() => new Promise<Response>(() => undefined));

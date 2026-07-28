@@ -3,6 +3,10 @@ import { POST as logoutHandler } from "@/app/api/auth/logout/route";
 import { GET as meHandler } from "@/app/api/auth/me/route";
 import { prisma } from "@/lib/prisma";
 import { generateToken, hashPassword, verifyToken } from "@/lib/auth";
+import {
+  LdapUnavailableError,
+  authenticateLdapUser,
+} from "@/lib/ldap";
 import { checkLoginRateLimit } from "@/lib/rate-limiter";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -11,6 +15,8 @@ jest.mock("@/lib/prisma", () => ({
   prisma: {
     user: {
       findUnique: jest.fn(),
+      update: jest.fn(),
+      upsert: jest.fn(),
     },
     session: {
       create: jest.fn(),
@@ -25,6 +31,15 @@ jest.mock("@/lib/prisma", () => ({
 jest.mock("@/lib/rate-limiter", () => ({
   checkLoginRateLimit: jest.fn(),
 }));
+jest.mock("@/lib/ldap", () => {
+  class MockLdapConfigurationError extends Error {}
+  class MockLdapUnavailableError extends Error {}
+  return {
+    LdapConfigurationError: MockLdapConfigurationError,
+    LdapUnavailableError: MockLdapUnavailableError,
+    authenticateLdapUser: jest.fn(),
+  };
+});
 
 const mockPrisma = prisma as jest.Mocked<typeof prisma>;
 
@@ -39,6 +54,7 @@ describe("POST /api/auth/login", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (checkLoginRateLimit as jest.Mock).mockResolvedValue(null);
+    (authenticateLdapUser as jest.Mock).mockResolvedValue(null);
     (mockPrisma.session.create as jest.Mock).mockResolvedValue({
       id: "session_1",
     });
@@ -93,6 +109,9 @@ describe("POST /api/auth/login", () => {
       id: "user_1",
       username: "admin",
       password: hashed,
+      authSource: "LOCAL",
+      ldapExternalId: null,
+      ldapDn: null,
       createdAt: new Date(),
     });
     const req = createRequest("/api/auth/login", {
@@ -111,6 +130,9 @@ describe("POST /api/auth/login", () => {
       username: "admin",
       role: "ADMIN",
       password: hashed,
+      authSource: "LOCAL",
+      ldapExternalId: null,
+      ldapDn: null,
       createdAt: new Date("2026-01-01"),
     });
     const req = createRequest("/api/auth/login", {
@@ -123,6 +145,7 @@ describe("POST /api/auth/login", () => {
     const body = await res.json();
     expect(body.user.username).toBe("admin");
     expect(body.user.role).toBe("ADMIN");
+    expect(body.user.authSource).toBe("LOCAL");
     expect(res.headers.get("set-cookie")).toContain("run_insight_token=");
     const token = res.headers
       .get("set-cookie")
@@ -163,6 +186,151 @@ describe("POST /api/auth/login", () => {
     expect(res.status).toBe(500);
     const body = await res.json();
     expect(body.error).toBe("INTERNAL_ERROR");
+  });
+
+  it("does not fall back to LDAP when a local username has a wrong password", async () => {
+    const hashed = await hashPassword("correct-password");
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue({
+      id: "local-user",
+      username: "admin",
+      role: "ADMIN",
+      password: hashed,
+      authSource: "LOCAL",
+      ldapExternalId: null,
+      ldapDn: null,
+      createdAt: new Date("2026-01-01"),
+    });
+    const req = createRequest("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({
+        username: "admin",
+        password: "ldap-password",
+      }),
+      headers: { "Content-Type": "application/json" },
+    });
+
+    const res = await loginHandler(req);
+
+    expect(res.status).toBe(401);
+    expect(authenticateLdapUser).not.toHaveBeenCalled();
+  });
+
+  it("provisions a first-time LDAP user as an editor", async () => {
+    (mockPrisma.user.findUnique as jest.Mock)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null);
+    (authenticateLdapUser as jest.Mock).mockResolvedValue({
+      dn: "uid=alice,ou=people,dc=example,dc=com",
+      externalId: "ldap-id-hash",
+    });
+    (mockPrisma.user.upsert as jest.Mock).mockResolvedValue({
+      id: "ldap-user",
+      username: "alice",
+      role: "EDITOR",
+      password: null,
+      authSource: "LDAP",
+      ldapExternalId: "ldap-id-hash",
+      ldapDn: "uid=alice,ou=people,dc=example,dc=com",
+      createdAt: new Date("2026-01-01"),
+    });
+    const req = createRequest("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({
+        username: "alice",
+        password: "directory-password",
+      }),
+      headers: { "Content-Type": "application/json" },
+    });
+
+    const res = await loginHandler(req);
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.user).toEqual(
+      expect.objectContaining({
+        username: "alice",
+        role: "EDITOR",
+        authSource: "LDAP",
+      }),
+    );
+    expect(mockPrisma.user.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { ldapExternalId: "ldap-id-hash" },
+        update: {
+          username: "alice",
+          ldapDn: "uid=alice,ou=people,dc=example,dc=com",
+        },
+        create: expect.objectContaining({
+          username: "alice",
+          password: null,
+          role: "EDITOR",
+          authSource: "LDAP",
+        }),
+      }),
+    );
+    expect(mockPrisma.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        changes: expect.objectContaining({
+          authentication: "ldap",
+          provisioned: true,
+        }),
+      }),
+    });
+  });
+
+  it("authenticates an existing LDAP user without resetting its role", async () => {
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue({
+      id: "ldap-user",
+      username: "alice",
+      role: "VIEWER",
+      password: null,
+      authSource: "LDAP",
+      ldapExternalId: "ldap-id-hash",
+      ldapDn: "uid=alice,ou=people,dc=example,dc=com",
+      createdAt: new Date("2026-01-01"),
+    });
+    (authenticateLdapUser as jest.Mock).mockResolvedValue({
+      dn: "uid=alice,ou=people,dc=example,dc=com",
+      externalId: "ldap-id-hash",
+    });
+    const req = createRequest("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({
+        username: "alice",
+        password: "directory-password",
+      }),
+      headers: { "Content-Type": "application/json" },
+    });
+
+    const res = await loginHandler(req);
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.user.role).toBe("VIEWER");
+    expect(mockPrisma.user.upsert).not.toHaveBeenCalled();
+  });
+
+  it("returns a temporary failure when LDAP is unavailable", async () => {
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue(null);
+    (authenticateLdapUser as jest.Mock).mockRejectedValue(
+      new LdapUnavailableError("offline"),
+    );
+    const req = createRequest("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({
+        username: "alice",
+        password: "directory-password",
+      }),
+      headers: { "Content-Type": "application/json" },
+    });
+
+    const res = await loginHandler(req);
+
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({
+      error: "LDAP_UNAVAILABLE",
+      message: "LDAP 服务暂不可用，请稍后重试",
+    });
   });
 });
 

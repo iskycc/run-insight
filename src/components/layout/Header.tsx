@@ -105,18 +105,20 @@ export function Header() {
                       <CalendarDots size={17} aria-hidden="true" />
                       定时报表
                     </Link>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className="flex w-full items-center gap-2 rounded-[9px] px-3 py-2 text-left text-sm text-text-secondary transition-colors hover:bg-bg hover:text-text-primary"
-                      onClick={() => {
-                        setMenuOpen(false);
-                        setChangePasswordOpen(true);
-                      }}
-                    >
-                      <LockKey size={17} aria-hidden="true" />
-                      修改密码
-                    </button>
+                    {user.authSource !== 'LDAP' && (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="flex w-full items-center gap-2 rounded-[9px] px-3 py-2 text-left text-sm text-text-secondary transition-colors hover:bg-bg hover:text-text-primary"
+                        onClick={() => {
+                          setMenuOpen(false);
+                          setChangePasswordOpen(true);
+                        }}
+                      >
+                        <LockKey size={17} aria-hidden="true" />
+                        修改密码
+                      </button>
+                    )}
                     <button
                       type="button"
                       role="menuitem"

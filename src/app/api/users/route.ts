@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { authenticateRequest, requireRole, hashPassword } from "@/lib/auth";
 import { internalError, jsonError } from "@/lib/api-helpers";
 import { writeAuditLog } from "@/lib/audit";
-import { isValidRole } from "@/lib/validations";
+import { isValidRole, normalizeUsername } from "@/lib/validations";
 import type { UsersResponse, UserWithRole } from "@/types";
 
 export async function GET(request: NextRequest) {
@@ -15,7 +15,14 @@ export async function GET(request: NextRequest) {
 
   try {
     const users = await prisma.user.findMany({
-      select: { id: true, username: true, role: true, createdAt: true, updatedAt: true },
+      select: {
+        id: true,
+        username: true,
+        role: true,
+        authSource: true,
+        createdAt: true,
+        updatedAt: true,
+      },
       orderBy: { createdAt: "asc" },
     });
 
@@ -24,6 +31,7 @@ export async function GET(request: NextRequest) {
         id: u.id,
         username: u.username,
         role: u.role as UserWithRole["role"],
+        authSource: u.authSource,
         createdAt: u.createdAt.toISOString(),
         updatedAt: u.updatedAt.toISOString(),
       })),
@@ -48,8 +56,14 @@ export async function POST(request: NextRequest) {
 
     const { username, password, role } = body as Record<string, unknown>;
 
-    if (typeof username !== "string" || !username ||
-        typeof password !== "string" || !password || !role) {
+    const normalizedUsername = normalizeUsername(username);
+    if (!normalizedUsername) {
+      return jsonError(
+        "VALIDATION_ERROR",
+        "用户名必须为 3 到 50 个字符，且不能包含空格或控制字符",
+      );
+    }
+    if (typeof password !== "string" || !password || !role) {
       return jsonError("VALIDATION_ERROR", "用户名、密码和角色为必填");
     }
 
@@ -61,15 +75,29 @@ export async function POST(request: NextRequest) {
       return jsonError("VALIDATION_ERROR", "角色不合法");
     }
 
-    const existing = await prisma.user.findUnique({ where: { username } });
+    const existing = await prisma.user.findUnique({
+      where: { username: normalizedUsername },
+    });
     if (existing) {
       return jsonError("CONFLICT", "用户名已存在", 409);
     }
 
     const hashed = await hashPassword(password);
     const user = await prisma.user.create({
-      data: { username, password: hashed, role },
-      select: { id: true, username: true, role: true, createdAt: true, updatedAt: true },
+      data: {
+        username: normalizedUsername,
+        password: hashed,
+        role,
+        authSource: "LOCAL",
+      },
+      select: {
+        id: true,
+        username: true,
+        role: true,
+        authSource: true,
+        createdAt: true,
+        updatedAt: true,
+      },
     });
     await writeAuditLog({
       userId: authResult.userId,
@@ -83,6 +111,7 @@ export async function POST(request: NextRequest) {
       id: user.id,
       username: user.username,
       role: user.role as UserWithRole["role"],
+      authSource: user.authSource,
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString(),
     }, { status: 201 });

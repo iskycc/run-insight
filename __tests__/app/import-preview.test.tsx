@@ -55,6 +55,7 @@ describe('ImportPage preview flow', () => {
       isLoading: false,
       login: jest.fn(),
       logout: jest.fn(),
+      updateCurrentUser: jest.fn(),
     });
     mockedParseImportFile.mockResolvedValue({
       headers: ['caseNo', 'name', 'resultSummary'],

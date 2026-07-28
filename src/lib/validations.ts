@@ -5,6 +5,21 @@ const ROLES: readonly Role[] = ["ADMIN", "EDITOR", "VIEWER"];
 const PROJECT_ROLES = ["ADMIN", "EDITOR", "VIEWER"] as const;
 const CASE_PRIORITIES = ["HIGH", "MEDIUM", "LOW"] as const;
 const ASSET_STATUSES = ["DRAFT", "REVIEW", "PUBLISHED", "ARCHIVED"] as const;
+const MIN_USERNAME_LENGTH = 3;
+const MAX_USERNAME_LENGTH = 50;
+
+export function normalizeUsername(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const username = value.normalize("NFKC").trim();
+  if (
+    username.length < MIN_USERNAME_LENGTH
+    || username.length > MAX_USERNAME_LENGTH
+    || /[\s\u0000-\u001f\u007f]/u.test(username)
+  ) {
+    return null;
+  }
+  return username;
+}
 
 export function isValidRole(value: unknown): value is Role {
   return typeof value === "string" && ROLES.some((role) => role === value);

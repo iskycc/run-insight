@@ -13,6 +13,11 @@ enum Role {
   VIEWER
 }
 
+enum AuthSource {
+  LOCAL
+  LDAP
+}
+
 enum ProjectRole {
   ADMIN
   EDITOR
@@ -104,8 +109,11 @@ enum WebhookDeliveryStatus {
 model User {
   id                      String                  @id @default(cuid())
   username                String                  @unique
-  password                String
+  password                String?
   role                    Role                    @default(EDITOR)
+  authSource              AuthSource              @default(LOCAL)
+  ldapExternalId          String?                 @unique @db.VarChar(191)
+  ldapDn                  String?                 @db.VarChar(512)
   createdAt               DateTime                @default(now())
   updatedAt               DateTime                @updatedAt
   importRecords           ImportRecord[]

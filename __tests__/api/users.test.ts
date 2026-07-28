@@ -29,8 +29,8 @@ jest.mock("@/lib/prisma", () => ({
   })(),
 }));
 jest.mock("@/lib/auth", () => ({
+  ...jest.requireActual("@/lib/auth"),
   authenticateRequest: jest.fn(),
-  requireRole: jest.requireActual("@/lib/auth").requireRole,
   hashPassword: jest.fn().mockResolvedValue("hashed"),
 }));
 jest.mock("@/lib/audit", () => ({ writeAuditLog: jest.fn() }));
@@ -80,8 +80,20 @@ describe("User management API", () => {
   it("should update user role", async () => {
     (prisma.user.findUnique as jest.Mock)
       .mockResolvedValueOnce({ role: "ADMIN" }) // auth check
-      .mockResolvedValueOnce({ id: "u2", role: "EDITOR" }); // target exists
-    (prisma.user.update as jest.Mock).mockResolvedValue({ id: "u2", username: "editor", role: "VIEWER", createdAt: new Date(), updatedAt: new Date() });
+      .mockResolvedValueOnce({
+        id: "u2",
+        username: "editor",
+        role: "EDITOR",
+        authSource: "LOCAL",
+      }); // target exists
+    (prisma.user.update as jest.Mock).mockResolvedValue({
+      id: "u2",
+      username: "editor",
+      role: "VIEWER",
+      authSource: "LOCAL",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
 
     const req = {
       url: "http://localhost/api/users/u2",
@@ -95,7 +107,12 @@ describe("User management API", () => {
       action: "UPDATE",
       entityType: "user",
       entityId: "u2",
-      changes: { role: "VIEWER" },
+      changes: {
+        role: {
+          from: "EDITOR",
+          to: "VIEWER",
+        },
+      },
     });
     expect(prisma.session.updateMany).toHaveBeenCalledWith({
       where: { userId: "u2", revokedAt: null },
@@ -125,7 +142,12 @@ describe("User management API", () => {
   it("should preserve the last administrator", async () => {
     (prisma.user.findUnique as jest.Mock)
       .mockResolvedValueOnce({ role: "ADMIN" })
-      .mockResolvedValueOnce({ id: "u2", role: "ADMIN" });
+      .mockResolvedValueOnce({
+        id: "u2",
+        username: "admin2",
+        role: "ADMIN",
+        authSource: "LOCAL",
+      });
     (prisma.user.count as jest.Mock).mockResolvedValue(1);
 
     const req = {
@@ -146,12 +168,18 @@ describe("User management API", () => {
   it("should allow demoting an administrator when another administrator remains", async () => {
     (prisma.user.findUnique as jest.Mock)
       .mockResolvedValueOnce({ role: "ADMIN" })
-      .mockResolvedValueOnce({ id: "u2", role: "ADMIN" });
+      .mockResolvedValueOnce({
+        id: "u2",
+        username: "admin2",
+        role: "ADMIN",
+        authSource: "LOCAL",
+      });
     (prisma.user.count as jest.Mock).mockResolvedValue(2);
     (prisma.user.update as jest.Mock).mockResolvedValue({
       id: "u2",
       username: "admin2",
       role: "EDITOR",
+      authSource: "LOCAL",
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -328,7 +356,12 @@ describe("User management API", () => {
   it("should return 500 when updating user fails", async () => {
     (prisma.user.findUnique as jest.Mock)
       .mockResolvedValueOnce({ role: "ADMIN" })
-      .mockResolvedValueOnce({ id: "u2", role: "EDITOR" });
+      .mockResolvedValueOnce({
+        id: "u2",
+        username: "editor",
+        role: "EDITOR",
+        authSource: "LOCAL",
+      });
     (prisma.user.update as jest.Mock).mockRejectedValue(new Error("DB error"));
 
     const req = {
@@ -338,6 +371,131 @@ describe("User management API", () => {
     } as unknown as Request;
     const res = await PATCH(req as any, { params: Promise.resolve({ id: "u2" }) });
     expect(res.status).toBe(500);
+  });
+
+  it("allows an administrator to change their own local username", async () => {
+    (authenticateRequest as jest.Mock).mockReturnValue({
+      userId: "u1",
+      username: "admin",
+      sessionId: "session-current",
+    });
+    (prisma.user.findUnique as jest.Mock)
+      .mockResolvedValueOnce({ role: "ADMIN" })
+      .mockResolvedValueOnce({
+        id: "u1",
+        username: "admin",
+        role: "ADMIN",
+        authSource: "LOCAL",
+      })
+      .mockResolvedValueOnce(null);
+    (prisma.user.update as jest.Mock).mockResolvedValue({
+      id: "u1",
+      username: "super-admin",
+      role: "ADMIN",
+      authSource: "LOCAL",
+      createdAt: new Date("2026-01-01"),
+      updatedAt: new Date("2026-02-01"),
+    });
+    const req = {
+      url: "http://localhost/api/users/u1",
+      headers: new Headers(),
+      json: async () => ({ username: " super-admin " }),
+    } as unknown as Request;
+
+    const res = await PATCH(req as any, {
+      params: Promise.resolve({ id: "u1" }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual(
+      expect.objectContaining({
+        id: "u1",
+        username: "super-admin",
+        role: "ADMIN",
+        authSource: "LOCAL",
+      }),
+    );
+    expect(res.headers.get("set-cookie")).toContain("run_insight_token=");
+    expect(prisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "u1" },
+        data: { username: "super-admin" },
+      }),
+    );
+    expect(prisma.session.updateMany).toHaveBeenCalledWith({
+      where: {
+        userId: "u1",
+        revokedAt: null,
+        id: { not: "session-current" },
+      },
+      data: { revokedAt: expect.any(Date) },
+    });
+    expect(writeAuditLog).toHaveBeenCalledWith({
+      userId: "u1",
+      action: "UPDATE",
+      entityType: "user",
+      entityId: "u1",
+      changes: {
+        username: {
+          from: "admin",
+          to: "super-admin",
+        },
+      },
+    });
+  });
+
+  it("rejects username changes for LDAP-managed users", async () => {
+    (prisma.user.findUnique as jest.Mock)
+      .mockResolvedValueOnce({ role: "ADMIN" })
+      .mockResolvedValueOnce({
+        id: "u2",
+        username: "directory-user",
+        role: "EDITOR",
+        authSource: "LDAP",
+      });
+    const req = {
+      url: "http://localhost/api/users/u2",
+      headers: new Headers(),
+      json: async () => ({ username: "renamed-user" }),
+    } as unknown as Request;
+
+    const res = await PATCH(req as any, {
+      params: Promise.resolve({ id: "u2" }),
+    });
+
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({
+      error: "FORBIDDEN",
+      message: "LDAP 用户名由目录服务管理，不能在本系统中修改",
+    });
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it("rejects a username already used by another account", async () => {
+    (prisma.user.findUnique as jest.Mock)
+      .mockResolvedValueOnce({ role: "ADMIN" })
+      .mockResolvedValueOnce({
+        id: "u2",
+        username: "editor",
+        role: "EDITOR",
+        authSource: "LOCAL",
+      })
+      .mockResolvedValueOnce({ id: "u3" });
+    const req = {
+      url: "http://localhost/api/users/u2",
+      headers: new Headers(),
+      json: async () => ({ username: "existing-user" }),
+    } as unknown as Request;
+
+    const res = await PATCH(req as any, {
+      params: Promise.resolve({ id: "u2" }),
+    });
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({
+      error: "CONFLICT",
+      message: "用户名已存在",
+    });
   });
 
   it("should return 401 for POST when not authenticated", async () => {

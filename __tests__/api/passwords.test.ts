@@ -126,6 +126,28 @@ describe("password management", () => {
     expect(mockPrisma.user.update).not.toHaveBeenCalled();
   });
 
+  it("does not change an LDAP user's directory-managed password", async () => {
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue({
+      id: "user_1",
+      password: null,
+      authSource: "LDAP",
+    });
+
+    const res = await changePassword(
+      request("/api/auth/change-password", {
+        currentPassword: "directory-password",
+        newPassword: "new-password",
+      }),
+    );
+
+    expect(res.status).toBe(403);
+    await expect(res.json()).resolves.toEqual({
+      error: "FORBIDDEN",
+      message: "LDAP 用户的密码由目录服务管理",
+    });
+    expect(mockPrisma.user.update).not.toHaveBeenCalled();
+  });
+
   it("changes the current user's password", async () => {
     (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue({
       id: "user_1",
@@ -212,6 +234,24 @@ describe("password management", () => {
       where: { userId: "user_2", revokedAt: null },
       data: { revokedAt: expect.any(Date) },
     });
+  });
+
+  it("does not let an admin reset an LDAP user's directory password", async () => {
+    (mockPrisma.user.findUnique as jest.Mock)
+      .mockResolvedValueOnce({ role: "ADMIN" })
+      .mockResolvedValueOnce({ id: "user_2", authSource: "LDAP" });
+
+    const res = await resetPassword(
+      request("/api/users/user_2/password", { newPassword: "new-password" }),
+      { params: Promise.resolve({ id: "user_2" }) },
+    );
+
+    expect(res.status).toBe(403);
+    await expect(res.json()).resolves.toEqual({
+      error: "FORBIDDEN",
+      message: "LDAP 用户的密码由目录服务管理，不能在本系统中重置",
+    });
+    expect(mockPrisma.user.update).not.toHaveBeenCalled();
   });
 
   it.each([

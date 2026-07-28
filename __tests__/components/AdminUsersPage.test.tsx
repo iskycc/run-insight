@@ -10,7 +10,12 @@ import { ApiError } from '@/lib/fetch';
 
 const mockFetchJson = jest.fn();
 const mockShowToast = jest.fn();
-const mockUseAuth = jest.fn(() => ({ user: { id: 'u1', username: 'admin' }, isLoading: false }));
+const mockUpdateCurrentUser = jest.fn();
+const mockUseAuth = jest.fn(() => ({
+  user: { id: 'u1', username: 'admin' },
+  isLoading: false,
+  updateCurrentUser: mockUpdateCurrentUser,
+}));
 
 jest.mock('@/lib/fetch', () => {
   const actual = jest.requireActual('@/lib/fetch');
@@ -32,13 +37,14 @@ describe('AdminUsersPage', () => {
   beforeEach(() => {
     mockFetchJson.mockReset();
     mockShowToast.mockReset();
+    mockUpdateCurrentUser.mockReset();
   });
 
   it('renders users for ADMIN', async () => {
     mockFetchJson.mockResolvedValueOnce({
       users: [
-        { id: 'u1', username: 'admin', role: 'ADMIN', createdAt: '2025-01-01T00:00:00Z', updatedAt: '2025-01-01T00:00:00Z' },
-        { id: 'u2', username: 'editor', role: 'EDITOR', createdAt: '2025-01-01T00:00:00Z', updatedAt: '2025-01-01T00:00:00Z' },
+        { id: 'u1', username: 'admin', role: 'ADMIN', authSource: 'LOCAL', createdAt: '2025-01-01T00:00:00Z', updatedAt: '2025-01-01T00:00:00Z' },
+        { id: 'u2', username: 'editor', role: 'EDITOR', authSource: 'LOCAL', createdAt: '2025-01-01T00:00:00Z', updatedAt: '2025-01-01T00:00:00Z' },
       ],
     });
 
@@ -48,7 +54,9 @@ describe('AdminUsersPage', () => {
       expect(screen.getByText('admin')).toBeInTheDocument();
     });
     expect(screen.getByText('editor')).toBeInTheDocument();
+    expect(screen.getAllByText('本地')).toHaveLength(2);
     expect(screen.getByRole('button', { name: '新建用户' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '修改 admin 的用户名' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '重置 admin 的密码' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '重置 editor 的密码' })).toBeInTheDocument();
   });
@@ -69,8 +77,8 @@ describe('AdminUsersPage', () => {
     mockFetchJson
       .mockResolvedValueOnce({
         users: [
-          { id: 'u1', username: 'admin', role: 'ADMIN', createdAt: '2025-01-01T00:00:00Z', updatedAt: '2025-01-01T00:00:00Z' },
-          { id: 'u2', username: 'editor', role: 'EDITOR', createdAt: '2025-01-01T00:00:00Z', updatedAt: '2025-01-01T00:00:00Z' },
+          { id: 'u1', username: 'admin', role: 'ADMIN', authSource: 'LOCAL', createdAt: '2025-01-01T00:00:00Z', updatedAt: '2025-01-01T00:00:00Z' },
+          { id: 'u2', username: 'editor', role: 'EDITOR', authSource: 'LOCAL', createdAt: '2025-01-01T00:00:00Z', updatedAt: '2025-01-01T00:00:00Z' },
         ],
       })
       .mockResolvedValueOnce({ success: true });
@@ -104,8 +112,8 @@ describe('AdminUsersPage', () => {
     mockFetchJson
       .mockResolvedValueOnce({
         users: [
-          { id: 'u1', username: 'admin', role: 'ADMIN', createdAt: '2025-01-01T00:00:00Z', updatedAt: '2025-01-01T00:00:00Z' },
-          { id: 'u2', username: 'editor', role: 'EDITOR', createdAt: '2025-01-01T00:00:00Z', updatedAt: '2025-01-01T00:00:00Z' },
+          { id: 'u1', username: 'admin', role: 'ADMIN', authSource: 'LOCAL', createdAt: '2025-01-01T00:00:00Z', updatedAt: '2025-01-01T00:00:00Z' },
+          { id: 'u2', username: 'editor', role: 'EDITOR', authSource: 'LOCAL', createdAt: '2025-01-01T00:00:00Z', updatedAt: '2025-01-01T00:00:00Z' },
         ],
       })
       .mockRejectedValueOnce(new ApiError(403, 'FORBIDDEN', '权限不足'));
@@ -126,5 +134,73 @@ describe('AdminUsersPage', () => {
       type: 'error',
     });
     expect(screen.queryByText('replacement-password')).not.toBeInTheDocument();
+  });
+
+  it('changes the current administrator username from the console', async () => {
+    mockFetchJson
+      .mockResolvedValueOnce({
+        users: [
+          { id: 'u1', username: 'admin', role: 'ADMIN', authSource: 'LOCAL', createdAt: '2025-01-01T00:00:00Z', updatedAt: '2025-01-01T00:00:00Z' },
+        ],
+      })
+      .mockResolvedValueOnce({
+        id: 'u1',
+        username: 'super-admin',
+        role: 'ADMIN',
+        authSource: 'LOCAL',
+        createdAt: '2025-01-01T00:00:00Z',
+        updatedAt: '2025-01-02T00:00:00Z',
+      })
+      .mockResolvedValueOnce({
+        users: [
+          { id: 'u1', username: 'super-admin', role: 'ADMIN', authSource: 'LOCAL', createdAt: '2025-01-01T00:00:00Z', updatedAt: '2025-01-02T00:00:00Z' },
+        ],
+      });
+
+    render(<AdminUsersPage />);
+    const user = userEvent.setup();
+    await waitFor(() => expect(screen.getByText('admin')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: '修改 admin 的用户名' }));
+    const input = screen.getByLabelText('新用户名');
+    await user.clear(input);
+    await user.type(input, 'super-admin');
+    await user.click(screen.getByRole('button', { name: '保存' }));
+
+    await waitFor(() => {
+      expect(mockFetchJson).toHaveBeenCalledWith('/api/users/u1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: 'super-admin' }),
+      });
+    });
+    expect(mockUpdateCurrentUser).toHaveBeenCalledWith({
+      username: 'super-admin',
+    });
+    expect(mockShowToast).toHaveBeenCalledWith({
+      message: '用户名已更新',
+      type: 'success',
+    });
+  });
+
+  it('marks LDAP users as directory-managed and hides local credential actions', async () => {
+    mockFetchJson.mockResolvedValueOnce({
+      users: [
+        { id: 'u1', username: 'admin', role: 'ADMIN', authSource: 'LOCAL', createdAt: '2025-01-01T00:00:00Z', updatedAt: '2025-01-01T00:00:00Z' },
+        { id: 'u3', username: 'ldap-user', role: 'EDITOR', authSource: 'LDAP', createdAt: '2025-01-01T00:00:00Z', updatedAt: '2025-01-01T00:00:00Z' },
+      ],
+    });
+
+    render(<AdminUsersPage />);
+
+    await waitFor(() => expect(screen.getByText('ldap-user')).toBeInTheDocument());
+    expect(screen.getByText('LDAP')).toBeInTheDocument();
+    expect(screen.getByText('目录管理')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: '修改 ldap-user 的用户名' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: '重置 ldap-user 的密码' }),
+    ).not.toBeInTheDocument();
   });
 });

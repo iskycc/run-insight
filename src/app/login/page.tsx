@@ -50,8 +50,12 @@ export default function LoginPage() {
     try {
       await login(username, password);
       router.push('/workspace');
-    } catch {
-      setError('用户名或密码错误');
+    } catch (loginError) {
+      setError(
+        loginError instanceof Error
+          ? loginError.message
+          : '用户名或密码错误',
+      );
     } finally {
       setIsSubmitting(false);
     }

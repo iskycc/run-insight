@@ -82,6 +82,27 @@ describe('Header password management', () => {
     expect(screen.queryByRole('link', { name: '管理组织' })).not.toBeInTheDocument();
   });
 
+  it('does not offer local password changes to LDAP users', async () => {
+    mockUseAuth.mockReturnValue({
+      user: {
+        id: 'u1',
+        username: 'ldap-editor',
+        role: 'EDITOR',
+        authSource: 'LDAP',
+      },
+      isLoading: false,
+      login: mockLogin,
+      logout: mockLogout,
+    });
+    render(<Header />);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: /ldap-editor/ }));
+
+    expect(screen.queryByRole('menuitem', { name: '修改密码' })).not.toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: '登录会话' })).toBeInTheDocument();
+  });
+
   it('anchors the notification panel to the full user area on narrow screens', async () => {
     render(<Header />);
     const user = userEvent.setup();

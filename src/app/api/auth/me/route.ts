@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
       id: user.id,
       username: user.username,
       role: user.role,
+      authSource: user.authSource,
       createdAt: user.createdAt.toISOString(),
     };
 

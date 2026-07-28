@@ -40,10 +40,17 @@ export async function PATCH(
 
     const existing = await prisma.user.findUnique({
       where: { id },
-      select: { id: true },
+      select: { id: true, authSource: true },
     });
     if (!existing) {
       return jsonError("NOT_FOUND", "用户不存在", 404);
+    }
+    if (existing.authSource === "LDAP") {
+      return jsonError(
+        "FORBIDDEN",
+        "LDAP 用户的密码由目录服务管理，不能在本系统中重置",
+        403,
+      );
     }
 
     const password = await hashPassword(newPassword);

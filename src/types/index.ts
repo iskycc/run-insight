@@ -39,10 +39,13 @@ export type NotificationType =
 
 // ============ 数据模型类型（与 Prisma 生成的类型对齐） ============
 
+export type AuthSource = "LOCAL" | "LDAP";
+
 export interface UserDTO {
   id: string;
   username: string;
   role?: Role;
+  authSource?: AuthSource;
   createdAt: string;
 }
 
@@ -886,7 +889,8 @@ export interface CreateUserRequest {
 }
 
 export interface UpdateUserRequest {
-  role: Role;
+  role?: Role;
+  username?: string;
 }
 
 export interface UsersResponse {

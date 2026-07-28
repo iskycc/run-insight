@@ -13,6 +13,7 @@ type User = {
   id: string;
   username: string;
   role?: 'ADMIN' | 'EDITOR' | 'VIEWER';
+  authSource?: 'LOCAL' | 'LDAP';
 };
 
 type AuthContextValue = {
@@ -20,6 +21,7 @@ type AuthContextValue = {
   isLoading: boolean;
   login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  updateCurrentUser: (updates: Partial<Pick<User, 'username'>>) => void;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -65,7 +67,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       body: JSON.stringify({ username, password }),
     });
     if (!res.ok) {
-      throw new Error('Login failed');
+      const body = await res.json().catch(() => null) as {
+        message?: unknown;
+      } | null;
+      throw new Error(
+        typeof body?.message === 'string' ? body.message : '登录失败',
+      );
     }
     const data = await res.json();
     // LoginResponse: { user: UserDTO }
@@ -80,8 +87,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const updateCurrentUser = useCallback(
+    (updates: Partial<Pick<User, 'username'>>) => {
+      setUser((current) => (current ? { ...current, ...updates } : current));
+    },
+    [],
+  );
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+    <AuthContext.Provider
+      value={{ user, isLoading, login, logout, updateCurrentUser }}
+    >
       {children}
     </AuthContext.Provider>
   );

@@ -22,6 +22,7 @@
     "bcryptjs": "^3.0.3",
     "exceljs": "^4.4.0",
     "jsonwebtoken": "^9.0.3",
+    "ldapts": "^9.0.0",
     "mariadb": "^3.5.3",
     "next": "16.2.11",
     "papaparse": "^5.5.4",

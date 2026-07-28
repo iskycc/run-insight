@@ -36,10 +36,17 @@ export async function POST(request: NextRequest) {
 
     const user = await prisma.user.findUnique({
       where: { id: authResult.userId },
-      select: { id: true, password: true },
+      select: { id: true, password: true, authSource: true },
     });
     if (!user) {
       return jsonError("NOT_FOUND", "用户不存在", 404);
+    }
+    if (user.authSource === "LDAP" || !user.password) {
+      return jsonError(
+        "FORBIDDEN",
+        "LDAP 用户的密码由目录服务管理",
+        403,
+      );
     }
 
     const passwordMatches = await verifyPassword(currentPassword, user.password);
