@@ -115,7 +115,7 @@ export default function ReportSnapshotPage({
   }
   if (!snapshot) {
     return (
-      <main className="page-shell animate-page-enter">
+      <main className="page-shell loading-state-enter">
         <LoadingState label="正在加载报表快照" rows={5} />
       </main>
     );

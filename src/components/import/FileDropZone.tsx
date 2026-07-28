@@ -5,9 +5,16 @@ import { useCallback, useRef, useState } from 'react';
 interface FileDropZoneProps {
   onFileAccepted: (file: File) => void;
   accept?: string;
+  formatLabel?: string;
+  helperText?: string;
 }
 
-export default function FileDropZone({ onFileAccepted, accept = '.csv,.json,.xlsx,.xls' }: FileDropZoneProps) {
+export default function FileDropZone({
+  onFileAccepted,
+  accept = '.json',
+  formatLabel = 'JSON',
+  helperText = '或点击浏览文件',
+}: FileDropZoneProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -56,14 +63,14 @@ export default function FileDropZone({ onFileAccepted, accept = '.csv,.json,.xls
       }`}
     >
       <span className="rounded-full bg-accent/8 px-3 py-1.5 text-xs font-semibold text-accent">
-        文件导入
+        {formatLabel} 文件
       </span>
       <div className="text-center">
         <p className="text-lg font-semibold tracking-tight text-[var(--color-text-primary)]">
           {isDragging ? '松开即可上传' : '拖拽文件到这里'}
         </p>
         <p className="mt-2 text-sm leading-6 text-[var(--color-text-secondary)]">
-          或点击浏览文件，支持 CSV、JSON、Excel
+          {helperText}
         </p>
       </div>
       <span className="rounded-full border border-border bg-white px-4 py-2 text-xs font-semibold text-text-primary shadow-sm transition group-hover:border-accent/30 group-hover:text-accent">

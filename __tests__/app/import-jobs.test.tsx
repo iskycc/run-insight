@@ -20,7 +20,7 @@ jest.mock('@/lib/import-file-parser', () => ({
 jest.mock('@/components/import/FileDropZone', () => ({
   __esModule: true,
   default: ({ onFileAccepted }: { onFileAccepted: (file: File) => Promise<void> }) => (
-    <button type="button" onClick={() => void onFileAccepted(new File(['data'], 'cases.csv'))}>
+    <button type="button" onClick={() => void onFileAccepted(new File(['data'], 'cases.xlsx'))}>
       测试上传
     </button>
   ),

@@ -9,8 +9,8 @@ type PageContainerProps = {
 
 export function PageContainer({ title, subtitle, actions, children }: PageContainerProps) {
   return (
-    <div className="page-shell animate-page-enter">
-      <div className="page-heading animate-heading-enter">
+    <div className="page-shell">
+      <div className="page-heading">
         <div className="min-w-0">
           <h1 className="text-[28px] font-bold leading-tight tracking-[-0.035em] text-text-primary sm:text-[32px]">
             {title}
@@ -29,7 +29,7 @@ export function PageContainer({ title, subtitle, actions, children }: PageContai
         )}
       </div>
 
-      <div className="animate-content-enter">{children}</div>
+      <div>{children}</div>
     </div>
   );
 }

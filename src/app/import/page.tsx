@@ -3,7 +3,6 @@
 import { useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/shared/AuthProvider';
-import ImportTypeSwitch from '@/components/import/ImportTypeSwitch';
 import FileDropZone from '@/components/import/FileDropZone';
 import FieldMapping from '@/components/import/FieldMapping';
 import MappingTemplates from '@/components/import/MappingTemplates';
@@ -11,10 +10,21 @@ import ValidationReport from '@/components/import/ValidationReport';
 import { Button } from '@/components/shared/Button';
 import { Select, type SelectOption } from '@/components/shared/Select';
 import { ProgressBar } from '@/components/shared/ProgressBar';
-import { Check } from '@phosphor-icons/react';
+import {
+  Check,
+  DownloadSimple,
+  FileCode,
+  FileXls,
+} from '@phosphor-icons/react';
 import { fetchJson, ApiError } from '@/lib/fetch';
 import { buildAutoMapping, parseImportFile } from '@/lib/import-file-parser';
 import { MAX_IMPORT_ROWS } from '@/lib/import-limits';
+import {
+  getImportTemplateFilename,
+  getImportTemplateRows,
+  isFileCompatibleWithFormat,
+  type ImportFileFormat,
+} from '@/lib/import-template';
 import type { ValidationError, ImportType } from '@/lib/validations';
 import { validateImportDataClient } from '@/lib/validations';
 import type {
@@ -220,7 +230,7 @@ function Stepper({ step }: { step: Step }) {
           return (
             <li
               key={item.key}
-              className="relative flex min-w-0 flex-col items-center gap-2 text-center sm:flex-row sm:text-left"
+              className="relative flex min-w-0 flex-col items-center gap-2 text-center"
               aria-current={active ? 'step' : undefined}
             >
               <span
@@ -235,7 +245,7 @@ function Stepper({ step }: { step: Step }) {
                 {complete ? <Check size={15} weight="bold" aria-hidden="true" /> : index + 1}
               </span>
               <div
-                className={`truncate text-[11px] font-semibold sm:text-xs ${
+                className={`w-full truncate text-[11px] font-semibold sm:text-xs ${
                   active ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-secondary)]'
                 }`}
               >
@@ -244,7 +254,7 @@ function Stepper({ step }: { step: Step }) {
               {index < STEP_ITEMS.length - 1 && (
                 <span
                   aria-hidden="true"
-                  className={`absolute left-[calc(50%+20px)] right-[calc(-50%+20px)] top-4 h-px sm:left-8 sm:right-[-12px] ${
+                  className={`absolute left-[calc(50%+20px)] right-[calc(-50%+20px)] top-4 h-px ${
                     index < currentIndex ? 'bg-accent/50' : 'bg-border'
                   }`}
                 />
@@ -322,6 +332,7 @@ export default function ImportPage() {
   const canCreateProject = user?.role === 'ADMIN' || user?.role === 'EDITOR';
   const [step, setStep] = useState<Step>('select-type');
   const [importType, setImportType] = useState<ImportType>('pre-analysis');
+  const [fileFormat, setFileFormat] = useState<ImportFileFormat>('excel');
   const [fileName, setFileName] = useState('');
   const [headers, setHeaders] = useState<string[]>([]);
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
@@ -410,6 +421,13 @@ export default function ImportPage() {
     requestIdRef.current = crypto.randomUUID();
     const startedAt = performance.now();
     try {
+      if (!isFileCompatibleWithFormat(file.name, fileFormat)) {
+        throw new Error(
+          fileFormat === 'json'
+            ? '当前选择的是 JSON，请上传 .json 文件'
+            : '当前选择的是 Excel，请上传 .xlsx 或 .xls 文件',
+        );
+      }
       setFileError('');
       setFileName(file.name);
       setRows([]);
@@ -459,7 +477,31 @@ export default function ImportPage() {
         finishedMs: performance.now() - startedAt,
       });
     }
-  }, []);
+  }, [fileFormat]);
+
+  const handleTemplateDownload = useCallback(async () => {
+    const rows = getImportTemplateRows(importType);
+    const filename = getImportTemplateFilename(importType, fileFormat);
+
+    if (fileFormat === 'json') {
+      const blob = new Blob([JSON.stringify(rows, null, 2)], {
+        type: 'application/json;charset=utf-8',
+      });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = filename;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      return;
+    }
+
+    const XLSX = await import('xlsx');
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, '导入模板');
+    XLSX.writeFile(workbook, filename);
+  }, [fileFormat, importType]);
 
   const handleProjectChange = useCallback(async (projectId: string) => {
     setSelectedProjectId(projectId);
@@ -988,7 +1030,7 @@ export default function ImportPage() {
   const targetReady = Boolean(selectedProjectId && selectedStageId && selectedBatchScopeId);
   const mappedFieldCount = Object.values(mapping).filter(Boolean).length;
   const nextAction = {
-    'select-type': '确认导入类型后上传文件',
+    'select-type': '确认导入类型与文件格式',
     upload: '选择一个数据文件',
     mapping: targetReady ? '检查字段映射并校验' : '依次选择项目、阶段与批跑',
     validate: preview ? '确认差异并正式导入' : '生成差异预览',
@@ -1026,13 +1068,26 @@ export default function ImportPage() {
         <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-6">
           <main className="space-y-5">
             {step === 'select-type' && (
-              <Panel title="选择导入类型">
-                <div className="space-y-5">
-                  <ImportTypeSwitch value={importType} onChange={setImportType} />
-                  <div className="grid gap-3 sm:grid-cols-2">
+              <Panel
+                title="选择导入方式"
+                action={(
+                  <Button variant="secondary" size="sm" onClick={() => void handleTemplateDownload()}>
+                    <DownloadSimple size={16} aria-hidden="true" />
+                    下载导入模板
+                  </Button>
+                )}
+              >
+                <div className="space-y-6">
+                  <fieldset>
+                    <legend className="mb-3 text-xs font-semibold uppercase tracking-[0.08em] text-text-secondary">
+                      1. 导入类型
+                    </legend>
+                    <div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="导入类型">
                     <button
                       type="button"
                       onClick={() => setImportType('pre-analysis')}
+                      role="radio"
+                      aria-checked={importType === 'pre-analysis'}
                       className={`rounded-2xl border p-5 text-left transition-all ${
                         importType === 'pre-analysis'
                           ? 'border-accent/30 bg-accent/5 shadow-[0_10px_24px_rgba(37,99,235,0.10)]'
@@ -1045,6 +1100,8 @@ export default function ImportPage() {
                     <button
                       type="button"
                       onClick={() => setImportType('post-analysis')}
+                      role="radio"
+                      aria-checked={importType === 'post-analysis'}
                       className={`rounded-2xl border p-5 text-left transition-all ${
                         importType === 'post-analysis'
                           ? 'border-accent/30 bg-accent/5 shadow-[0_10px_24px_rgba(37,99,235,0.10)]'
@@ -1055,6 +1112,52 @@ export default function ImportPage() {
                       <span className="mt-2 block text-xs leading-5 text-[var(--color-text-secondary)]">补充进展分类、责任人、根因与 MR / 单号</span>
                     </button>
                   </div>
+                  </fieldset>
+                  <fieldset>
+                    <legend className="mb-3 text-xs font-semibold uppercase tracking-[0.08em] text-text-secondary">
+                      2. 文件格式
+                    </legend>
+                    <div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="文件格式">
+                      <button
+                        type="button"
+                        onClick={() => setFileFormat('json')}
+                        role="radio"
+                        aria-checked={fileFormat === 'json'}
+                        className={`flex items-center gap-4 rounded-2xl border p-4 text-left transition-all ${
+                          fileFormat === 'json'
+                            ? 'border-accent/30 bg-accent/5 shadow-[0_10px_24px_rgba(37,99,235,0.10)]'
+                            : 'border-border bg-[#f8faff] hover:border-accent/20 hover:bg-white'
+                        }`}
+                      >
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-accent shadow-sm">
+                          <FileCode size={22} aria-hidden="true" />
+                        </span>
+                        <span>
+                          <span className="block text-sm font-semibold text-text-primary">JSON</span>
+                          <span className="mt-1 block text-xs text-text-secondary">适合接口导出与自动化数据</span>
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFileFormat('excel')}
+                        role="radio"
+                        aria-checked={fileFormat === 'excel'}
+                        className={`flex items-center gap-4 rounded-2xl border p-4 text-left transition-all ${
+                          fileFormat === 'excel'
+                            ? 'border-accent/30 bg-accent/5 shadow-[0_10px_24px_rgba(37,99,235,0.10)]'
+                            : 'border-border bg-[#f8faff] hover:border-accent/20 hover:bg-white'
+                        }`}
+                      >
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-success shadow-sm">
+                          <FileXls size={22} aria-hidden="true" />
+                        </span>
+                        <span>
+                          <span className="block text-sm font-semibold text-text-primary">Excel</span>
+                          <span className="mt-1 block text-xs text-text-secondary">适合人工填写与批量维护</span>
+                        </span>
+                      </button>
+                    </div>
+                  </fieldset>
                   <div className="flex justify-end border-t border-border pt-5">
                     <Button className="min-w-28" onClick={() => setStep('upload')}>下一步</Button>
                   </div>
@@ -1065,7 +1168,17 @@ export default function ImportPage() {
             {step === 'upload' && (
               <Panel title="上传文件">
                 <div className="space-y-4">
-                  <FileDropZone onFileAccepted={handleFileAccepted} />
+                  <FileDropZone
+                    key={fileFormat}
+                    onFileAccepted={handleFileAccepted}
+                    accept={fileFormat === 'json' ? '.json,application/json' : '.xlsx,.xls'}
+                    formatLabel={fileFormat === 'json' ? 'JSON' : 'Excel'}
+                    helperText={
+                      fileFormat === 'json'
+                        ? '或点击浏览文件，仅支持 .json'
+                        : '或点击浏览文件，支持 .xlsx 与 .xls'
+                    }
+                  />
                   {fileError && (
                     <p role="alert" className="rounded-xl bg-danger/5 px-4 py-3 text-sm text-[var(--color-danger)]">
                       {fileError}
