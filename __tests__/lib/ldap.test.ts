@@ -139,10 +139,11 @@ describe("LDAP configuration and authentication", () => {
     expect(
       decryptLdapBindPassword(ciphertext, encryptionKey),
     ).toBe("service-password");
-    const replacement = ciphertext.endsWith("x") ? "y" : "x";
+    const [version, iv, tag, encrypted] = ciphertext.split(".");
+    const tamperedTag = `${tag.startsWith("A") ? "B" : "A"}${tag.slice(1)}`;
     expect(() =>
       decryptLdapBindPassword(
-        `${ciphertext.slice(0, -1)}${replacement}`,
+        [version, iv, tamperedTag, encrypted].join("."),
         encryptionKey,
       ),
     ).toThrow(LdapConfigurationError);
