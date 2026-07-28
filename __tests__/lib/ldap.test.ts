@@ -139,9 +139,10 @@ describe("LDAP configuration and authentication", () => {
     expect(
       decryptLdapBindPassword(ciphertext, encryptionKey),
     ).toBe("service-password");
+    const replacement = ciphertext.endsWith("x") ? "y" : "x";
     expect(() =>
       decryptLdapBindPassword(
-        `${ciphertext.slice(0, -1)}x`,
+        `${ciphertext.slice(0, -1)}${replacement}`,
         encryptionKey,
       ),
     ).toThrow(LdapConfigurationError);
