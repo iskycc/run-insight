@@ -33,10 +33,11 @@ describe('AdminLayout', () => {
     expect(screen.getByRole('link', { name: 'LDAP 配置' })).toHaveAttribute('href', '/admin/ldap');
     expect(screen.getByRole('link', { name: '用户管理' })).toHaveClass(
       'min-w-[88px]',
-      'flex-none',
+      'flex-1',
       'flex-col',
       'text-xs',
       'sm:min-w-0',
+      'sm:flex-none',
       'sm:flex-row',
       'sm:text-sm',
     );
