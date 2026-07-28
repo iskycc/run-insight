@@ -144,6 +144,26 @@ model InstanceSetup {
   initializedAt DateTime @default(now())
 }
 
+model LdapConfiguration {
+  id                     Int      @id
+  enabled                Boolean  @default(false)
+  url                    String   @db.VarChar(512)
+  bindDn                 String   @db.VarChar(512)
+  bindPasswordCiphertext String   @db.Text
+  encryptionKey          String   @db.VarChar(64)
+  searchBase             String   @db.VarChar(512)
+  userFilter             String   @db.VarChar(1024)
+  uniqueIdAttribute      String   @default("entryUUID") @db.VarChar(191)
+  startTls               Boolean  @default(true)
+  tlsRejectUnauthorized  Boolean  @default(true)
+  tlsCaCertificate       String?  @db.Text
+  connectTimeoutMs       Int      @default(5000)
+  operationTimeoutMs     Int      @default(5000)
+  allowInsecure          Boolean  @default(false)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+}
+
 model Organization {
   id        String               @id @default(cuid())
   name      String               @unique @db.VarChar(100)

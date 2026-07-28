@@ -319,41 +319,23 @@ docker compose up -d --force-recreate app
 
 ### LDAP 登录（可选）
 
+管理员在“平台管理 → LDAP 配置”中完成配置、启停和真实用户登录测试，无需设置
+LDAP 环境变量。配置支持 LDAPS、StartTLS、私有 CA、连接/操作超时、OpenLDAP 与
+Active Directory 用户过滤器。
+
 LDAP 是本地账号之外的附加认证来源，不是替代模式。开启后，现有管理员、viewer
 和其他本地账号仍使用原密码登录；本地不存在的用户名才会尝试 LDAP。LDAP 用户首次
 成功登录时会自动创建为 `EDITOR`，之后管理员可在用户管理中调整其角色，后续登录
 不会覆盖该角色。LDAP 用户的用户名和密码由目录服务管理，控制台不会提供密码重置。
 
-实现使用 `ldapts` 执行 LDAPv3 search/bind。默认要求 LDAPS，或在 `ldap://` 连接上
-使用 StartTLS；生产环境不要启用明文 simple bind。OpenLDAP 示例：
+OpenLDAP 通常配置 `(uid={{username}})` 和 `entryUUID`；Active Directory 通常配置
+`(&(objectClass=user)(sAMAccountName={{username}}))` 和 `objectGUID`。
+`{{username}}` 是必需占位符，应用会按 RFC 4515 转义后再代入。服务账号只需搜索
+用户条目的最小权限；找到唯一 DN 后，应用会使用该 DN 和用户提交的密码再次 bind。
 
-```env
-LDAP_ENABLED=true
-LDAP_URL=ldaps://ldap.example.com:636
-LDAP_BIND_DN=cn=run-insight,ou=service-accounts,dc=example,dc=com
-LDAP_BIND_PASSWORD=<只读服务账号密码>
-LDAP_SEARCH_BASE=ou=people,dc=example,dc=com
-LDAP_USER_FILTER=(uid={{username}})
-LDAP_UNIQUE_ID_ATTRIBUTE=entryUUID
-LDAP_TLS_REJECT_UNAUTHORIZED=true
-```
-
-Active Directory 通常改用：
-
-```env
-LDAP_USER_FILTER=(&(objectClass=user)(sAMAccountName={{username}}))
-LDAP_UNIQUE_ID_ATTRIBUTE=objectGUID
-```
-
-`{{username}}` 是必需占位符，应用会按 RFC 4515 转义后再代入，不能把用户输入直接
-拼接到 LDAP filter。服务账号只需搜索用户条目的最小权限；找到唯一 DN 后，应用会
-用该 DN 和用户提交的密码再次 bind。`LDAP_UNIQUE_ID_ATTRIBUTE` 用于在目录条目改名
-或移动后仍识别同一身份；缺失该属性时会安全回退到 DN 指纹。
-
-私有 CA 可通过 `LDAP_TLS_CA_FILE` 指向 PEM CA 文件。Docker 部署时需用 Compose
-override 将该文件只读挂载到应用容器。`LDAP_TLS_REJECT_UNAUTHORIZED` 默认为
-`true`；不要在生产环境关闭证书验证。连接和操作超时分别由
-`LDAP_CONNECT_TIMEOUT_MS`、`LDAP_OPERATION_TIMEOUT_MS` 控制，默认均为 5000ms。
+绑定密码使用 AES-256-GCM 加密后保存，随机 256 位 AES 密钥也持久化在数据库中。
+密码、密文和 AES 密钥不会通过 API、管理页面或审计日志返回。由于密钥与密文位于
+同一数据库，此设计用于避免明文保存，不具备外部 KMS 对数据库完整泄露的隔离能力。
 
 查看状态和日志：
 

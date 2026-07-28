@@ -55,6 +55,7 @@ describe("writeAuditLog", () => {
         password: "plain-text",
         nested: {
           token: "jwt-value",
+          encryptionKey: "base64-aes-key",
           passwordChanged: true,
         },
       },
@@ -67,6 +68,7 @@ describe("writeAuditLog", () => {
           password: "[REDACTED]",
           nested: {
             token: "[REDACTED]",
+            encryptionKey: "[REDACTED]",
             passwordChanged: true,
           },
         },

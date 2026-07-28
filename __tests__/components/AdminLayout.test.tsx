@@ -27,6 +27,7 @@ describe('AdminLayout', () => {
     const navigation = screen.getByRole('navigation', { name: '平台管理导航' });
     expect(navigation).toHaveClass('flex', 'w-full', 'sm:w-auto');
     expect(screen.getByRole('link', { name: '用户管理' })).toHaveAttribute('href', '/admin/users');
+    expect(screen.getByRole('link', { name: 'LDAP 配置' })).toHaveAttribute('href', '/admin/ldap');
     expect(screen.getByRole('link', { name: '用户管理' })).toHaveClass(
       'min-w-0',
       'flex-1',

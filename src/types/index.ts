@@ -186,6 +186,45 @@ export interface MeResponse {
   user: UserDTO | null;
 }
 
+export interface LdapConfigurationDTO {
+  enabled: boolean;
+  url: string;
+  bindDn: string;
+  passwordConfigured: boolean;
+  searchBase: string;
+  userFilter: string;
+  uniqueIdAttribute: string;
+  startTls: boolean;
+  tlsRejectUnauthorized: boolean;
+  tlsCaCertificate: string;
+  connectTimeoutMs: number;
+  operationTimeoutMs: number;
+  allowInsecure: boolean;
+  updatedAt: string | null;
+}
+
+export interface UpdateLdapConfigurationRequest {
+  enabled: boolean;
+  url: string;
+  bindDn: string;
+  bindPassword?: string;
+  searchBase: string;
+  userFilter: string;
+  uniqueIdAttribute: string;
+  startTls: boolean;
+  tlsRejectUnauthorized: boolean;
+  tlsCaCertificate?: string;
+  connectTimeoutMs: number;
+  operationTimeoutMs: number;
+  allowInsecure: boolean;
+}
+
+export interface TestLdapConfigurationRequest {
+  configuration: UpdateLdapConfigurationRequest;
+  testUsername: string;
+  testPassword: string;
+}
+
 export type SessionStatus = "ACTIVE" | "EXPIRED" | "REVOKED";
 
 export interface SessionDTO {
@@ -815,6 +854,7 @@ export const AUDIT_ENTITY_TYPES = [
   "export",
   "session",
   "auditLog",
+  "ldapConfiguration",
 ] as const;
 
 export type AuditEntityType = (typeof AUDIT_ENTITY_TYPES)[number];
@@ -860,6 +900,7 @@ export const AUDIT_ENTITY_TYPE_LABELS: Record<AuditEntityType, string> = {
   export: "数据导出",
   session: "登录会话",
   auditLog: "审计日志",
+  ldapConfiguration: "LDAP 配置",
 };
 
 export interface AuditLogDTO {

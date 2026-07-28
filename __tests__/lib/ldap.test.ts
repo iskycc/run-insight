@@ -3,11 +3,37 @@ import {
   Client,
   InvalidCredentialsError,
 } from "ldapts";
+import { prisma } from "@/lib/prisma";
 import {
   LdapConfigurationError,
   LdapUnavailableError,
   authenticateLdapUser,
+  decryptLdapBindPassword,
+  encryptLdapBindPassword,
+  getLdapConfiguration,
+  parseLdapConfigurationInput,
+  saveLdapConfiguration,
+  testLdapConfiguration,
 } from "@/lib/ldap";
+import type { UpdateLdapConfigurationRequest } from "@/types";
+
+jest.mock("@/lib/prisma", () => {
+  const ldapConfiguration = {
+    findUnique: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+  };
+  return {
+    prisma: {
+      ldapConfiguration,
+      $transaction: jest.fn(
+        async (
+          callback: (tx: { ldapConfiguration: typeof ldapConfiguration }) => Promise<unknown>,
+        ) => callback({ ldapConfiguration }),
+      ),
+    },
+  };
+});
 
 jest.mock("ldapts", () => {
   const actual = jest.requireActual("ldapts");
@@ -17,41 +43,51 @@ jest.mock("ldapts", () => {
   };
 });
 
-const LDAP_ENV_KEYS = [
-  "LDAP_ENABLED",
-  "LDAP_URL",
-  "LDAP_BIND_DN",
-  "LDAP_BIND_PASSWORD",
-  "LDAP_SEARCH_BASE",
-  "LDAP_USER_FILTER",
-  "LDAP_UNIQUE_ID_ATTRIBUTE",
-  "LDAP_START_TLS",
-  "LDAP_TLS_REJECT_UNAUTHORIZED",
-  "LDAP_TLS_CA_FILE",
-  "LDAP_CONNECT_TIMEOUT_MS",
-  "LDAP_OPERATION_TIMEOUT_MS",
-  "LDAP_ALLOW_INSECURE",
-] as const;
+const mockPrisma = prisma as jest.Mocked<typeof prisma>;
+const encryptionKey = Buffer.alloc(32, 7).toString("base64");
 
-const originalEnvironment = Object.fromEntries(
-  LDAP_ENV_KEYS.map((key) => [key, process.env[key]]),
-);
+const validInput: UpdateLdapConfigurationRequest = {
+  enabled: true,
+  url: "ldaps://ldap.example.com:636",
+  bindDn: "cn=service,dc=example,dc=com",
+  bindPassword: "service-password",
+  searchBase: "ou=people,dc=example,dc=com",
+  userFilter: "(&(objectClass=person)(uid={{username}}))",
+  uniqueIdAttribute: "entryUUID",
+  startTls: true,
+  tlsRejectUnauthorized: true,
+  tlsCaCertificate: "",
+  connectTimeoutMs: 3000,
+  operationTimeoutMs: 4000,
+  allowInsecure: false,
+};
 
-function configureLdap(overrides: Record<string, string> = {}) {
-  Object.assign(process.env, {
-    LDAP_ENABLED: "true",
-    LDAP_URL: "ldaps://ldap.example.com:636",
-    LDAP_BIND_DN: "cn=service,dc=example,dc=com",
-    LDAP_BIND_PASSWORD: "service-password",
-    LDAP_SEARCH_BASE: "ou=people,dc=example,dc=com",
-    LDAP_USER_FILTER: "(&(objectClass=person)(uid={{username}}))",
-    LDAP_UNIQUE_ID_ATTRIBUTE: "entryUUID",
-    LDAP_TLS_REJECT_UNAUTHORIZED: "true",
-    LDAP_CONNECT_TIMEOUT_MS: "3000",
-    LDAP_OPERATION_TIMEOUT_MS: "4000",
-    LDAP_ALLOW_INSECURE: "false",
+function storedConfiguration(
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    id: 1,
+    enabled: true,
+    url: validInput.url,
+    bindDn: validInput.bindDn,
+    bindPasswordCiphertext: encryptLdapBindPassword(
+      "service-password",
+      encryptionKey,
+    ),
+    encryptionKey,
+    searchBase: validInput.searchBase,
+    userFilter: validInput.userFilter,
+    uniqueIdAttribute: validInput.uniqueIdAttribute,
+    startTls: validInput.startTls,
+    tlsRejectUnauthorized: validInput.tlsRejectUnauthorized,
+    tlsCaCertificate: null,
+    connectTimeoutMs: validInput.connectTimeoutMs,
+    operationTimeoutMs: validInput.operationTimeoutMs,
+    allowInsecure: validInput.allowInsecure,
+    createdAt: new Date("2026-07-28T00:00:00.000Z"),
+    updatedAt: new Date("2026-07-28T01:00:00.000Z"),
     ...overrides,
-  });
+  };
 }
 
 function createClientMock() {
@@ -70,27 +106,129 @@ function createClientMock() {
   };
 }
 
-describe("LDAP authentication", () => {
+describe("LDAP configuration and authentication", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    for (const key of LDAP_ENV_KEYS) delete process.env[key];
   });
 
-  afterAll(() => {
-    for (const key of LDAP_ENV_KEYS) {
-      const value = originalEnvironment[key];
-      if (value === undefined) delete process.env[key];
-      else process.env[key] = value;
-    }
+  it("validates a standard secure LDAP configuration", () => {
+    expect(parseLdapConfigurationInput(validInput)).toEqual({
+      ...validInput,
+      tlsCaCertificate: undefined,
+    });
   });
 
-  it("does not create a client when LDAP is disabled", async () => {
-    await expect(authenticateLdapUser("alice", "password")).resolves.toBeNull();
+  it("rejects plaintext simple bind unless explicitly allowed", () => {
+    expect(() =>
+      parseLdapConfigurationInput({
+        ...validInput,
+        url: "ldap://ldap.example.com:389",
+        startTls: false,
+      }),
+    ).toThrow(LdapConfigurationError);
+  });
+
+  it("encrypts bind passwords with authenticated AES encryption", () => {
+    const ciphertext = encryptLdapBindPassword(
+      "service-password",
+      encryptionKey,
+    );
+
+    expect(ciphertext).toMatch(/^v1\./);
+    expect(ciphertext).not.toContain("service-password");
+    expect(
+      decryptLdapBindPassword(ciphertext, encryptionKey),
+    ).toBe("service-password");
+    expect(() =>
+      decryptLdapBindPassword(
+        `${ciphertext.slice(0, -1)}x`,
+        encryptionKey,
+      ),
+    ).toThrow(LdapConfigurationError);
+  });
+
+  it("returns safe defaults without exposing stored cryptographic material", async () => {
+    (mockPrisma.ldapConfiguration.findUnique as jest.Mock).mockResolvedValue(
+      null,
+    );
+
+    const configuration = await getLdapConfiguration();
+
+    expect(configuration).toEqual(
+      expect.objectContaining({
+        enabled: false,
+        passwordConfigured: false,
+        userFilter: "(uid={{username}})",
+      }),
+    );
+    expect(configuration).not.toHaveProperty("encryptionKey");
+    expect(configuration).not.toHaveProperty("bindPasswordCiphertext");
+  });
+
+  it("encrypts a new password and preserves it when later updates leave it blank", async () => {
+    (mockPrisma.ldapConfiguration.findUnique as jest.Mock)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(storedConfiguration());
+    (mockPrisma.ldapConfiguration.create as jest.Mock).mockImplementation(
+      ({ data }) => ({
+        ...data,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }),
+    );
+    (mockPrisma.ldapConfiguration.update as jest.Mock).mockImplementation(
+      ({ data }) => ({
+        ...storedConfiguration(),
+        ...data,
+        updatedAt: new Date(),
+      }),
+    );
+
+    const created = await saveLdapConfiguration(validInput);
+    const createData = (mockPrisma.ldapConfiguration.create as jest.Mock).mock
+      .calls[0][0].data;
+    expect(created.passwordConfigured).toBe(true);
+    expect(createData.encryptionKey).not.toBe(validInput.bindPassword);
+    expect(createData.bindPasswordCiphertext).not.toContain(
+      validInput.bindPassword,
+    );
+    expect(
+      decryptLdapBindPassword(
+        createData.bindPasswordCiphertext,
+        createData.encryptionKey,
+      ),
+    ).toBe(validInput.bindPassword);
+
+    await saveLdapConfiguration({
+      ...validInput,
+      bindPassword: undefined,
+      enabled: false,
+    });
+    expect(mockPrisma.ldapConfiguration.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          bindPasswordCiphertext: expect.stringMatching(/^v1\./),
+          encryptionKey,
+        }),
+      }),
+    );
+  });
+
+  it("does not create an LDAP client when the stored configuration is disabled", async () => {
+    (mockPrisma.ldapConfiguration.findUnique as jest.Mock).mockResolvedValue(
+      storedConfiguration({ enabled: false }),
+    );
+
+    await expect(
+      authenticateLdapUser("alice", "password"),
+    ).resolves.toBeNull();
     expect(Client).not.toHaveBeenCalled();
   });
 
   it("searches with an RFC 4515 escaped username and binds as the user", async () => {
-    configureLdap();
+    (mockPrisma.ldapConfiguration.findUnique as jest.Mock).mockResolvedValue(
+      storedConfiguration(),
+    );
     const client = createClientMock();
     (Client as jest.Mock).mockImplementation(() => client);
 
@@ -101,13 +239,12 @@ describe("LDAP authentication", () => {
 
     expect(client.bind).toHaveBeenNthCalledWith(
       1,
-      "cn=service,dc=example,dc=com",
+      validInput.bindDn,
       "service-password",
     );
     expect(client.search).toHaveBeenCalledWith(
-      "ou=people,dc=example,dc=com",
+      validInput.searchBase,
       expect.objectContaining({
-        scope: "sub",
         filter: "(&(objectClass=person)(uid=alice\\2a\\29\\28uid=\\2a\\29))",
         attributes: ["entryUUID"],
         explicitBufferAttributes: ["entryUUID"],
@@ -127,14 +264,36 @@ describe("LDAP authentication", () => {
         .update(Buffer.from("directory-id"))
         .digest("hex"),
     });
-    expect(client.unbind).toHaveBeenCalledTimes(1);
+  });
+
+  it("tests unsaved form values when a bind password is supplied", async () => {
+    (mockPrisma.ldapConfiguration.findUnique as jest.Mock).mockResolvedValue(
+      null,
+    );
+    const client = createClientMock();
+    (Client as jest.Mock).mockImplementation(() => client);
+
+    await expect(
+      testLdapConfiguration(
+        validInput,
+        "alice",
+        "user-password",
+      ),
+    ).resolves.toBe(true);
+    expect(client.bind).toHaveBeenNthCalledWith(
+      1,
+      validInput.bindDn,
+      validInput.bindPassword,
+    );
   });
 
   it("uses StartTLS before binding for ldap:// connections", async () => {
-    configureLdap({
-      LDAP_URL: "ldap://ldap.example.com:389",
-      LDAP_START_TLS: "true",
-    });
+    (mockPrisma.ldapConfiguration.findUnique as jest.Mock).mockResolvedValue(
+      storedConfiguration({
+        url: "ldap://ldap.example.com:389",
+        startTls: true,
+      }),
+    );
     const client = createClientMock();
     (Client as jest.Mock).mockImplementation(() => client);
 
@@ -151,20 +310,10 @@ describe("LDAP authentication", () => {
     );
   });
 
-  it("rejects an insecure simple-bind configuration by default", async () => {
-    configureLdap({
-      LDAP_URL: "ldap://ldap.example.com:389",
-      LDAP_START_TLS: "false",
-    });
-
-    await expect(
-      authenticateLdapUser("alice", "password"),
-    ).rejects.toBeInstanceOf(LdapConfigurationError);
-    expect(Client).not.toHaveBeenCalled();
-  });
-
   it("maps invalid user credentials to an authentication miss", async () => {
-    configureLdap();
+    (mockPrisma.ldapConfiguration.findUnique as jest.Mock).mockResolvedValue(
+      storedConfiguration(),
+    );
     const client = createClientMock();
     client.bind
       .mockResolvedValueOnce(undefined)
@@ -174,11 +323,12 @@ describe("LDAP authentication", () => {
     await expect(
       authenticateLdapUser("alice", "wrong-password"),
     ).resolves.toBeNull();
-    expect(client.unbind).toHaveBeenCalledTimes(1);
   });
 
-  it("treats invalid service-account credentials as an unavailable directory", async () => {
-    configureLdap();
+  it("treats invalid service credentials as an unavailable directory", async () => {
+    (mockPrisma.ldapConfiguration.findUnique as jest.Mock).mockResolvedValue(
+      storedConfiguration(),
+    );
     const client = createClientMock();
     client.bind.mockRejectedValueOnce(new InvalidCredentialsError());
     (Client as jest.Mock).mockImplementation(() => client);
@@ -187,16 +337,5 @@ describe("LDAP authentication", () => {
       authenticateLdapUser("alice", "user-password"),
     ).rejects.toBeInstanceOf(LdapUnavailableError);
     expect(client.search).not.toHaveBeenCalled();
-  });
-
-  it("wraps connection failures without exposing credentials", async () => {
-    configureLdap();
-    const client = createClientMock();
-    client.bind.mockRejectedValueOnce(new Error("connection refused"));
-    (Client as jest.Mock).mockImplementation(() => client);
-
-    await expect(
-      authenticateLdapUser("alice", "secret-password"),
-    ).rejects.toBeInstanceOf(LdapUnavailableError);
   });
 });

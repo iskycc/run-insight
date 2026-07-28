@@ -17,6 +17,7 @@ const SENSITIVE_CHANGE_KEYS = new Set([
   "cookie",
   "set-cookie",
   "key",
+  "encryptionkey",
   "apikey",
   "keyhash",
   "rawkey",
