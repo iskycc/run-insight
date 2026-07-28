@@ -4,7 +4,6 @@
 
 import '@testing-library/jest-dom';
 import { render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { usePathname } from 'next/navigation';
 import { Nav } from '@/components/layout/Nav';
 import { AuthProvider } from '@/components/shared/AuthProvider';
@@ -36,38 +35,40 @@ describe('Nav', () => {
     jest.clearAllMocks();
   });
 
-  it('makes project, history, report and admin areas discoverable for administrators', async () => {
-    const user = userEvent.setup();
+  it('uses one platform entry instead of a more menu for administrators', async () => {
     renderNav({ id: 'u-1', username: 'admin', role: 'ADMIN' });
 
     await waitFor(() => expect(screen.getByRole('link', { name: '项目' })).toBeInTheDocument());
     expect(screen.getByRole('link', { name: '大盘' })).toHaveAttribute('href', '/');
-    await user.click(screen.getByRole('button', { name: /更多/ }));
-    expect(screen.getByRole('menuitem', { name: '责任人报告' })).toHaveAttribute(
-      'href',
-      '/reports/assignee'
-    );
-    expect(screen.getByRole('menuitem', { name: '导入历史' })).toHaveAttribute(
-      'href',
-      '/import-history'
-    );
-    expect(screen.getByRole('menuitem', { name: '平台管理' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: '平台管理' })).toHaveAttribute(
       'href',
       '/admin/users'
     );
+    expect(screen.queryByRole('button', { name: /更多/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '责任人报告' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '导入历史' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: '项目' })).toHaveAttribute('aria-current', 'page');
   });
 
-  it('hides mutating and administrative entries for viewers', async () => {
-    const user = userEvent.setup();
+  it('keeps reporting available to viewers through the platform entry', async () => {
     renderNav({ id: 'u-2', username: 'viewer', role: 'VIEWER' });
 
     await waitFor(() => expect(screen.getByRole('link', { name: '项目' })).toBeInTheDocument());
     expect(screen.queryByRole('link', { name: '导入' })).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /更多/ }));
-    expect(screen.getByRole('menuitem', { name: '导入历史' })).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: '责任人报告' })).toBeInTheDocument();
-    expect(screen.queryByRole('menuitem', { name: '平台管理' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '平台管理' })).toHaveAttribute(
+      'href',
+      '/reports/assignee',
+    );
+    expect(screen.queryByRole('button', { name: /更多/ })).not.toBeInTheDocument();
+  });
+
+  it('marks platform management active on merged report routes', async () => {
+    mockedUsePathname.mockReturnValue('/import-history/record-1');
+    renderNav({ id: 'u-2', username: 'viewer', role: 'VIEWER' });
+
+    expect(
+      await screen.findByRole('link', { name: '平台管理' }),
+    ).toHaveAttribute('aria-current', 'page');
   });
 
   it('hides navigation for guests because the dashboard is the default page', async () => {

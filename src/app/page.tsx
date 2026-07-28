@@ -132,8 +132,8 @@ export default function DashboardPage() {
           </section>
         </div>
 
-        <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.3fr)]">
-          <div className="grid gap-5">
+        <div className="grid items-stretch gap-5 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.3fr)]">
+          <div className="grid h-full gap-5">
             <ProgressDistribution data={stats?.progressDistribution ?? []} />
             <ResultComposition
               passed={stats?.passedCaseCount ?? 0}

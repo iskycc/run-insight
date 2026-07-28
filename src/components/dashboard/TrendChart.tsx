@@ -34,7 +34,7 @@ function formatBatchTooltipDate(executedAt: string) {
 export default function TrendChart({ data }: TrendChartProps) {
   if (!data || data.length === 0) {
     return (
-      <div className="bento-panel flex min-h-72 items-center justify-center p-8 text-text-secondary">
+      <div className="bento-panel flex h-full min-h-72 items-center justify-center p-8 text-text-secondary">
         暂无数据
       </div>
     );
@@ -45,7 +45,7 @@ export default function TrendChart({ data }: TrendChartProps) {
   );
 
   return (
-    <section className="bento-panel p-5 sm:p-6" aria-labelledby="quality-trend-title">
+    <section className="bento-panel h-full p-5 sm:p-6" aria-labelledby="quality-trend-title">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
           <h3 id="quality-trend-title" className="text-base font-semibold text-text-primary">最近批跑质量趋势</h3>

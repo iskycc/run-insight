@@ -48,16 +48,16 @@ export default function ProgressDistribution({ data }: ProgressDistributionProps
         </div>
         <span className="text-xs font-medium text-text-secondary">共 {total} 条</span>
       </div>
-      <div className="grid items-center gap-5 sm:grid-cols-[minmax(150px,0.72fr)_minmax(0,1.28fr)]">
-        <div className="relative mx-auto h-48 w-full max-w-56">
+      <div className="grid items-center gap-5 sm:grid-cols-[minmax(164px,0.72fr)_minmax(0,1.28fr)]">
+        <div className="relative mx-auto h-44 w-full min-w-0 max-w-52">
           <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
+            <PieChart margin={{ top: 6, right: 6, bottom: 6, left: 6 }}>
               <Pie
                 data={sortedData}
                 dataKey="count"
                 nameKey="category"
-                innerRadius={52}
-                outerRadius={78}
+                innerRadius={46}
+                outerRadius={68}
                 paddingAngle={1.5}
                 stroke="#ffffff"
                 strokeWidth={2}

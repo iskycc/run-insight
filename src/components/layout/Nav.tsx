@@ -2,14 +2,11 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Archive,
   ArrowsLeftRight,
-  ChartBar,
   CheckSquare,
-  ClockCounterClockwise,
-  DotsThree,
   Folder,
   GearSix,
   House,
@@ -28,6 +25,7 @@ type NavItem = {
   icon: typeof House;
   public?: boolean;
   roles?: readonly NavRole[];
+  activePrefixes?: readonly string[];
 };
 
 const NAV_ITEMS: ReadonlyArray<NavItem> = [
@@ -40,19 +38,11 @@ const NAV_ITEMS: ReadonlyArray<NavItem> = [
   { href: '/import', label: '导入', icon: UploadSimple, roles: ['ADMIN', 'EDITOR'] },
 ] as const;
 
-const MORE_NAV_ITEMS: ReadonlyArray<NavItem> = [
-  { href: '/reports/assignee', label: '责任人报告', icon: ChartBar },
-  { href: '/import-history', label: '导入历史', icon: ClockCounterClockwise },
-  { href: '/admin/users', label: '平台管理', icon: GearSix, roles: ['ADMIN'] },
-] as const;
-
 export function Nav() {
   const pathname = usePathname();
   const { user } = useAuth();
   const [isMobile, setIsMobile] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [moreOpen, setMoreOpen] = useState(false);
-  const moreRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (typeof window.matchMedia !== 'function') return;
@@ -63,71 +53,50 @@ export function Nav() {
     return () => media.removeEventListener('change', update);
   }, []);
 
-  useEffect(() => {
-    if (!moreOpen) return;
-    const closeMenu = (event: MouseEvent) => {
-      if (!moreRef.current?.contains(event.target as Node)) setMoreOpen(false);
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setMoreOpen(false);
-    };
-    document.addEventListener('mousedown', closeMenu);
-    document.addEventListener('keydown', closeOnEscape);
-    return () => {
-      document.removeEventListener('mousedown', closeMenu);
-      document.removeEventListener('keydown', closeOnEscape);
-    };
-  }, [moreOpen]);
-
   if (!user) return null;
 
-  const visibleItems = [...NAV_ITEMS, ...MORE_NAV_ITEMS].filter((item) => {
+  const platformItem: NavItem = {
+    href: user.role === 'ADMIN' ? '/admin/users' : '/reports/assignee',
+    label: '平台管理',
+    icon: GearSix,
+    activePrefixes: ['/admin', '/reports/assignee', '/import-history'],
+  };
+  const visibleItems = [...NAV_ITEMS, platformItem].filter((item) => {
     if (item.public) return true;
     return !item.roles || (!!user.role && item.roles.includes(user.role));
   });
 
-  const primaryItems = visibleItems.filter((item) => NAV_ITEMS.includes(item));
-  const moreItems = visibleItems.filter((item) => MORE_NAV_ITEMS.includes(item));
-  const isItemActive = (href: string) =>
-    href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(`${href}/`);
-  const isMoreActive = moreItems.some((item) => isItemActive(item.href));
+  const isItemActive = (item: NavItem) =>
+    item.href === '/'
+      ? pathname === '/'
+      : pathname === item.href
+        || pathname.startsWith(`${item.href}/`)
+        || item.activePrefixes?.some(
+          (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+        ) === true;
 
-  const renderNavLink = (
-    item: (typeof visibleItems)[number],
-    mobile: boolean,
-    menuItem = false,
-  ) => {
-    const isActive = isItemActive(item.href);
+  const renderNavLink = (item: NavItem, mobile: boolean) => {
+    const isActive = isItemActive(item);
     const Icon = item.icon;
     return (
       <Link
         key={item.href}
         href={item.href}
-        role={menuItem ? 'menuitem' : undefined}
-        onClick={() => {
-          setMobileOpen(false);
-          setMoreOpen(false);
-        }}
+        onClick={() => setMobileOpen(false)}
         aria-current={isActive ? 'page' : undefined}
         className={
-          menuItem
-            ? `flex min-h-10 w-full items-center gap-2 rounded-[9px] px-3 text-sm transition-colors no-underline hover:no-underline ${
-                isActive
-                  ? 'bg-accent/10 font-semibold text-accent'
-                  : 'text-text-secondary hover:bg-bg hover:text-text-primary'
-              }`
-            : `relative flex items-center whitespace-nowrap text-sm tracking-[-0.01em] transition-colors no-underline hover:no-underline ${
-                mobile ? 'min-h-10 rounded-[11px] px-3' : 'min-h-12 rounded-lg px-3'
-              } ${
-                isActive
-                  ? mobile
-                    ? 'bg-surface-solid font-semibold text-accent shadow-sm ring-1 ring-border'
-                    : 'font-semibold text-accent after:absolute after:inset-x-2 after:-bottom-1 after:h-0.5 after:rounded-full after:bg-accent'
-                  : 'font-normal text-text-secondary hover:bg-surface-solid/70 hover:text-text-primary'
-              }`
+          `relative flex items-center whitespace-nowrap text-sm tracking-[-0.01em] transition-colors no-underline hover:no-underline ${
+            mobile ? 'min-h-10 rounded-[11px] px-3' : 'min-h-12 rounded-lg px-3'
+          } ${
+            isActive
+              ? mobile
+                ? 'bg-surface-solid font-semibold text-accent shadow-sm ring-1 ring-border'
+                : 'font-semibold text-accent after:absolute after:inset-x-2 after:-bottom-1 after:h-0.5 after:rounded-full after:bg-accent'
+              : 'font-normal text-text-secondary hover:bg-surface-solid/70 hover:text-text-primary'
+          }`
         }
       >
-        {(mobile || menuItem) && <Icon size={17} className={mobile ? 'mr-2' : ''} aria-hidden="true" />}
+        {mobile && <Icon size={17} className="mr-2" aria-hidden="true" />}
         {item.label}
       </Link>
     );
@@ -135,34 +104,7 @@ export function Nav() {
 
   const desktopNav = (
     <div className="flex min-w-0 items-center justify-center gap-0.5">
-      {primaryItems.map((item) => renderNavLink(item, false))}
-      {moreItems.length > 0 && (
-        <div className="relative" ref={moreRef}>
-          <button
-            type="button"
-            onClick={() => setMoreOpen((open) => !open)}
-            aria-haspopup="menu"
-            aria-expanded={moreOpen}
-            className={`relative flex min-h-12 items-center gap-1 whitespace-nowrap rounded-lg px-3 text-sm tracking-[-0.01em] transition-colors ${
-              isMoreActive
-                ? 'font-semibold text-accent after:absolute after:inset-x-2 after:-bottom-1 after:h-0.5 after:rounded-full after:bg-accent'
-                : 'font-normal text-text-secondary hover:bg-surface-solid/70 hover:text-text-primary'
-            }`}
-          >
-            更多
-            <DotsThree size={18} weight="bold" aria-hidden="true" />
-          </button>
-          {moreOpen && (
-            <div
-              role="menu"
-              aria-label="更多导航"
-              className="dropdown-surface absolute right-0 top-full z-50 mt-2 w-44 rounded-[14px] border border-border bg-surface-solid p-1.5 shadow-lg"
-            >
-              {moreItems.map((item) => renderNavLink(item, false, true))}
-            </div>
-          )}
-        </div>
-      )}
+      {visibleItems.map((item) => renderNavLink(item, false))}
     </div>
   );
 

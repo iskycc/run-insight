@@ -28,7 +28,7 @@ export function SecondaryNav({ title, subtitle, items }: SecondaryNavProps) {
         </div>
         <nav
           aria-label={`${title}导航`}
-          className="flex w-full items-stretch gap-1 sm:w-auto sm:items-center sm:gap-2"
+          className="flex w-full items-stretch gap-1 overflow-x-auto pb-1 sm:w-auto sm:items-center sm:gap-2 sm:pb-0"
         >
           {items.map((item) => {
             const isActive =
@@ -40,7 +40,7 @@ export function SecondaryNav({ title, subtitle, items }: SecondaryNavProps) {
                 key={item.href}
                 href={item.href}
                 aria-current={isActive ? 'page' : undefined}
-                className={`flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-1 whitespace-nowrap rounded-[11px] px-1.5 text-xs font-medium transition-colors no-underline hover:no-underline sm:min-h-10 sm:flex-none sm:flex-row sm:gap-2 sm:px-3 sm:text-sm
+                className={`flex min-h-12 min-w-[88px] flex-none flex-col items-center justify-center gap-1 whitespace-nowrap rounded-[11px] px-2 text-xs font-medium transition-colors no-underline hover:no-underline sm:min-h-10 sm:min-w-0 sm:flex-row sm:gap-2 sm:px-3 sm:text-sm
                   ${
                     isActive
                       ? 'bg-accent text-white shadow-sm'
